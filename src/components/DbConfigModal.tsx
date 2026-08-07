@@ -27,10 +27,11 @@ export const DbConfigModal: React.FC<DbConfigModalProps> = ({ config, onUpdateCo
       ...firebaseConfig,
       apiKey: firebaseConfig.apiKey.trim(),
       projectId: firebaseConfig.projectId.trim(),
-      authDomain: firebaseConfig.authDomain.trim(),
-      storageBucket: firebaseConfig.storageBucket.trim(),
-      messagingSenderId: firebaseConfig.messagingSenderId.trim(),
-      appId: firebaseConfig.appId.trim(),
+      authDomain: (firebaseConfig.authDomain || '').trim(),
+      databaseURL: (firebaseConfig.databaseURL || '').trim(),
+      storageBucket: (firebaseConfig.storageBucket || '').trim(),
+      messagingSenderId: (firebaseConfig.messagingSenderId || '').trim(),
+      appId: (firebaseConfig.appId || '').trim(),
       isConnected: isConn
     };
     saveFirebaseConfig(updated);
@@ -144,13 +145,13 @@ export const DbConfigModal: React.FC<DbConfigModalProps> = ({ config, onUpdateCo
               </div>
 
               <div>
-                <label style={{ fontSize: '0.78rem', color: 'var(--text-tertiary)', display: 'block', marginBottom: '4px' }}>Auth Domain (authDomain):</label>
+                <label style={{ fontSize: '0.78rem', color: 'var(--text-tertiary)', display: 'block', marginBottom: '4px' }}>Realtime DB URL (databaseURL):</label>
                 <input
                   type="text"
                   className="input-field"
-                  placeholder="app.firebaseapp.com"
-                  value={firebaseConfig.authDomain}
-                  onChange={(e) => setFirebaseConfigState({ ...firebaseConfig, authDomain: e.target.value })}
+                  placeholder="https://app-default-rtdb.firebaseio.com"
+                  value={firebaseConfig.databaseURL || ''}
+                  onChange={(e) => setFirebaseConfigState({ ...firebaseConfig, databaseURL: e.target.value })}
                   style={{ fontSize: '0.82rem' }}
                 />
               </div>
