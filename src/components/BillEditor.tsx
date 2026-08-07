@@ -1,9 +1,12 @@
 import React, { useState } from 'react';
 import type { Bill, ComparisonRow, AccessPermission, UserProfile, VoteDecision, CommissionVotes, BillStatus, FederalGovernmentVerdict } from '../types/bill';
 import { OFFICIAL_ROLE_LABELS } from '../types/bill';
+import { STATE_LAWS } from '../data/stateLaws';
+import { computeWordDiff } from '../services/diffService';
 import { sanitizeInput, isOfficialCommitteeMember, isSystemAdmin, computeDocumentHash } from '../services/securityService';
 import { CommentsSection } from './CommentsSection';
 import { ExpandedArticleModal } from './ExpandedArticleModal';
+import { CustomSelect } from './CustomSelect';
 import { 
   ArrowLeft, 
   Save, 
@@ -21,7 +24,10 @@ import {
   Check,
   ShieldCheck,
   Lock,
-  AlertTriangle
+  AlertTriangle,
+  BookOpen,
+  Search,
+  FileCode
 } from 'lucide-react';
 
 interface BillEditorProps {
@@ -47,6 +53,14 @@ export const BillEditor: React.FC<BillEditorProps> = ({
   const [activeTab, setActiveTab] = useState<'editor' | 'comments'>('editor');
   const [isSavedNotice, setIsSavedNotice] = useState(false);
 
+  // View vs Diff Mode Toggle
+  const [showDiffHighlight, setShowDiffHighlight] = useState(true);
+
+  // State Laws Article Picker State
+  const [selectedLawId, setSelectedLawId] = useState<string>(STATE_LAWS[0].id);
+  const [articleSearchQuery, setArticleSearchQuery] = useState('');
+  const [showLawPickerModal, setShowLawPickerModal] = useState(false);
+
   // Fullscreen Article Expander Modal State
   const [expandedRow, setExpandedRow] = useState<ComparisonRow | null>(null);
 
@@ -69,7 +83,36 @@ export const BillEditor: React.FC<BillEditorProps> = ({
     setBill((prev) => ({ ...prev, [field]: value }));
   };
 
-  // 1-st STAGE: Collegial Commission Vote (Only Prosecutor, Judge, Governor)
+  // State Law Selection Handler
+  const handleSelectLaw = (lawId: string) => {
+    setSelectedLawId(lawId);
+    const targetLawObj = STATE_LAWS.find((l) => l.id === lawId);
+    if (targetLawObj && canEdit) {
+      setBill((prev) => ({ ...prev, targetLaw: targetLawObj.title }));
+    }
+  };
+
+  // Auto-Fill Article into "Было" and "Стало"
+  const handleAutoFillArticle = (articleNumber: string, articleTitle: string, content: string) => {
+    if (!canEdit) return;
+    const newRow: ComparisonRow = {
+      id: 'comp_' + Date.now() + '_' + Math.random().toString(36).substring(2, 5),
+      articleTitle: `${articleNumber}. ${articleTitle}`,
+      wasContent: content,
+      becameContent: content, // Pre-populated for easy editing!
+      notes: ''
+    };
+
+    setBill((prev) => ({
+      ...prev,
+      comparisons: [...prev.comparisons, newRow]
+    }));
+
+    setShowLawPickerModal(false);
+    onToast('success', `Статья ${articleNumber} автозаполнена в «Было» и «Стало»!`);
+  };
+
+  // 1-st STAGE: Collegial Commission Vote
   const handleCastCommissionVote = (decision: VoteDecision) => {
     if (!isCommittee) {
       onToast('error', 'Первый этап коллегиального голосования доступен только Прокурору, Судье и Губернатору.');
@@ -95,7 +138,6 @@ export const BillEditor: React.FC<BillEditorProps> = ({
     let newStatus = bill.status;
     let statusReason = bill.statusReason || '';
 
-    // If ALL 3 Commission Members Voted -> Tally 1st Stage Result!
     if (votedCount >= 3) {
       const tally: Record<VoteDecision, number> = { approved: 0, rejected: 0, needs_revision: 0 };
       if (updatedVotes.prosecutor) tally[updatedVotes.prosecutor]++;
@@ -130,7 +172,7 @@ export const BillEditor: React.FC<BillEditorProps> = ({
     onSave(updatedBill);
   };
 
-  // 2-nd STAGE: Federal Government Action Trigger
+  // 2-nd STAGE: Federal Government Verdict Modal
   const handleOpenFedVerdictModal = (decision: VoteDecision) => {
     if (!isAdmin) {
       onToast('error', 'Только Федеральное Правительство (Администрация) выносит вердикт 2-го этапа.');
@@ -138,10 +180,8 @@ export const BillEditor: React.FC<BillEditorProps> = ({
     }
 
     if (decision === 'approved') {
-      // Approve can be applied directly or with optional note
       executeFederalVerdict('approved', 'Официально утверждено Федеральным Правительством.');
     } else {
-      // Rejection or Revision requires mandatory written justification modal
       setPendingFedStatus(decision);
       setFedReasonInput('');
       setShowFedModal(true);
@@ -170,7 +210,7 @@ export const BillEditor: React.FC<BillEditorProps> = ({
         ? 'Специальной законодательной комиссией законопроект был ОДОБРЕН, однако Федеральным Правительством отправлен НА ДОРАБОТКУ.'
         : 'Отправлено на доработку Федеральным Правительством.';
     } else {
-      officialStatusReason = 'Законопроект прошли оба этапа: Одобрен Законодательной Комиссией и официально утвержден Федеральным Правительством.';
+      officialStatusReason = 'Законопроект прошел оба этапа: Одобрен Законодательной Комиссией и официально утвержден Федеральным Правительством.';
     }
 
     const updatedBill: Bill = {
@@ -196,7 +236,6 @@ export const BillEditor: React.FC<BillEditorProps> = ({
     }
   };
 
-  // Publish Draft Handler
   const handlePublishDraft = () => {
     const updated = {
       ...bill,
@@ -264,6 +303,13 @@ export const BillEditor: React.FC<BillEditorProps> = ({
     return <span style={{ color: '#93c5fd', fontSize: '0.78rem', fontWeight: 600 }}>🔄 На доработку</span>;
   };
 
+  // Active Law Object for Picker
+  const activeLawObj = STATE_LAWS.find((l) => l.id === selectedLawId) || STATE_LAWS[0];
+  const filteredArticles = activeLawObj.articles.filter((art) => {
+    const q = articleSearchQuery.toLowerCase();
+    return art.articleNumber.toLowerCase().includes(q) || art.title.toLowerCase().includes(q) || art.content.toLowerCase().includes(q);
+  });
+
   return (
     <div style={{ maxWidth: '1240px', margin: '0 auto', padding: '0 24px 60px 24px' }}>
       
@@ -303,7 +349,7 @@ export const BillEditor: React.FC<BillEditorProps> = ({
         </div>
       </div>
 
-      {/* 1-st STAGE PANEL: Collegial Commission Voting (Prosecutor, Judge, Governor) */}
+      {/* 1-st STAGE PANEL: Collegial Commission Voting */}
       <div 
         className="card-dark" 
         style={{ 
@@ -381,7 +427,7 @@ export const BillEditor: React.FC<BillEditorProps> = ({
         )}
       </div>
 
-      {/* 2-nd STAGE PANEL: Federal Government Action (Administrator Only) */}
+      {/* 2-nd STAGE PANEL: Federal Government Action */}
       {isAdmin && (
         <div 
           className="card-dark" 
@@ -465,25 +511,33 @@ export const BillEditor: React.FC<BillEditorProps> = ({
               </span>
             </div>
 
-            {/* Registration Code */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <span style={{ fontSize: '0.82rem', color: 'var(--text-tertiary)' }}>Рег. номер:</span>
-              {canEdit ? (
-                <input
-                  type="text"
-                  className="input-field"
-                  value={bill.lawCode || ''}
-                  onChange={(e) => handleFieldChange('lawCode', e.target.value)}
-                  placeholder="ЗП-2026/001"
-                  style={{ width: '130px', padding: '4px 10px', fontSize: '0.82rem', fontFamily: 'var(--font-mono)' }}
-                />
-              ) : (
-                <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-primary)', fontSize: '0.88rem' }}>{bill.lawCode}</span>
+            {/* Registration Code & SHA-256 Hash Badge */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              {bill.sha256Hash && (
+                <span style={{ fontSize: '0.72rem', background: 'rgba(52, 211, 153, 0.12)', color: '#34d399', padding: '3px 8px', borderRadius: '4px', border: '1px solid rgba(52, 211, 153, 0.3)', fontFamily: 'var(--font-mono)' }} title="SHA-256 Отпечаток целостности подтвержден">
+                  ✓ SHA-256: {bill.sha256Hash.substring(0, 8)}...
+                </span>
               )}
+              
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ fontSize: '0.82rem', color: 'var(--text-tertiary)' }}>Рег. номер:</span>
+                {canEdit ? (
+                  <input
+                    type="text"
+                    className="input-field"
+                    value={bill.lawCode || ''}
+                    onChange={(e) => handleFieldChange('lawCode', e.target.value)}
+                    placeholder="ЗП-2026/001"
+                    style={{ width: '130px', padding: '4px 10px', fontSize: '0.82rem', fontFamily: 'var(--font-mono)' }}
+                  />
+                ) : (
+                  <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-primary)', fontSize: '0.88rem' }}>{bill.lawCode}</span>
+                )}
+              </div>
             </div>
           </div>
 
-          {/* Official Public Status Message (Visible to Author & Everyone) */}
+          {/* Official Public Status Message */}
           {bill.statusReason && (
             <div style={{ fontSize: '0.86rem', color: 'var(--text-primary)', background: 'var(--bg-input)', border: '1px solid var(--border-medium)', padding: '12px 16px', borderRadius: '10px', marginBottom: '16px', lineHeight: 1.5, display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
               <AlertTriangle size={18} color="#facc15" style={{ flexShrink: 0, marginTop: '2px' }} />
@@ -513,59 +567,93 @@ export const BillEditor: React.FC<BillEditorProps> = ({
             )}
           </div>
 
-          {/* Target Law Input */}
-          <div>
-            <label style={{ fontSize: '0.8rem', color: 'var(--text-tertiary)', display: 'block', marginBottom: '4px' }}>
-              ИМЯ / НАЗВАНИЕ ИСХОДНОГО ЗАКОНА (к которому ведется законопроект):
-            </label>
+          {/* STATE LAWS SELECTOR & AUTO-FILL ARTICLE PICKER */}
+          <div style={{ background: 'var(--bg-input)', border: '1px solid var(--border-medium)', borderRadius: '12px', padding: '16px', marginBottom: '16px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px', flexWrap: 'wrap', gap: '10px' }}>
+              <label style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <BookOpen size={16} /> ИЗМЕНЯЕМЫЙ НОРМАТИВНО-ПРАВОВОЙ АКТ И СТАТЬИ ШТАТА (GTA5RP):
+              </label>
+
+              {canEdit && (
+                <button 
+                  onClick={() => setShowLawPickerModal(true)} 
+                  className="btn btn-primary" 
+                  style={{ fontSize: '0.8rem', padding: '5px 12px' }}
+                >
+                  <Search size={14} /> 🔍 Найти и добавить статью закона...
+                </button>
+              )}
+            </div>
+
             {canEdit ? (
-              <input
-                type="text"
-                className="input-field"
-                value={bill.targetLaw}
-                onChange={(e) => handleFieldChange('targetLaw', e.target.value)}
-                placeholder="Например: Закон «О дорожном движении»..."
-                style={{ fontWeight: 500, color: 'var(--text-primary)' }}
+              <CustomSelect
+                options={STATE_LAWS.map((law) => ({
+                  value: law.id,
+                  label: `${law.title} (${law.code})`
+                }))}
+                value={selectedLawId}
+                onChange={handleSelectLaw}
+                width="100%"
               />
             ) : (
-              <div style={{ fontSize: '0.95rem', color: 'var(--text-primary)', fontWeight: 500 }}>{bill.targetLaw}</div>
+              <div style={{ fontSize: '0.95rem', color: 'var(--text-primary)', fontWeight: 600 }}>
+                {bill.targetLaw}
+              </div>
             )}
           </div>
         </div>
 
-        {/* Navigation Tabs */}
-        <div style={{ display: 'flex', gap: '12px', borderBottom: '1px solid var(--border-subtle)', marginBottom: '24px' }}>
-          <button
-            onClick={() => setActiveTab('editor')}
-            style={{
-              background: 'none',
-              border: 'none',
-              borderBottom: activeTab === 'editor' ? '2px solid var(--text-primary)' : '2px solid transparent',
-              color: activeTab === 'editor' ? 'var(--text-primary)' : 'var(--text-tertiary)',
-              fontSize: '0.9rem',
-              fontWeight: 500,
-              padding: '8px 12px',
-              cursor: 'pointer'
-            }}
-          >
-            Сравнительная таблица («Было / Стало»)
-          </button>
+        {/* Navigation Tabs & Diff Mode Toggle */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border-subtle)', marginBottom: '24px', flexWrap: 'wrap', gap: '10px' }}>
+          <div style={{ display: 'flex', gap: '12px' }}>
+            <button
+              onClick={() => setActiveTab('editor')}
+              style={{
+                background: 'none',
+                border: 'none',
+                borderBottom: activeTab === 'editor' ? '2px solid var(--text-primary)' : '2px solid transparent',
+                color: activeTab === 'editor' ? 'var(--text-primary)' : 'var(--text-tertiary)',
+                fontSize: '0.9rem',
+                fontWeight: 500,
+                padding: '8px 12px',
+                cursor: 'pointer'
+              }}
+            >
+              Сравнительная таблица («Было / Стало»)
+            </button>
 
-          <button
-            onClick={() => setActiveTab('comments')}
-            style={{
-              background: 'none',
-              border: 'none',
-              borderBottom: activeTab === 'comments' ? '2px solid var(--text-primary)' : '2px solid transparent',
-              color: activeTab === 'comments' ? 'var(--text-primary)' : 'var(--text-tertiary)',
-              fontSize: '0.9rem',
-              fontWeight: 500,
-              padding: '8px 12px',
-              cursor: 'pointer'
-            }}
-          >
-            Комментарии ({bill.comments?.length || 0})
-          </button>
+            <button
+              onClick={() => setActiveTab('comments')}
+              style={{
+                background: 'none',
+                border: 'none',
+                borderBottom: activeTab === 'comments' ? '2px solid var(--text-primary)' : '2px solid transparent',
+                color: activeTab === 'comments' ? 'var(--text-primary)' : 'var(--text-tertiary)',
+                fontSize: '0.9rem',
+                fontWeight: 500,
+                padding: '8px 12px',
+                cursor: 'pointer'
+              }}
+            >
+              Комментарии ({bill.comments?.length || 0})
+            </button>
+          </div>
+
+          {activeTab === 'editor' && (
+            <button
+              onClick={() => setShowDiffHighlight(!showDiffHighlight)}
+              className="btn btn-secondary"
+              style={{
+                fontSize: '0.78rem',
+                padding: '4px 10px',
+                background: showDiffHighlight ? 'rgba(52, 211, 153, 0.15)' : 'transparent',
+                borderColor: showDiffHighlight ? 'rgba(52, 211, 153, 0.4)' : 'var(--border-subtle)',
+                color: showDiffHighlight ? '#34d399' : 'var(--text-secondary)'
+              }}
+            >
+              <FileCode size={13} /> {showDiffHighlight ? '✨ Подсветка правки активна (Зачеркивание / Зеленый цвет)' : 'Обычный просмотр'}
+            </button>
+          )}
         </div>
 
         {activeTab === 'comments' ? (
@@ -590,7 +678,7 @@ export const BillEditor: React.FC<BillEditorProps> = ({
 
                 {canEdit && (
                   <button onClick={handleAddComparisonRow} className="btn btn-secondary" style={{ padding: '6px 12px', fontSize: '0.82rem' }}>
-                    <Plus size={15} /> Добавить статью
+                    <Plus size={15} /> Добавить статью вручную
                   </button>
                 )}
               </div>
@@ -606,82 +694,108 @@ export const BillEditor: React.FC<BillEditorProps> = ({
                     </tr>
                   </thead>
                   <tbody>
-                    {bill.comparisons.map((row) => (
-                      <tr key={row.id}>
-                        {/* Was Cell */}
-                        <td className="cell-was">
-                          <div style={{ marginBottom: '6px' }}>
+                    {bill.comparisons.map((row) => {
+                      const diff = computeWordDiff(row.wasContent, row.becameContent);
+
+                      return (
+                        <tr key={row.id}>
+                          {/* Was Cell */}
+                          <td className="cell-was">
+                            <div style={{ marginBottom: '6px' }}>
+                              {canEdit ? (
+                                <input
+                                  type="text"
+                                  className="input-field"
+                                  value={row.articleTitle}
+                                  onChange={(e) => handleUpdateRow(row.id, 'articleTitle', e.target.value)}
+                                  placeholder="Статья / Норма..."
+                                  style={{ fontWeight: 600, fontSize: '0.88rem', marginBottom: '6px' }}
+                                />
+                              ) : (
+                                <div style={{ fontWeight: 600, marginBottom: '4px' }}>
+                                  {row.articleTitle}
+                                </div>
+                              )}
+                            </div>
+
                             {canEdit ? (
-                              <input
-                                type="text"
-                                className="input-field"
-                                value={row.articleTitle}
-                                onChange={(e) => handleUpdateRow(row.id, 'articleTitle', e.target.value)}
-                                placeholder="Статья / Норма..."
-                                style={{ fontWeight: 600, fontSize: '0.88rem', marginBottom: '6px' }}
-                              />
+                              <div>
+                                <textarea
+                                  className="textarea-field"
+                                  value={row.wasContent}
+                                  onChange={(e) => handleUpdateRow(row.id, 'wasContent', e.target.value)}
+                                  placeholder="Текст статьи в 'Было'..."
+                                  style={{ fontSize: '0.88rem', width: '100%', minHeight: '80px', marginBottom: '6px' }}
+                                />
+
+                                {showDiffHighlight && (
+                                  <div style={{ background: 'var(--bg-card)', padding: '8px 10px', borderRadius: '6px', fontSize: '0.82rem', border: '1px solid var(--border-subtle)', lineHeight: 1.5 }}>
+                                    <span style={{ fontSize: '0.72rem', color: 'var(--text-tertiary)', display: 'block', marginBottom: '2px' }}>Визуальный отпечаток (Удаления зачеркнуты):</span>
+                                    {diff.wasFormatted}
+                                  </div>
+                                )}
+                              </div>
                             ) : (
-                              <div style={{ fontWeight: 600, marginBottom: '4px' }}>
-                                {row.articleTitle}
+                              <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>
+                                {showDiffHighlight ? diff.wasFormatted : row.wasContent || '—'}
                               </div>
                             )}
-                          </div>
+                          </td>
 
-                          {canEdit ? (
-                            <textarea
-                              className="textarea-field"
-                              value={row.wasContent}
-                              onChange={(e) => handleUpdateRow(row.id, 'wasContent', e.target.value)}
-                              placeholder="Текст статьи в 'Было'..."
-                              style={{ fontSize: '0.88rem', width: '100%', minHeight: '90px' }}
-                            />
-                          ) : (
-                            <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>{row.wasContent || '—'}</div>
-                          )}
-                        </td>
+                          {/* Became Cell */}
+                          <td className="cell-became">
+                            <div style={{ height: '32px' }}></div>
+                            {canEdit ? (
+                              <div>
+                                <textarea
+                                  className="textarea-field"
+                                  value={row.becameContent}
+                                  onChange={(e) => handleUpdateRow(row.id, 'becameContent', e.target.value)}
+                                  placeholder="Итоговая формулировка в 'Стало'..."
+                                  style={{ fontSize: '0.88rem', width: '100%', minHeight: '80px', marginBottom: '6px' }}
+                                />
 
-                        {/* Became Cell */}
-                        <td className="cell-became">
-                          <div style={{ height: '32px' }}></div>
-                          {canEdit ? (
-                            <textarea
-                              className="textarea-field"
-                              value={row.becameContent}
-                              onChange={(e) => handleUpdateRow(row.id, 'becameContent', e.target.value)}
-                              placeholder="Итоговая формулировка в 'Стало'..."
-                              style={{ fontSize: '0.88rem', width: '100%', minHeight: '90px' }}
-                            />
-                          ) : (
-                            <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>{row.becameContent || '—'}</div>
-                          )}
-                        </td>
-
-                        {/* Actions */}
-                        <td style={{ textAlign: 'center', verticalAlign: 'middle' }}>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'center' }}>
-                            <button
-                              onClick={() => setExpandedRow(row)}
-                              className="btn btn-secondary"
-                              style={{ padding: '6px', fontSize: '0.78rem' }}
-                              title="🔍 Развернуть во весь экран"
-                            >
-                              <Maximize2 size={15} />
-                            </button>
-
-                            {canEdit && (
-                              <button
-                                onClick={() => handleDeleteRow(row.id)}
-                                className="btn btn-danger"
-                                style={{ padding: '6px' }}
-                                title="Удалить статью"
-                              >
-                                <Trash2 size={15} />
-                              </button>
+                                {showDiffHighlight && (
+                                  <div style={{ background: 'var(--bg-card)', padding: '8px 10px', borderRadius: '6px', fontSize: '0.82rem', border: '1px solid var(--border-subtle)', lineHeight: 1.5 }}>
+                                    <span style={{ fontSize: '0.72rem', color: 'var(--text-tertiary)', display: 'block', marginBottom: '2px' }}>Визуальный отпечаток (Добавления выделены зеленым):</span>
+                                    {diff.becameFormatted}
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>
+                                {showDiffHighlight ? diff.becameFormatted : row.becameContent || '—'}
+                              </div>
                             )}
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
+                          </td>
+
+                          {/* Actions */}
+                          <td style={{ textAlign: 'center', verticalAlign: 'middle' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'center' }}>
+                              <button
+                                onClick={() => setExpandedRow(row)}
+                                className="btn btn-secondary"
+                                style={{ padding: '6px', fontSize: '0.78rem' }}
+                                title="🔍 Развернуть во весь экран"
+                              >
+                                <Maximize2 size={15} />
+                              </button>
+
+                              {canEdit && (
+                                <button
+                                  onClick={() => handleDeleteRow(row.id)}
+                                  className="btn btn-danger"
+                                  style={{ padding: '6px' }}
+                                  title="Удалить статью"
+                                >
+                                  <Trash2 size={15} />
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -715,6 +829,89 @@ export const BillEditor: React.FC<BillEditorProps> = ({
           </div>
         )}
       </div>
+
+      {/* STATE LAW ARTICLE SEARCH & PICKER MODAL */}
+      {showLawPickerModal && (
+        <div className="modal-overlay" onClick={() => setShowLawPickerModal(false)} style={{ zIndex: 8500 }}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '780px', width: '95vw', maxHeight: '88vh', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <BookOpen size={20} color="var(--text-primary)" />
+                <h3 style={{ fontSize: '1.1rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                  Поиск статей действующего законодательства Штата
+                </h3>
+              </div>
+
+              <button onClick={() => setShowLawPickerModal(false)} className="btn btn-secondary" style={{ padding: '6px' }}>
+                <XCircle size={18} />
+              </button>
+            </div>
+
+            {/* Law Dropdown & Search Bar */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '14px' }}>
+              <div>
+                <label style={{ fontSize: '0.78rem', color: 'var(--text-tertiary)', display: 'block', marginBottom: '4px' }}>
+                  Выберите Кодекс / Закон:
+                </label>
+                <CustomSelect
+                  options={STATE_LAWS.map((l) => ({ value: l.id, label: l.title }))}
+                  value={selectedLawId}
+                  onChange={(val) => setSelectedLawId(val)}
+                  width="100%"
+                />
+              </div>
+
+              <div>
+                <label style={{ fontSize: '0.78rem', color: 'var(--text-tertiary)', display: 'block', marginBottom: '4px' }}>
+                  Поиск по номеру или ключевому слову:
+                </label>
+                <div style={{ position: 'relative' }}>
+                  <Search size={15} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-tertiary)' }} />
+                  <input
+                    type="text"
+                    className="input-field"
+                    placeholder="Например: 5.2, оружие, парковка..."
+                    value={articleSearchQuery}
+                    onChange={(e) => setArticleSearchQuery(e.target.value)}
+                    style={{ paddingLeft: '32px', fontSize: '0.85rem' }}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Articles List */}
+            <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '10px', paddingRight: '4px' }}>
+              {filteredArticles.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '30px', color: 'var(--text-tertiary)', fontSize: '0.88rem' }}>
+                  Статей по вашему запросу не найдено.
+                </div>
+              ) : (
+                filteredArticles.map((art) => (
+                  <div key={art.id} style={{ background: 'var(--bg-input)', border: '1px solid var(--border-subtle)', borderRadius: '10px', padding: '14px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                      <strong style={{ fontSize: '0.92rem', color: 'var(--text-primary)' }}>
+                        {art.articleNumber}. {art.title}
+                      </strong>
+
+                      <button
+                        onClick={() => handleAutoFillArticle(art.articleNumber, art.title, art.content)}
+                        className="btn btn-primary"
+                        style={{ fontSize: '0.78rem', padding: '4px 10px' }}
+                      >
+                        <Plus size={13} /> Вставить в Было / Стало
+                      </button>
+                    </div>
+
+                    <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                      {art.content}
+                    </p>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Mandatory Federal Government Justification Modal */}
       {showFedModal && (

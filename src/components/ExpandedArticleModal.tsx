@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import type { ComparisonRow } from '../types/bill';
-import { X, Maximize2 } from 'lucide-react';
+import { computeWordDiff } from '../services/diffService';
+import { X, Maximize2, FileCode } from 'lucide-react';
 
 interface ExpandedArticleModalProps {
   row: ComparisonRow;
@@ -15,13 +16,16 @@ export const ExpandedArticleModal: React.FC<ExpandedArticleModalProps> = ({
   onUpdateRow,
   onClose
 }) => {
+  const [showDiff, setShowDiff] = useState(true);
+  const diff = computeWordDiff(row.wasContent, row.becameContent);
+
   return (
     <div className="modal-overlay" onClick={onClose} style={{ zIndex: 6000 }}>
       <div 
         className="modal-content" 
         onClick={(e) => e.stopPropagation()} 
         style={{ 
-          maxWidth: '1100px', 
+          maxWidth: '1140px', 
           width: '95vw', 
           maxHeight: '92vh', 
           display: 'flex', 
@@ -34,13 +38,29 @@ export const ExpandedArticleModal: React.FC<ExpandedArticleModalProps> = ({
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <Maximize2 size={20} color="var(--text-primary)" />
             <h3 style={{ fontSize: '1.15rem', fontWeight: 600, color: 'var(--text-primary)' }}>
-              {row.articleTitle || 'Полноэкранный режим чтения и правки статьи'}
+              {row.articleTitle || 'Полноэкранный режим чтения и форматирования статьи'}
             </h3>
           </div>
 
-          <button onClick={onClose} className="btn btn-secondary" style={{ padding: '6px' }}>
-            <X size={18} />
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <button
+              onClick={() => setShowDiff(!showDiff)}
+              className="btn btn-secondary"
+              style={{
+                fontSize: '0.78rem',
+                padding: '5px 12px',
+                background: showDiff ? 'rgba(52, 211, 153, 0.15)' : 'transparent',
+                borderColor: showDiff ? 'rgba(52, 211, 153, 0.4)' : 'var(--border-subtle)',
+                color: showDiff ? '#34d399' : 'var(--text-secondary)'
+              }}
+            >
+              <FileCode size={13} /> {showDiff ? '✨ Подсветка правки (Зачеркивание / Зеленый цвет)' : 'Обычный текст'}
+            </button>
+
+            <button onClick={onClose} className="btn btn-secondary" style={{ padding: '6px' }}>
+              <X size={18} />
+            </button>
+          </div>
         </div>
 
         {/* Article Title Input if editing */}
@@ -66,19 +86,28 @@ export const ExpandedArticleModal: React.FC<ExpandedArticleModalProps> = ({
           {/* WAS Column */}
           <div style={{ display: 'flex', flexDirection: 'column', background: 'var(--was-bg)', border: '1px solid var(--border-subtle)', borderRadius: '12px', padding: '16px' }}>
             <h4 style={{ fontSize: '0.85rem', fontWeight: 600, color: '#fca5a5', textTransform: 'uppercase', marginBottom: '10px', letterSpacing: '0.05em' }}>
-              БЫЛО (Старая редакция / Исходная норма)
+              БЫЛО (Старая редакция / Удаляемый текст)
             </h4>
             {canEdit ? (
-              <textarea
-                className="textarea-field"
-                value={row.wasContent}
-                onChange={(e) => onUpdateRow(row.id, 'wasContent', e.target.value)}
-                placeholder="Полный текст действующей редакции статьи..."
-                style={{ flex: 1, fontSize: '0.92rem', lineHeight: 1.6, minHeight: '300px' }}
-              />
+              <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
+                <textarea
+                  className="textarea-field"
+                  value={row.wasContent}
+                  onChange={(e) => onUpdateRow(row.id, 'wasContent', e.target.value)}
+                  placeholder="Полный текст действующей редакции статьи..."
+                  style={{ flex: 1, fontSize: '0.92rem', lineHeight: 1.6, minHeight: '200px', marginBottom: '10px' }}
+                />
+
+                {showDiff && (
+                  <div style={{ background: 'var(--bg-card)', padding: '12px', borderRadius: '8px', border: '1px solid var(--border-subtle)', fontSize: '0.88rem', lineHeight: 1.6 }}>
+                    <span style={{ fontSize: '0.72rem', color: 'var(--text-tertiary)', display: 'block', marginBottom: '4px' }}>Предпросмотр вычеркиваний:</span>
+                    {diff.wasFormatted}
+                  </div>
+                )}
+              </div>
             ) : (
               <div style={{ flex: 1, overflowY: 'auto', whiteSpace: 'pre-wrap', lineHeight: 1.6, fontSize: '0.94rem' }}>
-                {row.wasContent || '—'}
+                {showDiff ? diff.wasFormatted : row.wasContent || '—'}
               </div>
             )}
           </div>
@@ -86,19 +115,28 @@ export const ExpandedArticleModal: React.FC<ExpandedArticleModalProps> = ({
           {/* BECAME Column */}
           <div style={{ display: 'flex', flexDirection: 'column', background: 'var(--became-bg)', border: '1px solid var(--border-subtle)', borderRadius: '12px', padding: '16px' }}>
             <h4 style={{ fontSize: '0.85rem', fontWeight: 600, color: '#6ee7b7', textTransform: 'uppercase', marginBottom: '10px', letterSpacing: '0.05em' }}>
-              СТАЛО (Новая редакция / Итоговая формулировка)
+              СТАЛО (Новая редакция / Зеленое выделение правок)
             </h4>
             {canEdit ? (
-              <textarea
-                className="textarea-field"
-                value={row.becameContent}
-                onChange={(e) => onUpdateRow(row.id, 'becameContent', e.target.value)}
-                placeholder="Полный текст новой редакции со всеми изменениями..."
-                style={{ flex: 1, fontSize: '0.92rem', lineHeight: 1.6, minHeight: '300px' }}
-              />
+              <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
+                <textarea
+                  className="textarea-field"
+                  value={row.becameContent}
+                  onChange={(e) => onUpdateRow(row.id, 'becameContent', e.target.value)}
+                  placeholder="Полный текст новой редакции со всеми изменениями..."
+                  style={{ flex: 1, fontSize: '0.92rem', lineHeight: 1.6, minHeight: '200px', marginBottom: '10px' }}
+                />
+
+                {showDiff && (
+                  <div style={{ background: 'var(--bg-card)', padding: '12px', borderRadius: '8px', border: '1px solid var(--border-subtle)', fontSize: '0.88rem', lineHeight: 1.6 }}>
+                    <span style={{ fontSize: '0.72rem', color: 'var(--text-tertiary)', display: 'block', marginBottom: '4px' }}>Предпросмотр добавлений (Зеленый цвет):</span>
+                    {diff.becameFormatted}
+                  </div>
+                )}
+              </div>
             ) : (
               <div style={{ flex: 1, overflowY: 'auto', whiteSpace: 'pre-wrap', lineHeight: 1.6, fontSize: '0.94rem' }}>
-                {row.becameContent || '—'}
+                {showDiff ? diff.becameFormatted : row.becameContent || '—'}
               </div>
             )}
           </div>
