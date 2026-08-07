@@ -259,6 +259,12 @@ body {
   box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
 }
 
+.select-field option {
+  background-color: #0f172a !important;
+  color: #f8fafc !important;
+  opacity: 1 !important;
+}
+
 /* Comparison Matrix Table */
 .comparison-table {
   width: 100%;
