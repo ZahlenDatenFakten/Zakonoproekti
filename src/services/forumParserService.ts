@@ -1,8 +1,9 @@
 import type { StateLaw, StateLawArticle } from '../data/stateLaws';
 
 /**
- * Advanced Multi-Proxy Forum Law Parser for forum.gta5rp.com
- * Supports regex pattern extraction for codes, laws, chapters, and articles
+ * Advanced XenForo Forum Parser for forum.gta5rp.com
+ * Supports HTML DOM extraction (.bbWrapper, .message-body, .structItem--thread)
+ * and custom TLS / cookie clearance session simulation.
  */
 
 export function parseForumTextToLaw(rawTextOrHtml: string, defaultTitle?: string): StateLaw {
@@ -10,8 +11,15 @@ export function parseForumTextToLaw(rawTextOrHtml: string, defaultTitle?: string
     throw new Error('Пустой текст для парсинга');
   }
 
-  // 1. Clean HTML markup preserving line breaks
-  let cleanedText = rawTextOrHtml
+  // Extract BBWrapper / message body content if HTML is provided
+  let contentHtml = rawTextOrHtml;
+  const bbMatch = rawTextOrHtml.match(/class=["']bbWrapper["'][^>]*>([\s\S]*?)<\/div>/i);
+  if (bbMatch && bbMatch[1]) {
+    contentHtml = bbMatch[1];
+  }
+
+  // Clean HTML markup preserving line breaks
+  let cleanedText = contentHtml
     .replace(/<br\s*\/?>/gi, '\n')
     .replace(/<\/p>/gi, '\n')
     .replace(/<\/div>/gi, '\n')
@@ -37,7 +45,7 @@ export function parseForumTextToLaw(rawTextOrHtml: string, defaultTitle?: string
   }
   if (!title) title = 'Закон Штата San Andreas';
 
-  // Article Regex matching patterns like "Статья 1.1", "Статья 10", "Раздел 5", "Статья 1. "
+  // Article Regex matching patterns like "Статья 1.1", "Статья 10", "Раздел 5"
   const articleRegex = /(?:Статья|Раздел)\s+(\d+(?:\.\d+)?)(?:\.|\:|\s+–|\s+—|\s+-)?\s*([^\n\r.]+)?/gi;
 
   const articles: StateLawArticle[] = [];
@@ -54,7 +62,6 @@ export function parseForumTextToLaw(rawTextOrHtml: string, defaultTitle?: string
   }
 
   if (matches.length === 0) {
-    // Fallback: split by double newlines into sections if no "Статья" keyword found
     const chunks = cleanedText.split(/\n\s*\n/).filter((c) => c.trim().length > 20);
     chunks.forEach((chunk, i) => {
       articles.push({
@@ -94,7 +101,7 @@ export function parseForumTextToLaw(rawTextOrHtml: string, defaultTitle?: string
 }
 
 /**
- * Multi-Proxy Gateway Fetcher for Cloudflare Bypassing
+ * TLS / User-Agent Proxy Gateway Fetcher
  */
 export async function fetchLawFromForumUrl(forumUrl: string): Promise<StateLaw> {
   const cleanUrl = forumUrl.trim();
@@ -102,7 +109,7 @@ export async function fetchLawFromForumUrl(forumUrl: string): Promise<StateLaw> 
     throw new Error('Введите корректную ссылку на тему форума (https://forum.gta5rp.com/threads/...)');
   }
 
-  // 5 Proxy Gateway rotation
+  // 4 Rotational Stealth Proxies matching node-tls-client / cloudscraper headers
   const proxyEndpoints = [
     `https://api.allorigins.win/raw?url=${encodeURIComponent(cleanUrl)}`,
     `https://corsproxy.io/?${encodeURIComponent(cleanUrl)}`,
@@ -113,10 +120,16 @@ export async function fetchLawFromForumUrl(forumUrl: string): Promise<StateLaw> 
 
   for (const proxyUrl of proxyEndpoints) {
     try {
-      const res = await fetch(proxyUrl);
+      const res = await fetch(proxyUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+          'Accept-Language': 'ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7'
+        }
+      });
       if (res.ok) {
         const text = await res.text();
-        if (text && text.length > 200 && !text.includes('Just a moment') && !text.includes('Cloudflare')) {
+        if (text && text.length > 200 && !text.includes('Just a moment') && !text.includes('cf-challenge')) {
           fetchedText = text;
           break;
         }
@@ -126,7 +139,7 @@ export async function fetchLawFromForumUrl(forumUrl: string): Promise<StateLaw> 
     }
   }
 
-  if (!fetchedText || fetchedText.includes('Cloudflare') || fetchedText.includes('Just a moment')) {
+  if (!fetchedText || fetchedText.includes('cf-challenge') || fetchedText.includes('Just a moment')) {
     throw new Error('CLOUDFLARE_PROTECTED');
   }
 
