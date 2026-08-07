@@ -3,6 +3,7 @@ import type { Bill, ComparisonRow, AccessPermission, UserProfile, VoteDecision, 
 import { OFFICIAL_ROLE_LABELS } from '../types/bill';
 import { getAllStateLaws, saveCustomStateLaw } from '../data/stateLaws';
 import type { StateLaw } from '../data/stateLaws';
+import { parseForumTextToLaw, fetchLawFromForumUrl } from '../services/forumParserService';
 import { computeWordDiff } from '../services/diffService';
 import { sanitizeInput, isOfficialCommitteeMember, isSystemAdmin, computeDocumentHash } from '../services/securityService';
 import { CommentsSection } from './CommentsSection';
@@ -63,8 +64,13 @@ export const BillEditor: React.FC<BillEditorProps> = ({
   const [articleSearchQuery, setArticleSearchQuery] = useState('');
   const [showLawPickerModal, setShowLawPickerModal] = useState(false);
 
-  // New Custom Law Form State
+  // New Custom Law Form & Forum Link Parser State
   const [showAddLawForm, setShowAddLawForm] = useState(false);
+  const [forumImportTab, setForumImportTab] = useState<'url' | 'paste' | 'manual'>('url');
+  const [forumUrlInput, setForumUrlInput] = useState('');
+  const [forumRawPasteInput, setForumRawPasteInput] = useState('');
+  const [isParsingForum, setIsParsingForum] = useState(false);
+
   const [newLawTitle, setNewLawTitle] = useState('');
   const [newLawCode, setNewLawCode] = useState('');
   const [newArtNum, setNewArtNum] = useState('');
@@ -99,6 +105,53 @@ export const BillEditor: React.FC<BillEditorProps> = ({
     const targetLawObj = allLaws.find((l) => l.id === lawId);
     if (targetLawObj && canEdit) {
       setBill((prev) => ({ ...prev, targetLaw: targetLawObj.title }));
+    }
+  };
+
+  const handleParseForumUrl = async () => {
+    if (!forumUrlInput.trim()) {
+      onToast('error', 'Вставьте ссылку на тему форума (https://forum.gtap5rp.com/threads/...)');
+      return;
+    }
+
+    setIsParsingForum(true);
+    try {
+      const parsedLaw = await fetchLawFromForumUrl(forumUrlInput.trim());
+      const updated = saveCustomStateLaw(parsedLaw);
+      setAllLaws(updated);
+      setSelectedLawId(parsedLaw.id);
+      setShowAddLawForm(false);
+      setForumUrlInput('');
+      onToast('success', `Закон «${parsedLaw.title}» успешно спарсен и добавлен (${parsedLaw.articles.length} статей)!`);
+    } catch (err: any) {
+      if (err.message === 'CLOUDFLARE_PROTECTED') {
+        onToast('info', 'Тема защищена Cloudflare. Используйте соседнюю вкладку "Скопированный текст/HTML" — она сработает за 1 секунду!');
+        setForumImportTab('paste');
+      } else {
+        onToast('error', err.message || 'Ошибка парсинга по ссылке');
+      }
+    } finally {
+      setIsParsingForum(false);
+    }
+  };
+
+  const handleParseForumPaste = () => {
+    if (!forumRawPasteInput.trim()) {
+      onToast('error', 'Вставьте скопированный текст или исходный код темы с форума');
+      return;
+    }
+
+    try {
+      const parsedLaw = parseForumTextToLaw(forumRawPasteInput.trim(), newLawTitle.trim() || 'Спарсенный Закон с Форума');
+      const updated = saveCustomStateLaw(parsedLaw);
+      setAllLaws(updated);
+      setSelectedLawId(parsedLaw.id);
+      setShowAddLawForm(false);
+      setForumRawPasteInput('');
+      setNewLawTitle('');
+      onToast('success', `Успешно спарсено ${parsedLaw.articles.length} статей из вставленного текста!`);
+    } catch (err: any) {
+      onToast('error', 'Ошибка синтаксического разбора текста');
     }
   };
 
@@ -931,65 +984,170 @@ export const BillEditor: React.FC<BillEditorProps> = ({
               </button>
             </div>
 
-            {/* Custom Law Quick Add Form */}
+            {/* Custom Law & Forum Parser Quick Add Form */}
             {showAddLawForm && (
-              <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-medium)', borderRadius: '10px', padding: '14px', marginBottom: '14px' }}>
-                <h4 style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '10px' }}>
-                  Быстрое добавление нового Закона / Кодекса в базу:
-                </h4>
+              <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-medium)', borderRadius: '12px', padding: '16px', marginBottom: '16px' }}>
+                
+                {/* Tabs */}
+                <div style={{ display: 'flex', gap: '8px', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '8px', marginBottom: '14px' }}>
+                  <button
+                    onClick={() => setForumImportTab('url')}
+                    className="btn btn-secondary"
+                    style={{
+                      fontSize: '0.78rem',
+                      padding: '4px 10px',
+                      background: forumImportTab === 'url' ? 'var(--bg-input)' : 'transparent',
+                      color: forumImportTab === 'url' ? 'var(--text-primary)' : 'var(--text-tertiary)',
+                      borderColor: forumImportTab === 'url' ? 'var(--border-medium)' : 'transparent'
+                    }}
+                  >
+                    🌐 1. Авто-парсинг по ссылке URL
+                  </button>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 140px', gap: '8px', marginBottom: '8px' }}>
-                  <input
-                    type="text"
-                    className="input-field"
-                    placeholder="Название закона (Например: Закон 'О FIB')..."
-                    value={newLawTitle}
-                    onChange={(e) => setNewLawTitle(e.target.value)}
-                    style={{ fontSize: '0.84rem' }}
-                  />
-                  <input
-                    type="text"
-                    className="input-field"
-                    placeholder="Код (FIB-2026)..."
-                    value={newLawCode}
-                    onChange={(e) => setNewLawCode(e.target.value)}
-                    style={{ fontSize: '0.84rem' }}
-                  />
-                </div>
+                  <button
+                    onClick={() => setForumImportTab('paste')}
+                    className="btn btn-secondary"
+                    style={{
+                      fontSize: '0.78rem',
+                      padding: '4px 10px',
+                      background: forumImportTab === 'paste' ? 'var(--bg-input)' : 'transparent',
+                      color: forumImportTab === 'paste' ? 'var(--text-primary)' : 'var(--text-tertiary)',
+                      borderColor: forumImportTab === 'paste' ? 'var(--border-medium)' : 'transparent'
+                    }}
+                  >
+                    📋 2. Вставка текста / HTML со страницы форума
+                  </button>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '130px 1fr', gap: '8px', marginBottom: '8px' }}>
-                  <input
-                    type="text"
-                    className="input-field"
-                    placeholder="Статья 1.1..."
-                    value={newArtNum}
-                    onChange={(e) => setNewArtNum(e.target.value)}
-                    style={{ fontSize: '0.84rem' }}
-                  />
-                  <input
-                    type="text"
-                    className="input-field"
-                    placeholder="Заголовок статьи (Общие положения)..."
-                    value={newArtTitle}
-                    onChange={(e) => setNewArtTitle(e.target.value)}
-                    style={{ fontSize: '0.84rem' }}
-                  />
-                </div>
-
-                <textarea
-                  className="textarea-field"
-                  rows={3}
-                  placeholder="Текст статьи закона..."
-                  value={newArtContent}
-                  onChange={(e) => setNewArtContent(e.target.value)}
-                  style={{ fontSize: '0.84rem', marginBottom: '8px' }}
-                />
-
-                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                  <button onClick={handleCreateCustomLaw} className="btn btn-primary" style={{ fontSize: '0.82rem' }}>
-                    Сохранить закон в базу
+                  <button
+                    onClick={() => setForumImportTab('manual')}
+                    className="btn btn-secondary"
+                    style={{
+                      fontSize: '0.78rem',
+                      padding: '4px 10px',
+                      background: forumImportTab === 'manual' ? 'var(--bg-input)' : 'transparent',
+                      color: forumImportTab === 'manual' ? 'var(--text-primary)' : 'var(--text-tertiary)',
+                      borderColor: forumImportTab === 'manual' ? 'var(--border-medium)' : 'transparent'
+                    }}
+                  >
+                    ✏️ 3. Ручной ввод статьи
                   </button>
                 </div>
+
+                {/* TAB 1: URL Link Auto-Parser */}
+                {forumImportTab === 'url' && (
+                  <div>
+                    <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginBottom: '8px' }}>
+                      Вставьте прямую ссылку на тему форума (например: <code>https://forum.gtap5rp.com/threads/уголовный-кодекс...</code>):
+                    </p>
+
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <input
+                        type="text"
+                        className="input-field"
+                        placeholder="https://forum.gtap5rp.com/threads/..."
+                        value={forumUrlInput}
+                        onChange={(e) => setForumUrlInput(e.target.value)}
+                        style={{ fontSize: '0.84rem', flex: 1 }}
+                      />
+
+                      <button onClick={handleParseForumUrl} disabled={isParsingForum} className="btn btn-primary" style={{ fontSize: '0.82rem', whiteSpace: 'nowrap' }}>
+                        {isParsingForum ? '🔄 Парсинг...' : '⚡ Спарсить закон по ссылке'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* TAB 2: Text / HTML Source Paste */}
+                {forumImportTab === 'paste' && (
+                  <div>
+                    <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginBottom: '8px' }}>
+                      Откройте тему на форуме в браузере, выделите весь текст (<code>Ctrl+A</code>) и вставьте сюда — парсер мгновенно разобьет его по статьям:
+                    </p>
+
+                    <input
+                      type="text"
+                      className="input-field"
+                      placeholder="Опционально: Название Закона (Например: Закон 'О FIB')..."
+                      value={newLawTitle}
+                      onChange={(e) => setNewLawTitle(e.target.value)}
+                      style={{ fontSize: '0.84rem', marginBottom: '8px' }}
+                    />
+
+                    <textarea
+                      className="textarea-field"
+                      rows={5}
+                      placeholder="Вставьте скопированный текст или исходный код темы..."
+                      value={forumRawPasteInput}
+                      onChange={(e) => setForumRawPasteInput(e.target.value)}
+                      style={{ fontSize: '0.82rem', marginBottom: '8px' }}
+                    />
+
+                    <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                      <button onClick={handleParseForumPaste} className="btn btn-primary" style={{ fontSize: '0.82rem' }}>
+                        ⚡ Мгновенно разобрать текст по статьям
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* TAB 3: Manual Entry */}
+                {forumImportTab === 'manual' && (
+                  <div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 140px', gap: '8px', marginBottom: '8px' }}>
+                      <input
+                        type="text"
+                        className="input-field"
+                        placeholder="Название закона (Например: Закон 'О FIB')..."
+                        value={newLawTitle}
+                        onChange={(e) => setNewLawTitle(e.target.value)}
+                        style={{ fontSize: '0.84rem' }}
+                      />
+                      <input
+                        type="text"
+                        className="input-field"
+                        placeholder="Код (FIB-2026)..."
+                        value={newLawCode}
+                        onChange={(e) => setNewLawCode(e.target.value)}
+                        style={{ fontSize: '0.84rem' }}
+                      />
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '130px 1fr', gap: '8px', marginBottom: '8px' }}>
+                      <input
+                        type="text"
+                        className="input-field"
+                        placeholder="Статья 1.1..."
+                        value={newArtNum}
+                        onChange={(e) => setNewArtNum(e.target.value)}
+                        style={{ fontSize: '0.84rem' }}
+                      />
+                      <input
+                        type="text"
+                        className="input-field"
+                        placeholder="Заголовок статьи (Общие положения)..."
+                        value={newArtTitle}
+                        onChange={(e) => setNewArtTitle(e.target.value)}
+                        style={{ fontSize: '0.84rem' }}
+                      />
+                    </div>
+
+                    <textarea
+                      className="textarea-field"
+                      rows={3}
+                      placeholder="Текст статьи закона..."
+                      value={newArtContent}
+                      onChange={(e) => setNewArtContent(e.target.value)}
+                      style={{ fontSize: '0.84rem', marginBottom: '8px' }}
+                    />
+
+                    <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                      <button onClick={handleCreateCustomLaw} className="btn btn-primary" style={{ fontSize: '0.82rem' }}>
+                        Сохранить закон в базу
+                      </button>
+                    </div>
+                  </div>
+                )}
+
               </div>
             )}
 
