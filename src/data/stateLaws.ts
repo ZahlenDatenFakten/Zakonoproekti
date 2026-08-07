@@ -14,7 +14,7 @@ export interface StateLaw {
   articles: StateLawArticle[];
 }
 
-export const STATE_LAWS: StateLaw[] = [
+export const INITIAL_STATE_LAWS: StateLaw[] = [
   {
     id: 'uk',
     title: 'Уголовный кодекс Штата (УК)',
@@ -25,7 +25,7 @@ export const STATE_LAWS: StateLaw[] = [
       {
         id: 'uk_5_1',
         articleNumber: 'Статья 5.1',
-        title: 'Уголовная ответственность за посягательство на жизнь сотрудника государственных органов',
+        title: 'Посягательство на жизнь сотрудника государственных органов',
         content: 'Посягательство на жизнь сотрудника правоохранительного органа, военнослужащего, а равно их близких в связи с исполнением ими своих служебных обязанностей наказывается лишением свободы сроком до 6 лет с отбыванием наказания в исправительном учреждении.'
       },
       {
@@ -169,3 +169,40 @@ export const STATE_LAWS: StateLaw[] = [
     ]
   }
 ];
+
+export const STATE_LAWS_KEY = 'legaldraft_custom_state_laws_v1';
+
+export function getAllStateLaws(): StateLaw[] {
+  const saved = localStorage.getItem(STATE_LAWS_KEY);
+  if (saved) {
+    try {
+      const customLaws: StateLaw[] = JSON.parse(saved);
+      return [...INITIAL_STATE_LAWS, ...customLaws];
+    } catch {
+      // ignore
+    }
+  }
+  return INITIAL_STATE_LAWS;
+}
+
+export function saveCustomStateLaw(newLaw: StateLaw): StateLaw[] {
+  const saved = localStorage.getItem(STATE_LAWS_KEY);
+  let customLaws: StateLaw[] = [];
+  if (saved) {
+    try {
+      customLaws = JSON.parse(saved);
+    } catch {
+      customLaws = [];
+    }
+  }
+
+  const existingIdx = customLaws.findIndex((l) => l.id === newLaw.id);
+  if (existingIdx >= 0) {
+    customLaws[existingIdx] = newLaw;
+  } else {
+    customLaws.push(newLaw);
+  }
+
+  localStorage.setItem(STATE_LAWS_KEY, JSON.stringify(customLaws));
+  return getAllStateLaws();
+}

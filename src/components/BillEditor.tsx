@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import type { Bill, ComparisonRow, AccessPermission, UserProfile, VoteDecision, CommissionVotes, BillStatus, FederalGovernmentVerdict } from '../types/bill';
 import { OFFICIAL_ROLE_LABELS } from '../types/bill';
-import { STATE_LAWS } from '../data/stateLaws';
+import { getAllStateLaws, saveCustomStateLaw } from '../data/stateLaws';
+import type { StateLaw } from '../data/stateLaws';
 import { computeWordDiff } from '../services/diffService';
 import { sanitizeInput, isOfficialCommitteeMember, isSystemAdmin, computeDocumentHash } from '../services/securityService';
 import { CommentsSection } from './CommentsSection';
@@ -56,10 +57,19 @@ export const BillEditor: React.FC<BillEditorProps> = ({
   // View vs Diff Mode Toggle
   const [showDiffHighlight, setShowDiffHighlight] = useState(true);
 
-  // State Laws Article Picker State
-  const [selectedLawId, setSelectedLawId] = useState<string>(STATE_LAWS[0].id);
+  // Dynamic State Laws
+  const [allLaws, setAllLaws] = useState<StateLaw[]>(getAllStateLaws());
+  const [selectedLawId, setSelectedLawId] = useState<string>(allLaws[0]?.id || 'uk');
   const [articleSearchQuery, setArticleSearchQuery] = useState('');
   const [showLawPickerModal, setShowLawPickerModal] = useState(false);
+
+  // New Custom Law Form State
+  const [showAddLawForm, setShowAddLawForm] = useState(false);
+  const [newLawTitle, setNewLawTitle] = useState('');
+  const [newLawCode, setNewLawCode] = useState('');
+  const [newArtNum, setNewArtNum] = useState('');
+  const [newArtTitle, setNewArtTitle] = useState('');
+  const [newArtContent, setNewArtContent] = useState('');
 
   // Fullscreen Article Expander Modal State
   const [expandedRow, setExpandedRow] = useState<ComparisonRow | null>(null);
@@ -86,10 +96,44 @@ export const BillEditor: React.FC<BillEditorProps> = ({
   // State Law Selection Handler
   const handleSelectLaw = (lawId: string) => {
     setSelectedLawId(lawId);
-    const targetLawObj = STATE_LAWS.find((l) => l.id === lawId);
+    const targetLawObj = allLaws.find((l) => l.id === lawId);
     if (targetLawObj && canEdit) {
       setBill((prev) => ({ ...prev, targetLaw: targetLawObj.title }));
     }
+  };
+
+  const handleCreateCustomLaw = () => {
+    if (!newLawTitle.trim() || !newArtNum.trim() || !newArtContent.trim()) {
+      onToast('error', 'Заполните Название закона, номер статьи и ее текст');
+      return;
+    }
+
+    const lawId = 'law_' + Date.now();
+    const newLaw: StateLaw = {
+      id: lawId,
+      title: newLawTitle.trim(),
+      code: newLawCode.trim() || 'АКТ-2026',
+      category: 'Пользовательские Законы',
+      articles: [
+        {
+          id: 'art_' + Date.now(),
+          articleNumber: newArtNum.trim(),
+          title: newArtTitle.trim() || 'Общие положения',
+          content: newArtContent.trim()
+        }
+      ]
+    };
+
+    const updated = saveCustomStateLaw(newLaw);
+    setAllLaws(updated);
+    setSelectedLawId(lawId);
+    setShowAddLawForm(false);
+    setNewLawTitle('');
+    setNewLawCode('');
+    setNewArtNum('');
+    setNewArtTitle('');
+    setNewArtContent('');
+    onToast('success', `Новый закон «${newLaw.title}» успешно добавлен в базу!`);
   };
 
   // Auto-Fill Article into "Было" and "Стало"
@@ -304,8 +348,8 @@ export const BillEditor: React.FC<BillEditorProps> = ({
   };
 
   // Active Law Object for Picker
-  const activeLawObj = STATE_LAWS.find((l) => l.id === selectedLawId) || STATE_LAWS[0];
-  const filteredArticles = activeLawObj.articles.filter((art) => {
+  const activeLawObj = allLaws.find((l) => l.id === selectedLawId) || allLaws[0];
+  const filteredArticles = (activeLawObj?.articles || []).filter((art) => {
     const q = articleSearchQuery.toLowerCase();
     return art.articleNumber.toLowerCase().includes(q) || art.title.toLowerCase().includes(q) || art.content.toLowerCase().includes(q);
   });
@@ -587,7 +631,7 @@ export const BillEditor: React.FC<BillEditorProps> = ({
 
             {canEdit ? (
               <CustomSelect
-                options={STATE_LAWS.map((law) => ({
+                options={allLaws.map((law) => ({
                   value: law.id,
                   label: `${law.title} (${law.code})`
                 }))}
@@ -847,14 +891,14 @@ export const BillEditor: React.FC<BillEditorProps> = ({
               </button>
             </div>
 
-            {/* Law Dropdown & Search Bar */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '14px' }}>
+            {/* Law Dropdown & Search Bar & Add Custom Law Button */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: '10px', marginBottom: '14px', alignItems: 'end' }}>
               <div>
                 <label style={{ fontSize: '0.78rem', color: 'var(--text-tertiary)', display: 'block', marginBottom: '4px' }}>
                   Выберите Кодекс / Закон:
                 </label>
                 <CustomSelect
-                  options={STATE_LAWS.map((l) => ({ value: l.id, label: l.title }))}
+                  options={allLaws.map((l) => ({ value: l.id, label: l.title }))}
                   value={selectedLawId}
                   onChange={(val) => setSelectedLawId(val)}
                   width="100%"
@@ -877,7 +921,77 @@ export const BillEditor: React.FC<BillEditorProps> = ({
                   />
                 </div>
               </div>
+
+              <button
+                onClick={() => setShowAddLawForm(!showAddLawForm)}
+                className="btn btn-secondary"
+                style={{ fontSize: '0.8rem', padding: '8px 12px', whiteSpace: 'nowrap' }}
+              >
+                {showAddLawForm ? 'Отмена' : '📥 Добавить свой закон'}
+              </button>
             </div>
+
+            {/* Custom Law Quick Add Form */}
+            {showAddLawForm && (
+              <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-medium)', borderRadius: '10px', padding: '14px', marginBottom: '14px' }}>
+                <h4 style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '10px' }}>
+                  Быстрое добавление нового Закона / Кодекса в базу:
+                </h4>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 140px', gap: '8px', marginBottom: '8px' }}>
+                  <input
+                    type="text"
+                    className="input-field"
+                    placeholder="Название закона (Например: Закон 'О FIB')..."
+                    value={newLawTitle}
+                    onChange={(e) => setNewLawTitle(e.target.value)}
+                    style={{ fontSize: '0.84rem' }}
+                  />
+                  <input
+                    type="text"
+                    className="input-field"
+                    placeholder="Код (FIB-2026)..."
+                    value={newLawCode}
+                    onChange={(e) => setNewLawCode(e.target.value)}
+                    style={{ fontSize: '0.84rem' }}
+                  />
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '130px 1fr', gap: '8px', marginBottom: '8px' }}>
+                  <input
+                    type="text"
+                    className="input-field"
+                    placeholder="Статья 1.1..."
+                    value={newArtNum}
+                    onChange={(e) => setNewArtNum(e.target.value)}
+                    style={{ fontSize: '0.84rem' }}
+                  />
+                  <input
+                    type="text"
+                    className="input-field"
+                    placeholder="Заголовок статьи (Общие положения)..."
+                    value={newArtTitle}
+                    onChange={(e) => setNewArtTitle(e.target.value)}
+                    style={{ fontSize: '0.84rem' }}
+                  />
+                </div>
+
+                <textarea
+                  className="textarea-field"
+                  rows={3}
+                  placeholder="Текст статьи закона..."
+                  value={newArtContent}
+                  onChange={(e) => setNewArtContent(e.target.value)}
+                  style={{ fontSize: '0.84rem', marginBottom: '8px' }}
+                />
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                  <button onClick={handleCreateCustomLaw} className="btn btn-primary" style={{ fontSize: '0.82rem' }}>
+                    Сохранить закон в базу
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* Articles List */}
             <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '10px', paddingRight: '4px' }}>
