@@ -1,6 +1,7 @@
 import type { Bill, UserProfile, BillComment } from '../types/bill';
 import { INITIAL_USER } from './mockData';
 import { getStoredDbConfig, getSupabaseClient } from './supabaseClient';
+import { saveBillToFirebase, fetchBillsFromFirebase, deleteBillFromFirebase } from './firebaseClient';
 
 const STORAGE_KEY = 'legaldraft_bills_v3_clean';
 const USER_KEY = 'legaldraft_user_v3';
@@ -17,13 +18,22 @@ const USER_KEY = 'legaldraft_user_v3';
 
 /**
  * MULTI-DATABASE AUTO-FAILOVER ARCHITECTURE (2026 Enterprise Security Standard)
- * Primary DB: Cloud Supabase Postgres
- * Secondary DB: IndexedDB / Local Vault Failover
+ * Primary Cloud DB: Firebase Cloud Firestore / Supabase Postgres
+ * Secondary Storage: IndexedDB / Local Vault Failover
  */
 export async function fetchAllBills(): Promise<Bill[]> {
+  // 1. Try Firebase Cloud Firestore
+  try {
+    const fbBills = await fetchBillsFromFirebase();
+    if (fbBills && fbBills.length > 0) {
+      return fbBills.filter((b: Bill) => !b.author.includes('Северов'));
+    }
+  } catch (err) {
+    console.warn('Firebase fetch unavailable, trying Supabase/Local:', err);
+  }
+
+  // 2. Try Supabase Cloud DB
   const dbConfig = getStoredDbConfig();
-  
-  // 1. Try Primary Cloud DB (Supabase)
   if (dbConfig.isConnected) {
     const supabase = getSupabaseClient();
     if (supabase) {
@@ -56,17 +66,16 @@ export async function fetchAllBills(): Promise<Bill[]> {
           }));
         }
       } catch (err) {
-        console.warn('Primary Cloud DB unavailable or quota reached. Switching seamlessly to Failover Vault:', err);
+        console.warn('Primary Cloud DB unavailable. Switching seamlessly to Failover Vault:', err);
       }
     }
   }
 
-  // 2. Secondary Failover Storage (Local Vault)
+  // 3. Secondary Failover Storage (Local Vault)
   const saved = localStorage.getItem(STORAGE_KEY);
   if (saved) {
     try {
       const parsed = JSON.parse(saved);
-      // Filter out any lingering Severov mock entries if found
       return parsed.filter((b: Bill) => !b.author.includes('Северов'));
     } catch {
       // ignore
@@ -82,15 +91,16 @@ export async function saveBill(bill: Bill): Promise<Bill> {
     updatedAt: new Date().toISOString()
   };
 
-  let primarySaved = false;
-  const dbConfig = getStoredDbConfig();
+  // Save to Firebase Firestore
+  await saveBillToFirebase(updatedBill);
 
-  // 1. Attempt Primary Cloud DB Save
+  // Save to Supabase DB if connected
+  const dbConfig = getStoredDbConfig();
   if (dbConfig.isConnected) {
     const supabase = getSupabaseClient();
     if (supabase) {
       try {
-        const { error } = await supabase.from('bills').upsert({
+        await supabase.from('bills').upsert({
           id: updatedBill.id,
           title: updatedBill.title,
           target_law: updatedBill.targetLaw,
@@ -109,14 +119,13 @@ export async function saveBill(bill: Bill): Promise<Bill> {
           updated_at: updatedBill.updatedAt,
           view_count: updatedBill.viewCount
         });
-        if (!error) primarySaved = true;
       } catch (err) {
-        console.warn('Primary DB write error, failover active:', err);
+        console.warn('Supabase DB write error, failover active:', err);
       }
     }
   }
 
-  // 2. Synchronize to Failover Storage (Guarantees zero data loss even if DB 1 fails/reaches limit!)
+  // Synchronize to Failover Local Vault
   const currentBills = await fetchAllBills();
   const index = currentBills.findIndex((b) => b.id === updatedBill.id);
   let newBillsList: Bill[];
@@ -130,14 +139,12 @@ export async function saveBill(bill: Bill): Promise<Bill> {
 
   localStorage.setItem(STORAGE_KEY, JSON.stringify(newBillsList));
 
-  if (!primarySaved && dbConfig.isConnected) {
-    console.info('Bill saved securely in Failover Vault. Will sync to Cloud DB when connection stabilizes.');
-  }
-
   return updatedBill;
 }
 
 export async function deleteBill(billId: string): Promise<boolean> {
+  await deleteBillFromFirebase(billId);
+
   const dbConfig = getStoredDbConfig();
   if (dbConfig.isConnected) {
     const supabase = getSupabaseClient();
