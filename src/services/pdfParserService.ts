@@ -18,9 +18,32 @@ export async function extractTextFromPdf(file: File): Promise<string> {
   for (let i = 1; i <= pdf.numPages; i++) {
     const page = await pdf.getPage(i);
     const textContent = await page.getTextContent();
-    const pageText = textContent.items
-      .map((item: any) => item.str)
-      .join(' ');
+    
+    let pageText = '';
+    let lastY = null;
+
+    for (const rawItem of textContent.items) {
+      const item = rawItem as any;
+      if (item.str === undefined) continue;
+      
+      const y = item.transform ? item.transform[5] : null;
+      
+      // If Y coordinate changed significantly (e.g. > 4 points) or hasEOL is true, it's a new line
+      if (lastY !== null && y !== null && Math.abs(y - lastY) > 4) {
+        pageText += '\n';
+      } else if (item.hasEOL) {
+        pageText += '\n';
+      } else if (lastY !== null && item.str.trim() !== '') {
+         // Same line, add a space if needed
+         if (pageText.length > 0 && !pageText.endsWith(' ') && !pageText.endsWith('\n')) {
+           pageText += ' ';
+         }
+      }
+      
+      pageText += item.str;
+      if (y !== null) lastY = y;
+    }
+    
     pages.push(pageText);
   }
 
