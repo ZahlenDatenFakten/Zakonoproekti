@@ -18,6 +18,7 @@ import { AccessModal } from './components/AccessModal';
 import { DbConfigModal } from './components/DbConfigModal';
 import { SettingsModal } from './components/SettingsModal';
 import { ForumBatchSyncModal } from './components/ForumBatchSyncModal';
+import { AboutSystemModal } from './components/AboutSystemModal';
 import { ConfirmModal } from './components/ConfirmModal';
 import { ToastContainer } from './components/Toast';
 import type { ToastMessage } from './components/Toast';
@@ -42,6 +43,7 @@ export const App: React.FC = () => {
   const [showShareModal, setShowShareModal] = useState(false);
   const [showDbModal, setShowDbModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [showAboutModal, setShowAboutModal] = useState(false);
   const [showBatchSyncModal, setShowBatchSyncModal] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
@@ -178,6 +180,7 @@ export const App: React.FC = () => {
         onToggleTheme={toggleTheme}
         onOpenNewBill={handleCreateNewBill}
         onOpenSettings={() => setShowSettingsModal(true)}
+        onOpenAbout={() => setShowAboutModal(true)}
       />
 
       {/* Floating Toolbar for Batch 36+ Forum Sync & DB Config (ADMIN ONLY) */}
@@ -275,6 +278,11 @@ export const App: React.FC = () => {
           onClose={() => setShowSettingsModal(false)}
           onToast={addToast}
         />
+      )}
+
+      {/* About System Modal */}
+      {showAboutModal && (
+        <AboutSystemModal onClose={() => setShowAboutModal(false)} />
       )}
 
       {/* Batch 36+ Forum Links Sync Modal */}

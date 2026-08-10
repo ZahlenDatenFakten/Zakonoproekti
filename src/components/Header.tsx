@@ -9,7 +9,8 @@ import {
   Settings,
   ShieldCheck,
   LayoutDashboard,
-  Shield
+  Shield,
+  Brain
 } from 'lucide-react';
 
 interface HeaderProps {
@@ -20,6 +21,7 @@ interface HeaderProps {
   onToggleTheme: () => void;
   onOpenNewBill: () => void;
   onOpenSettings: () => void;
+  onOpenAbout: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -29,7 +31,8 @@ export const Header: React.FC<HeaderProps> = ({
   onNavigate,
   onToggleTheme,
   onOpenNewBill,
-  onOpenSettings
+  onOpenSettings,
+  onOpenAbout
 }) => {
   const isCommitteeOrAdmin = isOfficialCommitteeMember(user) || isSystemAdmin(user);
 
@@ -142,6 +145,15 @@ export const Header: React.FC<HeaderProps> = ({
             title="Настройки"
           >
             <Settings size={14} />
+          </button>
+
+          <button 
+            onClick={onOpenAbout} 
+            className="btn btn-secondary" 
+            style={{ padding: '7px 10px', color: 'var(--accent)' }} 
+            title="Как работает ИИ"
+          >
+            <Brain size={14} />
           </button>
 
           <button 
