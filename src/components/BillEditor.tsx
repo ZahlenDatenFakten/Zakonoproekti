@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import type { Bill, ComparisonRow, AccessPermission, UserProfile, VoteDecision, CommissionVotes, BillStatus, FederalGovernmentVerdict } from '../types/bill';
 import { OFFICIAL_ROLE_LABELS } from '../types/bill';
 import { getAllStateLaws, saveCustomStateLaw } from '../data/stateLaws';
-import type { StateLaw } from '../data/stateLaws';
+import type { StateLaw, StateLawArticle } from '../data/stateLaws';
 import { parseForumTextToLaw, fetchLawFromForumUrl } from '../services/forumParserService';
 import { computeWordDiff } from '../services/diffService';
 import { sanitizeInput, isOfficialCommitteeMember, isSystemAdmin, computeDocumentHash } from '../services/securityService';
@@ -794,10 +794,44 @@ export const BillEditor: React.FC<BillEditorProps> = ({
                     {bill.comparisons.map((row) => {
                       const diff = computeWordDiff(row.wasContent, row.becameContent);
 
+                      const handleQuickSelectArticle = (art: StateLawArticle) => {
+                        handleUpdateRow(row.id, 'articleTitle', `${art.articleNumber}. ${art.title}`);
+                        handleUpdateRow(row.id, 'wasContent', art.content);
+                        handleUpdateRow(row.id, 'becameContent', art.content);
+                        onToast('success', `Статья ${art.articleNumber} подставлена в «Было» и «Стало»!`);
+                      };
+
                       return (
                         <tr key={row.id}>
                           {/* Was Cell */}
                           <td className="cell-was">
+                            {/* Quick Article Finder Toolbar for Editor */}
+                            {canEdit && (
+                              <div style={{ background: 'var(--bg-input)', border: '1px solid var(--border-subtle)', borderRadius: '8px', padding: '6px 8px', marginBottom: '8px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                  <Search size={13} color="var(--text-tertiary)" />
+                                  <select
+                                    className="select-field"
+                                    onChange={(e) => {
+                                      const artId = e.target.value;
+                                      if (artId) {
+                                        const foundArt = (activeLawObj?.articles || []).find((a) => a.id === artId);
+                                        if (foundArt) handleQuickSelectArticle(foundArt);
+                                      }
+                                    }}
+                                    style={{ fontSize: '0.78rem', padding: '3px 8px', width: '100%', background: '#0f172a' }}
+                                  >
+                                    <option value="">⚡ Авто-подстановка статьи из «{activeLawObj?.title || 'Законов Штата'}»...</option>
+                                    {(activeLawObj?.articles || []).map((art) => (
+                                      <option key={art.id} value={art.id}>
+                                        {art.articleNumber} — {art.title}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </div>
+                              </div>
+                            )}
+
                             <div style={{ marginBottom: '6px' }}>
                               {canEdit ? (
                                 <input

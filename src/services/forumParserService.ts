@@ -1,104 +1,15 @@
-import type { StateLaw, StateLawArticle } from '../data/stateLaws';
+import type { StateLaw } from '../data/stateLaws';
 import { INITIAL_STATE_LAWS } from '../data/stateLaws';
+import { parseLawWithStateMachine, convertDocumentTreeToStateLaw } from './lawStateMachineParser';
 
 /**
  * Ultimate Cloudflare-Bypass Forum Law Parser Gateway
- * 1. Checks matching law URLs against built-in enterprise database registry.
- * 2. Fallbacks to live multi-proxy XenForo HTML DOM extraction (.bbWrapper, .message-body).
+ * Powered by State Machine Regex Engine (lawStateMachineParser.ts)
  */
 
 export function parseForumTextToLaw(rawTextOrHtml: string, defaultTitle?: string): StateLaw {
-  if (!rawTextOrHtml) {
-    throw new Error('Пустой текст для парсинга');
-  }
-
-  // Extract BBWrapper / message body content if HTML is provided
-  let contentHtml = rawTextOrHtml;
-  const bbMatch = rawTextOrHtml.match(/class=["']bbWrapper["'][^>]*>([\s\S]*?)<\/div>/i);
-  if (bbMatch && bbMatch[1]) {
-    contentHtml = bbMatch[1];
-  }
-
-  // Clean HTML markup preserving line breaks
-  let cleanedText = contentHtml
-    .replace(/<br\s*\/?>/gi, '\n')
-    .replace(/<\/p>/gi, '\n')
-    .replace(/<\/div>/gi, '\n')
-    .replace(/<\/tr>/gi, '\n')
-    .replace(/<[^>]+>/g, '')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"');
-
-  const lines = cleanedText.split('\n').map((l) => l.trim()).filter(Boolean);
-
-  // Extract Law Title from thread title or first clean line
-  let title = defaultTitle || '';
-  if (!title && lines.length > 0) {
-    for (const l of lines) {
-      if (l.length > 5 && l.length < 140 && !l.match(/^(статья|раздел|глава)/i)) {
-        title = l.replace(/^[#=*\s]+/, '').trim();
-        break;
-      }
-    }
-  }
-  if (!title) title = 'Закон Штата San Andreas';
-
-  // Article Regex matching patterns like "Статья 1.1", "Статья 10", "Раздел 5"
-  const articleRegex = /(?:Статья|Раздел)\s+(\d+(?:\.\d+)?)(?:\.|\:|\s+–|\s+—|\s+-)?\s*([^\n\r.]+)?/gi;
-
-  const articles: StateLawArticle[] = [];
-  const matches: { index: number; artNum: string; artTitle: string; fullMatch: string }[] = [];
-
-  let match: RegExpExecArray | null;
-  while ((match = articleRegex.exec(cleanedText)) !== null) {
-    matches.push({
-      index: match.index,
-      artNum: `Статья ${match[1]}`,
-      artTitle: (match[2] || '').trim(),
-      fullMatch: match[0]
-    });
-  }
-
-  if (matches.length === 0) {
-    const chunks = cleanedText.split(/\n\s*\n/).filter((c) => c.trim().length > 20);
-    chunks.forEach((chunk, i) => {
-      articles.push({
-        id: 'art_par_' + Date.now() + '_' + i,
-        articleNumber: `Раздел ${i + 1}`,
-        title: `Положения части ${i + 1}`,
-        content: chunk.trim()
-      });
-    });
-  } else {
-    for (let i = 0; i < matches.length; i++) {
-      const current = matches[i];
-      const nextIndex = i < matches.length - 1 ? matches[i + 1].index : cleanedText.length;
-      
-      const contentChunk = cleanedText.substring(current.index + current.fullMatch.length, nextIndex).trim();
-
-      articles.push({
-        id: 'art_' + Date.now() + '_' + i,
-        articleNumber: current.artNum,
-        title: current.artTitle || 'Положения нормы',
-        content: contentChunk || 'Содержание статьи...'
-      });
-    }
-  }
-
-  const lawCodeMatch = title.match(/([А-ЯA-Z]{2,6})/);
-  const lawCode = lawCodeMatch ? lawCodeMatch[1] : 'АКТ';
-
-  return {
-    id: 'law_forum_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
-    title: title,
-    code: `${lawCode}-SA`,
-    category: 'Законы Штата',
-    forumUrl: 'https://forum.gta5rp.com',
-    articles: articles
-  };
+  const tree = parseLawWithStateMachine(rawTextOrHtml, defaultTitle);
+  return convertDocumentTreeToStateLaw(tree);
 }
 
 /**
@@ -127,7 +38,6 @@ export async function fetchLawFromForumUrl(forumUrl: string): Promise<StateLaw> 
   });
 
   if (matchedLaw) {
-    // Return structured law from registry
     return {
       ...matchedLaw,
       id: 'law_sync_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6)
@@ -165,7 +75,6 @@ export async function fetchLawFromForumUrl(forumUrl: string): Promise<StateLaw> 
   }
 
   if (!fetchedText || fetchedText.includes('cf-challenge') || fetchedText.includes('Just a moment')) {
-    // Fallback: generate structured law from URL slug if Cloudflare blocked
     const slug = cleanUrl.split('/threads/')[1] || 'zakon-shtata';
     const cleanTitle = slug
       .replace(/\.\d+\/?$/, '')
@@ -190,5 +99,5 @@ export async function fetchLawFromForumUrl(forumUrl: string): Promise<StateLaw> 
     };
   }
 
-  return parseForumTextToLaw(fetchedText);
+  return parseForumTextToLaw(fetchedText, undefined);
 }
