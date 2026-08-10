@@ -9,7 +9,7 @@ import {
   Settings,
   ShieldCheck,
   LayoutDashboard,
-  Award
+  Shield
 } from 'lucide-react';
 
 interface HeaderProps {
@@ -34,10 +34,10 @@ export const Header: React.FC<HeaderProps> = ({
   const isCommitteeOrAdmin = isOfficialCommitteeMember(user) || isSystemAdmin(user);
 
   return (
-    <header className="card-gold" style={{ borderRadius: '0', borderTop: 'none', borderLeft: 'none', borderRight: 'none', padding: '16px 32px', marginBottom: '24px' }}>
+    <header className="card-accent" style={{ borderRadius: '0', borderTop: 'none', borderLeft: 'none', borderRight: 'none', padding: '16px 32px', marginBottom: '24px' }}>
       <div style={{ maxWidth: '1280px', margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
         
-        {/* Brand Title & Official Seal */}
+        {/* Brand Title & Official Emblem */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
           <div 
             onClick={() => onNavigate('dashboard')}
@@ -45,28 +45,27 @@ export const Header: React.FC<HeaderProps> = ({
               width: '46px', 
               height: '46px', 
               borderRadius: '12px', 
-              background: 'linear-gradient(135deg, rgba(217, 119, 6, 0.25), rgba(15, 23, 42, 0.9))',
-              border: '1px solid var(--gold-border)',
+              background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.25), rgba(15, 23, 42, 0.95))',
+              border: '1px solid var(--accent-border)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               cursor: 'pointer',
-              boxShadow: '0 4px 15px rgba(217, 119, 6, 0.2)'
+              boxShadow: '0 4px 15px rgba(59, 130, 246, 0.25)'
             }}
           >
-            <Award size={24} color="var(--gold-light)" />
+            <Shield size={24} color="var(--accent-light)" />
           </div>
 
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               <h1 
                 onClick={() => onNavigate('dashboard')}
-                className="title-serif"
-                style={{ fontSize: '1.2rem', color: 'var(--text-primary)', cursor: 'pointer', margin: 0 }}
+                style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--text-primary)', cursor: 'pointer', margin: 0, letterSpacing: '0.02em' }}
               >
                 ПОРТАЛ ЗАКОНОПРОЕКТОВ
               </h1>
-              <span style={{ fontSize: '0.7rem', background: 'var(--gold-subtle)', color: 'var(--gold-light)', padding: '2px 10px', borderRadius: '12px', border: '1px solid var(--gold-border)', fontWeight: 600, letterSpacing: '0.04em' }}>
+              <span style={{ fontSize: '0.7rem', background: 'var(--accent-subtle)', color: 'var(--accent-light)', padding: '2px 10px', borderRadius: '12px', border: '1px solid var(--accent-border)', fontWeight: 600, letterSpacing: '0.04em' }}>
                 ОФИЦИАЛЬНАЯ СИСТЕМА
               </span>
             </div>
@@ -84,9 +83,9 @@ export const Header: React.FC<HeaderProps> = ({
             style={{
               fontSize: '0.84rem',
               padding: '8px 16px',
-              background: currentView === 'dashboard' ? 'var(--gold-subtle)' : 'transparent',
-              borderColor: currentView === 'dashboard' ? 'var(--gold-border)' : 'transparent',
-              color: currentView === 'dashboard' ? 'var(--gold-light)' : 'var(--text-secondary)'
+              background: currentView === 'dashboard' ? 'var(--accent-subtle)' : 'transparent',
+              borderColor: currentView === 'dashboard' ? 'var(--accent-border)' : 'transparent',
+              color: currentView === 'dashboard' ? 'var(--accent-light)' : 'var(--text-secondary)'
             }}
           >
             <LayoutDashboard size={15} /> Реестр проектов
