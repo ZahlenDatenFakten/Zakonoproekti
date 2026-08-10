@@ -55,6 +55,10 @@ const PDF_NOISE_PATTERNS: RegExp[] = [
   /^\s*Ответить\s*$/gim,
   /^\s*Пожаловаться\s*$/gim,
   /^\s*Поделиться\s*$/gim,
+  /Последнее редактирование модератором[^\n]*/gi,
+  /Discord:\s*[^\n]*/gim,
+  /\d{2}\.\d{2}\.\d{4},\s*\d{2}:\d{2}\s*SA-GOV[^\n]*/gim,
+  /Закон\s+О\s+регулировании[^\n]*https:\/\/[^\n]*/gim,
 ];
 
 export function normalizeLawText(rawText: string): string {
@@ -272,7 +276,11 @@ export function convertDocumentTreeToStateLaw(tree: LawDocumentTree, forumUrl?: 
     }
 
     if (!fullContent) {
-      fullContent = 'Содержание статьи...';
+      if (art.articleTitle && art.articleTitle !== 'Положения статьи') {
+        fullContent = art.articleTitle;
+      } else {
+        fullContent = 'Содержание статьи...';
+      }
     }
 
     const displayNum = `Статья ${art.articleNum}`;
