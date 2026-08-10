@@ -18,7 +18,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onClose,
   onToast
 }) => {
-  const [activeTab, setActiveTab] = useState<'profile' | 'official' | 'admin' | 'audit'>('profile');
+  const [activeTab, setActiveTab] = useState<'profile' | 'official' | 'admin' | 'audit' | 'ai'>('profile');
 
   // Profile Form
   const [firstName, setFirstName] = useState(user.firstName);
@@ -36,6 +36,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
   // Audit Logs
   const auditLogs: AuditLogEntry[] = getAuditLogs();
+
+  // AI Settings
+  const [geminiApiKey, setGeminiApiKey] = useState(() => localStorage.getItem('legaldraft_gemini_api_key') || '');
 
   const handleSaveProfile = () => {
     if (!firstName.trim() || !lastName.trim()) {
@@ -167,7 +170,21 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               color: activeTab === 'audit' ? '#34d399' : 'var(--text-secondary)'
             }}
           >
-            🛡️ Аудит Безопасности
+            📝 Аудит Логи
+          </button>
+
+          <button
+            onClick={() => setActiveTab('ai')}
+            className="btn btn-secondary"
+            style={{
+              fontSize: '0.82rem',
+              padding: '6px 10px',
+              background: activeTab === 'ai' ? 'var(--bg-input)' : 'transparent',
+              borderColor: activeTab === 'ai' ? 'var(--border-medium)' : 'transparent',
+              color: activeTab === 'ai' ? 'var(--text-primary)' : 'var(--text-secondary)'
+            }}
+          >
+            🧠 Настройки ИИ
           </button>
         </div>
 
@@ -388,6 +405,54 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           </div>
         )}
 
+        {/* ============================================================== */}
+        {/* ======================= 5. AI SETTINGS TAB =================== */}
+        {/* ============================================================== */}
+        {activeTab === 'ai' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-medium)', borderRadius: '10px', padding: '16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+                <div style={{ width: '32px', height: '32px', borderRadius: '6px', background: 'var(--accent-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Key size={16} color="var(--text-accent)" />
+                </div>
+                <div>
+                  <h4 style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--text-primary)' }}>Google Gemini API Key</h4>
+                  <p style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', marginTop: '2px' }}>
+                    Необходим для умного (LLM) парсинга PDF законов.
+                  </p>
+                </div>
+              </div>
+
+              <div style={{ marginBottom: '14px' }}>
+                <label className="input-label" style={{ marginBottom: '6px', display: 'block' }}>API Ключ (Gemini)</label>
+                <input
+                  type="password"
+                  className="input-field"
+                  value={geminiApiKey}
+                  onChange={(e) => setGeminiApiKey(e.target.value)}
+                  placeholder="AIzaSy..."
+                  style={{ width: '100%' }}
+                />
+              </div>
+
+              <button
+                onClick={() => {
+                  localStorage.setItem('legaldraft_gemini_api_key', geminiApiKey.trim());
+                  onToast('success', 'API Ключ Gemini успешно сохранен на вашем устройстве.');
+                }}
+                className="btn btn-primary"
+                style={{ width: '100%', padding: '10px' }}
+              >
+                Сохранить ключ
+              </button>
+            </div>
+            
+            <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: 1.5, background: 'var(--bg-input)', padding: '12px', borderRadius: '8px' }}>
+              <strong style={{ color: 'var(--text-primary)' }}>Как это работает:</strong> Ключ сохраняется исключительно в вашем браузере (Local Storage) и никуда не передается, кроме серверов Google Gemini.
+              С этим ключом вы сможете использовать глубокий нейросетевой парсинг PDF файлов при загрузке законов.
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

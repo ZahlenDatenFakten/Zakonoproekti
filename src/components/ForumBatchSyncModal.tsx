@@ -1,9 +1,10 @@
 import React, { useState, useRef } from 'react';
 import { parseForumTextToLaw } from '../services/forumParserService';
-import { parsePdfToStateLaw } from '../services/pdfParserService';
+import { parsePdfToStateLaw, extractTextFromPdf } from '../services/pdfParserService';
 import { saveCustomStateLaw, clearAllStateLaws } from '../data/stateLaws';
 import { saveStateLawToFirebase } from '../services/firebaseClient';
-import { X, Layers, FileText, Trash2, Upload, RefreshCw } from 'lucide-react';
+import { parsePdfWithAI } from '../services/aiParsingService';
+import { X, Layers, FileText, Trash2, Upload, RefreshCw, BrainCircuit } from 'lucide-react';
 
 interface ForumBatchSyncModalProps {
   onClose: () => void;
@@ -22,6 +23,9 @@ export const ForumBatchSyncModal: React.FC<ForumBatchSyncModalProps> = ({
   const [logMessages, setLogMessages] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const geminiKey = localStorage.getItem('legaldraft_gemini_api_key') || '';
+  const [useAIParsing, setUseAIParsing] = useState(!!geminiKey);
+
   const handlePdfUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
@@ -36,7 +40,21 @@ export const ForumBatchSyncModal: React.FC<ForumBatchSyncModalProps> = ({
       setLogMessages((prev) => [`[${i + 1}/${files.length}] Обработка: ${file.name}...`, ...prev]);
 
       try {
-        const parsedLaw = await parsePdfToStateLaw(file);
+        let parsedLaw;
+        
+        if (useAIParsing && geminiKey) {
+          setLogMessages((prev) => [`🧠 [${i + 1}/${files.length}] Извлечение текста для ИИ...`, ...prev]);
+          const rawText = await extractTextFromPdf(file);
+          parsedLaw = await parsePdfWithAI(
+            rawText, 
+            file.name, 
+            geminiKey, 
+            (msg) => setLogMessages((prev) => [`🧠 ${msg}`, ...prev])
+          );
+        } else {
+          parsedLaw = await parsePdfToStateLaw(file);
+        }
+
         saveCustomStateLaw(parsedLaw);
         await saveStateLawToFirebase(parsedLaw);
         successCount++;
@@ -180,6 +198,29 @@ export const ForumBatchSyncModal: React.FC<ForumBatchSyncModalProps> = ({
               style={{ display: 'none' }}
               onChange={handlePdfUpload}
             />
+
+            <div style={{ marginTop: '16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--bg-input)', padding: '12px', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <BrainCircuit size={16} color="var(--text-accent)" />
+                <div>
+                  <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)' }}>Глубокий ИИ-парсинг (Gemini)</div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>Максимальная точность структуры</div>
+                </div>
+              </div>
+              
+              <label style={{ display: 'flex', alignItems: 'center', cursor: geminiKey ? 'pointer' : 'not-allowed', opacity: geminiKey ? 1 : 0.5 }}>
+                <input 
+                  type="checkbox" 
+                  checked={useAIParsing}
+                  onChange={(e) => setUseAIParsing(e.target.checked)}
+                  disabled={!geminiKey || isProcessing}
+                  style={{ cursor: 'inherit', width: '16px', height: '16px' }}
+                />
+                <span style={{ fontSize: '0.8rem', marginLeft: '6px', color: 'var(--text-secondary)' }}>
+                  {geminiKey ? 'Включить' : 'Нет API ключа'}
+                </span>
+              </label>
+            </div>
 
             {/* Console Logs */}
             {logMessages.length > 0 && (
