@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { fetchLawFromForumUrl, parseForumTextToLaw } from '../services/forumParserService';
-import { saveCustomStateLaw } from '../data/stateLaws';
+import { saveCustomStateLaw, resetCustomStateLaws } from '../data/stateLaws';
 import { saveStateLawToFirebase } from '../services/firebaseClient';
-import { X, Layers, Play, RefreshCw, FileText, AlertTriangle } from 'lucide-react';
+import { X, Layers, Play, RefreshCw, FileText, AlertTriangle, Trash2 } from 'lucide-react';
 
 interface ForumBatchSyncModalProps {
   onClose: () => void;
@@ -99,6 +99,12 @@ export const ForumBatchSyncModal: React.FC<ForumBatchSyncModalProps> = ({
     }
   };
 
+  const handleResetAllLaws = () => {
+    resetCustomStateLaws();
+    onLawsUpdated();
+    onToast('info', 'Реестр пользовательских законов сброшен до эталона!');
+  };
+
   return (
     <div className="modal-overlay" onClick={onClose} style={{ zIndex: 9000 }}>
       <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '720px', padding: '24px' }}>
@@ -109,7 +115,7 @@ export const ForumBatchSyncModal: React.FC<ForumBatchSyncModalProps> = ({
             <Layers size={22} color="var(--text-primary)" />
             <div>
               <h3 style={{ fontSize: '1.1rem', fontWeight: 600, color: 'var(--text-primary)' }}>
-                🌐 Единый Реестр 36+ Ссылок Форума (Batch Auto-Sync)
+                🌐 Единый Реестр 36+ Ссылок Форума (Администратор)
               </h3>
               <p style={{ fontSize: '0.78rem', color: 'var(--text-tertiary)' }}>
                 Пакетная выкачка и создание единой базы кодексов и законов Штата
@@ -206,12 +212,18 @@ export const ForumBatchSyncModal: React.FC<ForumBatchSyncModalProps> = ({
               </div>
             )}
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-              <button onClick={onClose} className="btn btn-secondary">Закрыть</button>
-              <button onClick={handleStartBatchSync} disabled={isProcessing} className="btn btn-primary" style={{ fontSize: '0.85rem' }}>
-                {isProcessing ? <RefreshCw size={15} className="spin" /> : <Play size={15} />}
-                <span>{isProcessing ? 'Загрузка...' : '🚀 Запустить авто-синхронизацию всех ссылок'}</span>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <button onClick={handleResetAllLaws} className="btn btn-danger" style={{ fontSize: '0.78rem', padding: '5px 10px' }} title="Сбросить все созданные и импортированные законы к эталонному реестру">
+                <Trash2 size={13} /> 🗑️ Сбросить законы
               </button>
+
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <button onClick={onClose} className="btn btn-secondary">Закрыть</button>
+                <button onClick={handleStartBatchSync} disabled={isProcessing} className="btn btn-primary" style={{ fontSize: '0.85rem' }}>
+                  {isProcessing ? <RefreshCw size={15} className="spin" /> : <Play size={15} />}
+                  <span>{isProcessing ? 'Загрузка...' : '🚀 Запустить авто-синхронизацию всех ссылок'}</span>
+                </button>
+              </div>
             </div>
           </div>
         )}

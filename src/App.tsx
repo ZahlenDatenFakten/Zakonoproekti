@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import type { Bill, UserProfile, DbConfig, AccessPermission, AppTheme, OfficialRole } from './types/bill';
 import { OFFICIAL_ROLE_LABELS } from './types/bill';
+import { isSystemAdmin } from './services/securityService';
 import { 
   fetchAllBills, 
   saveBill, 
@@ -177,24 +178,26 @@ export const App: React.FC = () => {
         onOpenSettings={() => setShowSettingsModal(true)}
       />
 
-      {/* Floating Toolbar for Batch 36+ Forum Sync & DB Config */}
-      <div style={{ maxWidth: '1240px', width: '100%', margin: '0 auto', padding: '0 24px', display: 'flex', justifyContent: 'flex-end', gap: '10px', marginBottom: '14px' }}>
-        <button
-          onClick={() => setShowBatchSyncModal(true)}
-          className="btn btn-secondary"
-          style={{ fontSize: '0.8rem', padding: '5px 12px', background: 'rgba(99, 102, 241, 0.12)', color: '#a5b4fc', border: '1px solid rgba(99, 102, 241, 0.3)' }}
-        >
-          <Layers size={14} /> 🌐 Пакетный импорт 36+ ссылок с Форума
-        </button>
+      {/* Floating Toolbar for Batch 36+ Forum Sync & DB Config (ADMIN ONLY) */}
+      {isSystemAdmin(user) && (
+        <div style={{ maxWidth: '1240px', width: '100%', margin: '0 auto', padding: '0 24px', display: 'flex', justifyContent: 'flex-end', gap: '10px', marginBottom: '14px' }}>
+          <button
+            onClick={() => setShowBatchSyncModal(true)}
+            className="btn btn-secondary"
+            style={{ fontSize: '0.8rem', padding: '5px 12px', background: 'rgba(99, 102, 241, 0.12)', color: '#a5b4fc', border: '1px solid rgba(99, 102, 241, 0.3)' }}
+          >
+            <Layers size={14} /> 🌐 Пакетный импорт 36+ ссылок с Форума
+          </button>
 
-        <button
-          onClick={() => setShowDbModal(true)}
-          className="btn btn-secondary"
-          style={{ fontSize: '0.8rem', padding: '5px 12px' }}
-        >
-          ⚙️ Облачная БД (Firebase / Supabase)
-        </button>
-      </div>
+          <button
+            onClick={() => setShowDbModal(true)}
+            className="btn btn-secondary"
+            style={{ fontSize: '0.8rem', padding: '5px 12px' }}
+          >
+            ⚙️ Облачная БД (Firebase / Supabase)
+          </button>
+        </div>
+      )}
 
       {/* Main View Router */}
       <main style={{ flex: 1 }}>
