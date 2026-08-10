@@ -3,6 +3,7 @@ export interface StateLawArticle {
   articleNumber: string;
   title: string;
   content: string;
+  chapterRef?: string;
 }
 
 export interface StateLaw {
@@ -12,6 +13,7 @@ export interface StateLaw {
   category: string;
   forumUrl?: string;
   articles: StateLawArticle[];
+  crossReferences?: string[];
 }
 
 export const INITIAL_STATE_LAWS: StateLaw[] = [];

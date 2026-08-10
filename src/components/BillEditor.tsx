@@ -79,6 +79,34 @@ export const BillEditor: React.FC<BillEditorProps> = ({
 
   // Fullscreen Article Expander Modal State
   const [expandedRow, setExpandedRow] = useState<ComparisonRow | null>(null);
+  const [activeAutocompleteRowId, setActiveAutocompleteRowId] = useState<string | null>(null);
+
+  // Instant Article Autocomplete Lookup Engine
+  const getArticleSuggestions = (inputVal: string) => {
+    if (!inputVal || inputVal.trim().length === 0) return [];
+    const q = inputVal.trim().toLowerCase();
+    const cleanNumMatch = q.match(/\d+(?:\.\d+)*/);
+    const cleanNum = cleanNumMatch ? cleanNumMatch[0] : '';
+
+    const results: { lawTitle: string; article: StateLawArticle }[] = [];
+
+    for (const law of allLaws) {
+      for (const art of law.articles) {
+        const artNum = art.articleNumber.toLowerCase();
+        const artNumClean = artNum.replace(/[^0-9.]/g, '');
+
+        const isNumMatch = cleanNum && (artNumClean.includes(cleanNum) || artNum.includes(cleanNum));
+        const isTextMatch = artNum.includes(q) || art.title.toLowerCase().includes(q);
+
+        if (isNumMatch || isTextMatch) {
+          results.push({ lawTitle: law.title, article: art });
+          if (results.length >= 7) break;
+        }
+      }
+      if (results.length >= 7) break;
+    }
+    return results;
+  };
 
   // Federal Government Modal State
   const [showFedModal, setShowFedModal] = useState(false);
@@ -817,16 +845,62 @@ export const BillEditor: React.FC<BillEditorProps> = ({
                               </div>
                             )}
 
-                            <div style={{ marginBottom: '6px' }}>
+                            <div style={{ position: 'relative', marginBottom: '6px' }}>
                               {canEdit ? (
-                                <input
-                                  type="text"
-                                  className="input-field"
-                                  value={row.articleTitle}
-                                  onChange={(e) => handleUpdateRow(row.id, 'articleTitle', e.target.value)}
-                                  placeholder="Статья / Норма..."
-                                  style={{ fontWeight: 600, fontSize: '0.88rem', marginBottom: '6px' }}
-                                />
+                                <>
+                                  <input
+                                    type="text"
+                                    className="input-field"
+                                    value={row.articleTitle}
+                                    onFocus={() => setActiveAutocompleteRowId(row.id)}
+                                    onChange={(e) => {
+                                      handleUpdateRow(row.id, 'articleTitle', e.target.value);
+                                      setActiveAutocompleteRowId(row.id);
+                                    }}
+                                    placeholder="Введите номер (напр. 15.6) или название статьи..."
+                                    style={{ fontWeight: 600, fontSize: '0.88rem' }}
+                                  />
+
+                                  {activeAutocompleteRowId === row.id && (() => {
+                                    const suggestions = getArticleSuggestions(row.articleTitle);
+                                    if (suggestions.length === 0) return null;
+
+                                    return (
+                                      <div className="autocomplete-dropdown">
+                                        <div style={{ padding: '6px 10px', fontSize: '0.72rem', color: 'var(--text-tertiary)', borderBottom: '1px solid var(--border-subtle)', background: 'var(--bg-1)', display: 'flex', justifyContent: 'space-between' }}>
+                                          <span>⚡ Мгновенная подстановка статьи</span>
+                                          <button
+                                            onMouseDown={(e) => { e.preventDefault(); setActiveAutocompleteRowId(null); }}
+                                            style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: '0.72rem' }}
+                                          >
+                                            ✕
+                                          </button>
+                                        </div>
+                                        {suggestions.map(({ lawTitle, article }) => (
+                                          <div
+                                            key={article.id}
+                                            className="autocomplete-item"
+                                            onMouseDown={(e) => {
+                                              e.preventDefault();
+                                              handleQuickSelectArticle(article);
+                                              setActiveAutocompleteRowId(null);
+                                            }}
+                                          >
+                                            <div style={{ fontWeight: 600, fontSize: '0.84rem', color: 'var(--text-primary)' }}>
+                                              {article.articleNumber} — {article.title}
+                                            </div>
+                                            <div style={{ fontSize: '0.73rem', color: 'var(--text-secondary)', display: 'flex', justifyContent: 'space-between', marginTop: '2px' }}>
+                                              <span style={{ color: 'var(--text-accent)' }}>{lawTitle}</span>
+                                              <span style={{ color: 'var(--text-tertiary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '180px' }}>
+                                                {article.content.substring(0, 40)}...
+                                              </span>
+                                            </div>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    );
+                                  })()}
+                                </>
                               ) : (
                                 <div style={{ fontWeight: 600, marginBottom: '4px' }}>
                                   {row.articleTitle}
@@ -1170,6 +1244,23 @@ export const BillEditor: React.FC<BillEditorProps> = ({
               </div>
             )}
 
+            {/* Cross-References Links Bar */}
+            {activeLawObj?.crossReferences && activeLawObj.crossReferences.length > 0 && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', marginBottom: '12px', padding: '8px 12px', background: 'var(--bg-input)', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>🔗 Выявленные перекрёстные ссылки в законе:</span>
+                {activeLawObj.crossReferences.map((ref, idx) => (
+                  <span
+                    key={idx}
+                    className="cross-ref-badge"
+                    onClick={() => setArticleSearchQuery(ref.replace(/Статья\s*/i, ''))}
+                    title="Нажмите для мгновенного поиска по этой ссылке"
+                  >
+                    {ref}
+                  </span>
+                ))}
+              </div>
+            )}
+
             {/* Articles List */}
             <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '10px', paddingRight: '4px' }}>
               {filteredArticles.length === 0 ? (
@@ -1179,6 +1270,11 @@ export const BillEditor: React.FC<BillEditorProps> = ({
               ) : (
                 filteredArticles.map((art) => (
                   <div key={art.id} style={{ background: 'var(--bg-input)', border: '1px solid var(--border-subtle)', borderRadius: '10px', padding: '14px' }}>
+                    {art.chapterRef && (
+                      <div style={{ fontSize: '0.72rem', color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '4px', fontWeight: 600 }}>
+                        {art.chapterRef}
+                      </div>
+                    )}
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
                       <strong style={{ fontSize: '0.92rem', color: 'var(--text-primary)' }}>
                         {art.articleNumber}. {art.title}
@@ -1193,7 +1289,7 @@ export const BillEditor: React.FC<BillEditorProps> = ({
                       </button>
                     </div>
 
-                    <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                    <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
                       {art.content}
                     </p>
                   </div>
