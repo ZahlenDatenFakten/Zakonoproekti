@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
-import { fetchLawFromForumUrl, parseForumTextToLaw } from '../services/forumParserService';
-import { saveCustomStateLaw, resetCustomStateLaws } from '../data/stateLaws';
+import React, { useState, useRef } from 'react';
+import { parseForumTextToLaw } from '../services/forumParserService';
+import { parsePdfToStateLaw } from '../services/pdfParserService';
+import { saveCustomStateLaw, clearAllStateLaws } from '../data/stateLaws';
 import { saveStateLawToFirebase } from '../services/firebaseClient';
-import { X, Layers, Play, RefreshCw, FileText, AlertTriangle, Trash2 } from 'lucide-react';
+import { X, Layers, FileText, Trash2, Upload, RefreshCw } from 'lucide-react';
 
 interface ForumBatchSyncModalProps {
   onClose: () => void;
@@ -15,70 +16,47 @@ export const ForumBatchSyncModal: React.FC<ForumBatchSyncModalProps> = ({
   onToast,
   onLawsUpdated
 }) => {
-  const [activeTab, setActiveTab] = useState<'url_batch' | 'text_batch'>('url_batch');
-  const [urlsInput, setUrlsInput] = useState('');
+  const [activeTab, setActiveTab] = useState<'pdf_upload' | 'text_paste'>('pdf_upload');
   const [rawTextInput, setRawTextInput] = useState('');
-  
   const [isProcessing, setIsProcessing] = useState(false);
-  const [progressCount, setProgressCount] = useState(0);
-  const [totalCount, setTotalCount] = useState(0);
   const [logMessages, setLogMessages] = useState<string[]>([]);
-  const [blockedUrls, setBlockedUrls] = useState<string[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleStartBatchSync = async () => {
-    const lines = urlsInput
-      .split('\n')
-      .map((l) => l.trim())
-      .filter((l) => l.length > 0 && l.startsWith('http'));
-
-    if (lines.length === 0) {
-      onToast('error', 'Вставьте список ссылок (по одной ссылке на строку)');
-      return;
-    }
+  const handlePdfUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
 
     setIsProcessing(true);
-    setProgressCount(0);
-    setTotalCount(lines.length);
-    setLogMessages([`Старт авто-синхронизации ${lines.length} тем с форума...`]);
-    setBlockedUrls([]);
+    setLogMessages([`Начата обработка ${files.length} PDF-файлов...`]);
 
     let successCount = 0;
-    const blocked: string[] = [];
 
-    for (let i = 0; i < lines.length; i++) {
-      const url = lines[i];
-      setProgressCount(i + 1);
-      
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      setLogMessages((prev) => [`[${i + 1}/${files.length}] Обработка: ${file.name}...`, ...prev]);
+
       try {
-        setLogMessages((prev) => [`[${i + 1}/${lines.length}] Парсинг: ${url.substring(0, 60)}...`, ...prev]);
-        const parsedLaw = await fetchLawFromForumUrl(url);
-        
+        const parsedLaw = await parsePdfToStateLaw(file);
         saveCustomStateLaw(parsedLaw);
         await saveStateLawToFirebase(parsedLaw);
-        
         successCount++;
-        setLogMessages((prev) => [`✓ [${i + 1}/${lines.length}] Успешно спарсен: ${parsedLaw.title} (${parsedLaw.articles.length} статей)`, ...prev]);
+        setLogMessages((prev) => [`✓ [${i + 1}/${files.length}] ${parsedLaw.title} — ${parsedLaw.articles.length} статей`, ...prev]);
       } catch (err: any) {
-        if (err.message === 'CLOUDFLARE_PROTECTED') {
-          blocked.push(url);
-          setLogMessages((prev) => [`⚠️ [${i + 1}/${lines.length}] Защита Cloudflare (Нужен переход в браузере): ${url.substring(0, 50)}...`, ...prev]);
-        } else {
-          setLogMessages((prev) => [`❌ [${i + 1}/${lines.length}] Ошибка запроса темы: ${url.substring(0, 50)}...`, ...prev]);
-        }
+        setLogMessages((prev) => [`✗ [${i + 1}/${files.length}] Ошибка: ${err.message || 'Не удалось обработать файл'}`, ...prev]);
       }
-
-      await new Promise((res) => setTimeout(res, 250));
     }
 
     setIsProcessing(false);
-    setBlockedUrls(blocked);
     onLawsUpdated();
 
-    if (blocked.length > 0) {
-      onToast('info', `Спарсено ${successCount} из ${lines.length}. Темы под Cloudflare можно вставить списком текстов на 2-й вкладке!`);
+    if (successCount > 0) {
+      onToast('success', `Загружено ${successCount} из ${files.length} PDF-файлов.`);
     } else {
-      onToast('success', `Пакетная синхронизация 100% завершена! Спарсено ${successCount} законов.`);
+      onToast('error', 'Ни один PDF не был обработан. Проверьте формат файлов.');
     }
+
+    // Reset file input
+    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   const handleParseBatchText = () => {
@@ -93,119 +71,130 @@ export const ForumBatchSyncModal: React.FC<ForumBatchSyncModalProps> = ({
       saveStateLawToFirebase(parsedLaw);
       onLawsUpdated();
       setRawTextInput('');
-      onToast('success', `Закон «${parsedLaw.title}» успешно спарсен и сохранен в базу (${parsedLaw.articles.length} статей)!`);
+      onToast('success', `Закон «${parsedLaw.title}» — ${parsedLaw.articles.length} статей добавлено.`);
     } catch {
-      onToast('error', 'Не удалось распарсить текст');
+      onToast('error', 'Не удалось распарсить текст.');
     }
   };
 
-  const handleResetAllLaws = () => {
-    resetCustomStateLaws();
+  const handleClearAllLaws = () => {
+    clearAllStateLaws();
     onLawsUpdated();
-    onToast('info', 'Реестр пользовательских законов сброшен до эталона!');
+    onToast('info', 'Все законы удалены из базы.');
   };
+
+  const tabStyle = (isActive: boolean): React.CSSProperties => ({
+    fontSize: '0.8rem',
+    fontWeight: 550,
+    padding: '7px 14px',
+    borderRadius: 'var(--radius-xs)',
+    border: 'none',
+    cursor: 'pointer',
+    transition: 'all 0.15s ease',
+    background: isActive ? 'var(--bg-4)' : 'transparent',
+    color: isActive ? 'var(--text-primary)' : 'var(--text-tertiary)',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px'
+  });
 
   return (
     <div className="modal-overlay" onClick={onClose} style={{ zIndex: 9000 }}>
-      <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '720px', padding: '24px' }}>
-        
+      <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '680px', padding: '24px' }}>
+
         {/* Header */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '18px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <Layers size={22} color="var(--text-primary)" />
+            <Layers size={20} color="var(--text-primary)" />
             <div>
-              <h3 style={{ fontSize: '1.1rem', fontWeight: 600, color: 'var(--text-primary)' }}>
-                🌐 Единый Реестр 36+ Ссылок Форума (Администратор)
+              <h3 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                Управление реестром законов
               </h3>
-              <p style={{ fontSize: '0.78rem', color: 'var(--text-tertiary)' }}>
-                Пакетная выкачка и создание единой базы кодексов и законов Штата
+              <p style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>
+                Загрузите PDF-файлы или вставьте текст для распознавания статей
               </p>
             </div>
           </div>
-
           <button onClick={onClose} className="btn btn-secondary" style={{ padding: '6px' }}>
             <X size={16} />
           </button>
         </div>
 
         {/* Tabs */}
-        <div style={{ display: 'flex', gap: '10px', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '8px', marginBottom: '16px' }}>
-          <button
-            onClick={() => setActiveTab('url_batch')}
-            className="btn btn-secondary"
-            style={{
-              fontSize: '0.82rem',
-              padding: '6px 12px',
-              background: activeTab === 'url_batch' ? 'var(--bg-input)' : 'transparent',
-              color: activeTab === 'url_batch' ? 'var(--text-primary)' : 'var(--text-tertiary)',
-              borderColor: activeTab === 'url_batch' ? 'var(--border-medium)' : 'transparent'
-            }}
-          >
-            🌐 1. Авто-скачивание 36+ ссылок URL
+        <div style={{ display: 'flex', gap: '2px', background: 'var(--bg-input)', padding: '3px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)', marginBottom: '18px' }}>
+          <button onClick={() => setActiveTab('pdf_upload')} style={tabStyle(activeTab === 'pdf_upload')}>
+            <Upload size={13} /> Загрузка PDF
           </button>
-
-          <button
-            onClick={() => setActiveTab('text_batch')}
-            className="btn btn-secondary"
-            style={{
-              fontSize: '0.82rem',
-              padding: '6px 12px',
-              background: activeTab === 'text_batch' ? 'var(--bg-input)' : 'transparent',
-              color: activeTab === 'text_batch' ? 'var(--text-primary)' : 'var(--text-tertiary)',
-              borderColor: activeTab === 'text_batch' ? 'var(--border-medium)' : 'transparent'
-            }}
-          >
-            📋 2. Мгновенный импорт любого скопированного закона (0.1 сек)
+          <button onClick={() => setActiveTab('text_paste')} style={tabStyle(activeTab === 'text_paste')}>
+            <FileText size={13} /> Вставка текста
           </button>
         </div>
 
-        {/* TAB 1: URL Batch */}
-        {activeTab === 'url_batch' && (
+        {/* TAB 1: PDF Upload */}
+        {activeTab === 'pdf_upload' && (
           <div>
-            <div style={{ marginBottom: '16px' }}>
-              <label style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', display: 'block', marginBottom: '6px' }}>
-                Вставьте ваш список ссылок на темы форума (по одной ссылке на строку):
-              </label>
-              <textarea
-                className="textarea-field"
-                rows={7}
-                disabled={isProcessing}
-                placeholder={`https://forum.gta5rp.com/threads/sa-gov-ugolovno-administrativnyi-kodeks-shtata-san-andreas.1973527/\nhttps://forum.gta5rp.com/threads/sa-gov-zakon-o-ministerstve-finansov-shtata-san-andreas.1973496/`}
-                value={urlsInput}
-                onChange={(e) => setUrlsInput(e.target.value)}
-                style={{ fontSize: '0.82rem', fontFamily: 'var(--font-mono)' }}
-              />
+            <div style={{
+              border: '2px dashed var(--border-medium)',
+              borderRadius: 'var(--radius-md)',
+              padding: '32px 20px',
+              textAlign: 'center',
+              marginBottom: '16px',
+              cursor: 'pointer',
+              transition: 'border-color 0.2s ease',
+              background: 'var(--bg-input)'
+            }}
+              onClick={() => fileInputRef.current?.click()}
+              onDragOver={(e) => { e.preventDefault(); e.currentTarget.style.borderColor = 'var(--accent)'; }}
+              onDragLeave={(e) => { e.currentTarget.style.borderColor = ''; }}
+              onDrop={(e) => {
+                e.preventDefault();
+                e.currentTarget.style.borderColor = '';
+                const dt = e.dataTransfer;
+                if (dt.files.length > 0 && fileInputRef.current) {
+                  const inputEl = fileInputRef.current;
+                  const dataTransfer = new DataTransfer();
+                  Array.from(dt.files).forEach(f => dataTransfer.items.add(f));
+                  inputEl.files = dataTransfer.files;
+                  inputEl.dispatchEvent(new Event('change', { bubbles: true }));
+                }
+              }}
+            >
+              {isProcessing ? (
+                <RefreshCw size={28} className="spin" color="var(--accent)" />
+              ) : (
+                <Upload size={28} color="var(--text-tertiary)" />
+              )}
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '10px' }}>
+                {isProcessing ? 'Обработка файлов...' : 'Нажмите или перетащите PDF-файлы сюда'}
+              </p>
+              <p style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', marginTop: '4px' }}>
+                Поддерживается загрузка нескольких файлов одновременно
+              </p>
             </div>
 
-            {/* Progress Bar */}
-            {isProcessing && (
-              <div style={{ marginBottom: '16px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>
-                  <span>Обход ссылок форума...</span>
-                  <span>{progressCount} / {totalCount} ({Math.round((progressCount / (totalCount || 1)) * 100)}%)</span>
-                </div>
-
-                <div style={{ width: '100%', height: '8px', background: 'var(--bg-input)', borderRadius: '4px', overflow: 'hidden' }}>
-                  <div style={{ width: `${(progressCount / (totalCount || 1)) * 100}%`, height: '100%', background: 'linear-gradient(90deg, #6366f1, #34d399)', transition: 'width 0.2s ease' }}></div>
-                </div>
-              </div>
-            )}
-
-            {/* Cloudflare Protected Notice */}
-            {blockedUrls.length > 0 && !isProcessing && (
-              <div style={{ background: 'rgba(251, 191, 36, 0.12)', border: '1px solid rgba(251, 191, 36, 0.3)', borderRadius: '10px', padding: '12px 14px', marginBottom: '14px', fontSize: '0.82rem', color: '#facc15' }}>
-                <div style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
-                  <AlertTriangle size={16} /> Часть тем ({blockedUrls.length}) заблокирована Cloudflare для автоматических ботов
-                </div>
-                <div>
-                  Не бойтесь! Вы можете открыть заблокированную тему в соседней вкладке браузера, сделать <code>Ctrl+A</code> -&gt; <code>Ctrl+C</code> и вставить на 2-й вкладке. Парсер разберет весь закон за 0.1 секунды!
-                </div>
-              </div>
-            )}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".pdf"
+              multiple
+              style={{ display: 'none' }}
+              onChange={handlePdfUpload}
+            />
 
             {/* Console Logs */}
             {logMessages.length > 0 && (
-              <div style={{ background: '#0f172a', border: '1px solid var(--border-subtle)', borderRadius: '8px', padding: '10px 12px', maxHeight: '140px', overflowY: 'auto', marginBottom: '16px', fontFamily: 'var(--font-mono)', fontSize: '0.78rem', color: '#cbd5e1' }}>
+              <div style={{
+                background: 'var(--bg-0)',
+                border: '1px solid var(--border-subtle)',
+                borderRadius: 'var(--radius-sm)',
+                padding: '10px 12px',
+                maxHeight: '160px',
+                overflowY: 'auto',
+                marginBottom: '16px',
+                fontFamily: 'var(--font-mono)',
+                fontSize: '0.75rem',
+                color: 'var(--text-secondary)'
+              }}>
                 {logMessages.map((msg, idx) => (
                   <div key={idx} style={{ marginBottom: '2px' }}>{msg}</div>
                 ))}
@@ -213,32 +202,25 @@ export const ForumBatchSyncModal: React.FC<ForumBatchSyncModalProps> = ({
             )}
 
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <button onClick={handleResetAllLaws} className="btn btn-danger" style={{ fontSize: '0.78rem', padding: '5px 10px' }} title="Сбросить все созданные и импортированные законы к эталонному реестру">
-                <Trash2 size={13} /> 🗑️ Сбросить законы
+              <button onClick={handleClearAllLaws} className="btn btn-danger" style={{ fontSize: '0.78rem', padding: '6px 12px' }}>
+                <Trash2 size={13} /> Очистить все законы
               </button>
-
-              <div style={{ display: 'flex', gap: '10px' }}>
-                <button onClick={onClose} className="btn btn-secondary">Закрыть</button>
-                <button onClick={handleStartBatchSync} disabled={isProcessing} className="btn btn-primary" style={{ fontSize: '0.85rem' }}>
-                  {isProcessing ? <RefreshCw size={15} className="spin" /> : <Play size={15} />}
-                  <span>{isProcessing ? 'Загрузка...' : '🚀 Запустить авто-синхронизацию всех ссылок'}</span>
-                </button>
-              </div>
+              <button onClick={onClose} className="btn btn-secondary">Закрыть</button>
             </div>
           </div>
         )}
 
-        {/* TAB 2: Text Import */}
-        {activeTab === 'text_batch' && (
+        {/* TAB 2: Text Paste */}
+        {activeTab === 'text_paste' && (
           <div>
             <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginBottom: '10px', lineHeight: 1.5 }}>
-              Откройте тему с законом на форуме в браузере, выделите весь текст (<code>Ctrl+A</code>) -&gt; (<code>Ctrl+C</code>) и вставьте сюда. Парсер мгновенно распознает заголовок и разложит всё по статьям:
+              Скопируйте текст закона и вставьте сюда. Парсер распознает структуру и разложит по статьям.
             </p>
 
             <textarea
               className="textarea-field"
               rows={8}
-              placeholder="Вставьте скопированный текст закона с форума..."
+              placeholder="Вставьте скопированный текст закона..."
               value={rawTextInput}
               onChange={(e) => setRawTextInput(e.target.value)}
               style={{ fontSize: '0.82rem', marginBottom: '14px' }}
@@ -246,8 +228,8 @@ export const ForumBatchSyncModal: React.FC<ForumBatchSyncModalProps> = ({
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
               <button onClick={onClose} className="btn btn-secondary">Закрыть</button>
-              <button onClick={handleParseBatchText} className="btn btn-primary" style={{ fontSize: '0.85rem' }}>
-                <FileText size={15} /> ⚡ Распарсить и добавить закон в базу (0.1 сек)
+              <button onClick={handleParseBatchText} className="btn btn-primary" style={{ fontSize: '0.82rem' }}>
+                <FileText size={14} /> Распарсить и добавить
               </button>
             </div>
           </div>

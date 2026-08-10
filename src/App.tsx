@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import type { Bill, UserProfile, DbConfig, AccessPermission, AppTheme, OfficialRole } from './types/bill';
 import { OFFICIAL_ROLE_LABELS } from './types/bill';
-import { isSystemAdmin } from './services/securityService';
+import { isGovernorOrAdmin } from './services/securityService';
 import { 
   fetchAllBills, 
   saveBill, 
@@ -108,13 +108,12 @@ export const App: React.FC = () => {
   };
 
   // Create new bill
-  const handleCreateNewBill = () => {
+  const handleCreateNewBill = async () => {
     const authorFullName = `${user.firstName} ${user.lastName}`.trim();
     const newBill: Bill = {
       id: 'bill_' + Date.now(),
       title: 'О внесении изменений в Законы Штата',
       targetLaw: 'Уголовный кодекс Штата (УК)',
-      lawCode: 'ЗП-2026/' + Math.floor(100 + Math.random() * 900),
       author: authorFullName,
       authorRole: OFFICIAL_ROLE_LABELS[user.officialRole],
       status: 'draft',
@@ -136,7 +135,10 @@ export const App: React.FC = () => {
       viewCount: 1
     };
 
-    setSelectedBill(newBill);
+    // Save immediately so it persists on refresh
+    const saved = await saveBill(newBill);
+    await loadData();
+    setSelectedBill(saved);
     setCurrentPermission('edit');
     setCurrentView('editor');
   };
@@ -179,7 +181,7 @@ export const App: React.FC = () => {
       />
 
       {/* Floating Toolbar for Batch 36+ Forum Sync & DB Config (ADMIN ONLY) */}
-      {isSystemAdmin(user) && (
+      {isGovernorOrAdmin(user) && (
         <div style={{ maxWidth: '1240px', width: '100%', margin: '0 auto', padding: '0 24px', display: 'flex', justifyContent: 'flex-end', gap: '10px', marginBottom: '14px' }}>
           <button
             onClick={() => setShowBatchSyncModal(true)}

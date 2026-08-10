@@ -187,9 +187,7 @@ export const AdminWorkspace: React.FC<AdminWorkspaceProps> = ({
                       {bill.status === 'under_review' && <ShieldCheck size={13} />}
                       {bill.status === 'approved' ? 'Утвержден Правительством' : bill.status === 'rejected' ? 'Отклонен Правительством' : bill.status === 'needs_revision' ? 'На доработке' : 'На проверке 2 этапа'}
                     </span>
-                    <span style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', fontFamily: 'var(--font-mono)' }}>
-                      {bill.lawCode || 'БЕЗ НОМЕРА'}
-                    </span>
+
                   </div>
 
                   <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: '6px' }}>

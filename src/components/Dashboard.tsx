@@ -190,9 +190,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                           <Users size={11} /> Голосы: {voteCount}/3
                         </span>
                       )}
-                      <span style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', fontFamily: 'var(--font-mono)' }}>
-                        {bill.lawCode || 'БЕЗ НОМЕРА'}
-                      </span>
+
                     </div>
                   </div>
 

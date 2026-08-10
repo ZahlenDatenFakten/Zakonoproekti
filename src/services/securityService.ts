@@ -168,6 +168,11 @@ export function isSystemAdmin(user: UserProfile): boolean {
   return user.isOfficialVerified && user.officialRole === 'admin';
 }
 
+export function isGovernorOrAdmin(user: UserProfile): boolean {
+  if (!user.isOfficialVerified) return false;
+  return user.officialRole === 'admin' || user.officialRole === 'governor';
+}
+
 export function sanitizeInput(input: string): string {
   if (!input) return '';
   return input

@@ -608,30 +608,15 @@ export const BillEditor: React.FC<BillEditorProps> = ({
               </span>
             </div>
 
-            {/* Registration Code & SHA-256 Hash Badge */}
+            {/* SHA-256 Hash Badge */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
               {bill.sha256Hash && (
                 <span style={{ fontSize: '0.72rem', background: 'rgba(52, 211, 153, 0.12)', color: '#34d399', padding: '3px 8px', borderRadius: '4px', border: '1px solid rgba(52, 211, 153, 0.3)', fontFamily: 'var(--font-mono)' }} title="SHA-256 Отпечаток целостности подтвержден">
                   ✓ SHA-256: {bill.sha256Hash.substring(0, 8)}...
                 </span>
               )}
-              
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <span style={{ fontSize: '0.82rem', color: 'var(--text-tertiary)' }}>Рег. номер:</span>
-                {canEdit ? (
-                  <input
-                    type="text"
-                    className="input-field"
-                    value={bill.lawCode || ''}
-                    onChange={(e) => handleFieldChange('lawCode', e.target.value)}
-                    placeholder="ЗП-2026/001"
-                    style={{ width: '130px', padding: '4px 10px', fontSize: '0.82rem', fontFamily: 'var(--font-mono)' }}
-                  />
-                ) : (
-                  <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-primary)', fontSize: '0.88rem' }}>{bill.lawCode}</span>
-                )}
-              </div>
             </div>
+
           </div>
 
           {/* Official Public Status Message */}

@@ -125,19 +125,21 @@ export async function saveBill(bill: Bill): Promise<Bill> {
     }
   }
 
-  // Synchronize to Failover Local Vault
-  const currentBills = await fetchAllBills();
-  const index = currentBills.findIndex((b) => b.id === updatedBill.id);
-  let newBillsList: Bill[];
-
-  if (index >= 0) {
-    newBillsList = [...currentBills];
-    newBillsList[index] = updatedBill;
-  } else {
-    newBillsList = [updatedBill, ...currentBills];
+  // Synchronize to Local Vault (read directly to avoid Firebase overwrite)
+  let localBills: Bill[] = [];
+  const savedLocal = localStorage.getItem(STORAGE_KEY);
+  if (savedLocal) {
+    try { localBills = JSON.parse(savedLocal); } catch { localBills = []; }
   }
 
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(newBillsList));
+  const index = localBills.findIndex((b) => b.id === updatedBill.id);
+  if (index >= 0) {
+    localBills[index] = updatedBill;
+  } else {
+    localBills.unshift(updatedBill);
+  }
+
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(localBills));
 
   return updatedBill;
 }
