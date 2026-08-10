@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import type { Bill, ComparisonRow, AccessPermission, UserProfile, VoteDecision, CommissionVotes, BillStatus, FederalGovernmentVerdict } from '../types/bill';
 import { OFFICIAL_ROLE_LABELS } from '../types/bill';
 import { getAllStateLaws, saveCustomStateLaw } from '../data/stateLaws';
 import type { StateLaw, StateLawArticle } from '../data/stateLaws';
 import { parseForumTextToLaw, fetchLawFromForumUrl } from '../services/forumParserService';
+import { searchArticlesSemantically, semanticSearchEvents } from '../services/semanticSearchService';
 import { computeWordDiff } from '../services/diffService';
 import { sanitizeInput, isOfficialCommitteeMember, isSystemAdmin, computeDocumentHash } from '../services/securityService';
 import { CommentsSection } from './CommentsSection';
@@ -29,7 +30,9 @@ import {
   AlertTriangle,
   BookOpen,
   Search,
-  FileCode
+  FileCode,
+  Brain,
+  Loader2
 } from 'lucide-react';
 
 interface BillEditorProps {
@@ -80,6 +83,43 @@ export const BillEditor: React.FC<BillEditorProps> = ({
   // Fullscreen Article Expander Modal State
   const [expandedRow, setExpandedRow] = useState<ComparisonRow | null>(null);
   const [activeAutocompleteRowId, setActiveAutocompleteRowId] = useState<string | null>(null);
+  const [semanticResults, setSemanticResults] = useState<{ article: StateLawArticle; score: number; lawTitle: string }[] | null>(null);
+  const [isSearchingSemantically, setIsSearchingSemantically] = useState(false);
+  const [semanticLoadingMsg, setSemanticLoadingMsg] = useState('');
+
+  useEffect(() => {
+    const handleProgress = (e: any) => {
+      const data = e.detail;
+      if (data.status === 'downloading') {
+        setSemanticLoadingMsg(`Загрузка ИИ модели: ${data.file} (${Math.round(data.progress || 0)}%)`);
+      } else if (data.status === 'init') {
+        setSemanticLoadingMsg('Инициализация нейросети...');
+      } else if (data.status === 'ready') {
+        setSemanticLoadingMsg('Нейросеть готова к работе');
+      }
+    };
+    semanticSearchEvents.addEventListener('progress', handleProgress);
+    return () => semanticSearchEvents.removeEventListener('progress', handleProgress);
+  }, []);
+
+  const handleSemanticSearch = async (query: string) => {
+    if (!query.trim()) return;
+    setIsSearchingSemantically(true);
+    setSemanticLoadingMsg('Анализируем смысл вашего запроса...');
+    try {
+      const results = await searchArticlesSemantically(query, allLaws.flatMap(l => l.articles));
+      // Map results back to include lawTitle
+      const mapped = results.map(r => {
+        const law = allLaws.find(l => l.articles.some(a => a.id === r.article.id));
+        return { ...r, lawTitle: law?.title || 'Закон' };
+      });
+      setSemanticResults(mapped.slice(0, 10)); // Top 10
+    } catch (e) {
+      onToast('error', 'Ошибка семантического поиска');
+    } finally {
+      setIsSearchingSemantically(false);
+    }
+  };
 
   // Instant Article Autocomplete Lookup Engine
   const getArticleSuggestions = (inputVal: string) => {
@@ -818,64 +858,83 @@ export const BillEditor: React.FC<BillEditorProps> = ({
                         <tr key={row.id}>
                           {/* Was Cell */}
                           <td className="cell-was">
-                            {/* Quick Article Finder Toolbar for Editor */}
-                            {canEdit && (
-                              <div style={{ background: 'var(--bg-input)', border: '1px solid var(--border-subtle)', borderRadius: '8px', padding: '6px 8px', marginBottom: '8px' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                  <Search size={13} color="var(--text-tertiary)" />
-                                  <select
-                                    className="select-field"
-                                    onChange={(e) => {
-                                      const artId = e.target.value;
-                                      if (artId) {
-                                        const foundArt = (activeLawObj?.articles || []).find((a) => a.id === artId);
-                                        if (foundArt) handleQuickSelectArticle(foundArt);
-                                      }
-                                    }}
-                                    style={{ fontSize: '0.78rem', padding: '3px 8px', width: '100%', background: '#0f172a' }}
-                                  >
-                                    <option value="">⚡ Авто-подстановка статьи из «{activeLawObj?.title || 'Законов Штата'}»...</option>
-                                    {(activeLawObj?.articles || []).map((art) => (
-                                      <option key={art.id} value={art.id}>
-                                        {art.articleNumber} — {art.title}
-                                      </option>
-                                    ))}
-                                  </select>
-                                </div>
-                              </div>
-                            )}
-
                             <div style={{ position: 'relative', marginBottom: '6px' }}>
                               {canEdit ? (
-                                <>
-                                  <input
-                                    type="text"
-                                    className="input-field"
-                                    value={row.articleTitle}
-                                    onFocus={() => setActiveAutocompleteRowId(row.id)}
-                                    onChange={(e) => {
-                                      handleUpdateRow(row.id, 'articleTitle', e.target.value);
-                                      setActiveAutocompleteRowId(row.id);
-                                    }}
-                                    placeholder="Введите номер (напр. 15.6) или название статьи..."
-                                    style={{ fontWeight: 600, fontSize: '0.88rem' }}
-                                  />
+                                <div style={{ background: 'var(--bg-input)', border: '1px solid var(--border-subtle)', borderRadius: '8px', padding: '6px 8px', marginBottom: '8px' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                    <Search size={13} color="var(--text-tertiary)" />
+                                    <input
+                                      type="text"
+                                      className="input-field"
+                                      value={row.articleTitle}
+                                      onFocus={() => setActiveAutocompleteRowId(row.id)}
+                                      onChange={(e) => {
+                                        handleUpdateRow(row.id, 'articleTitle', e.target.value);
+                                        setActiveAutocompleteRowId(row.id);
+                                        setSemanticResults(null);
+                                      }}
+                                      placeholder="Введите номер или название статьи..."
+                                      style={{ fontWeight: 600, fontSize: '0.88rem', width: '100%' }}
+                                    />
+                                  </div>
+                                </div>
+                              ) : (
+                                <div style={{ fontWeight: 600, marginBottom: '4px' }}>
+                                  {row.articleTitle}
+                                </div>
+                              )}
 
-                                  {activeAutocompleteRowId === row.id && (() => {
-                                    const suggestions = getArticleSuggestions(row.articleTitle);
-                                    if (suggestions.length === 0) return null;
+                              {canEdit && activeAutocompleteRowId === row.id && (() => {
+                                const suggestions = getArticleSuggestions(row.articleTitle);
+                                if (suggestions.length === 0 && !semanticResults && !isSearchingSemantically) return null;
 
-                                    return (
-                                      <div className="autocomplete-dropdown">
-                                        <div style={{ padding: '6px 10px', fontSize: '0.72rem', color: 'var(--text-tertiary)', borderBottom: '1px solid var(--border-subtle)', background: 'var(--bg-1)', display: 'flex', justifyContent: 'space-between' }}>
-                                          <span>⚡ Мгновенная подстановка статьи</span>
-                                          <button
-                                            onMouseDown={(e) => { e.preventDefault(); setActiveAutocompleteRowId(null); }}
-                                            style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: '0.72rem' }}
+                                return (
+                                  <div className="autocomplete-dropdown">
+                                    <div style={{ padding: '6px 10px', fontSize: '0.72rem', color: 'var(--text-tertiary)', borderBottom: '1px solid var(--border-subtle)', background: 'var(--bg-1)', display: 'flex', justifyContent: 'space-between' }}>
+                                      <span>⚡ {semanticResults ? 'ИИ Результаты' : 'Мгновенная подстановка статьи'}</span>
+                                      <button
+                                        onMouseDown={(e) => { e.preventDefault(); setActiveAutocompleteRowId(null); setSemanticResults(null); }}
+                                        style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: '0.72rem' }}
+                                      >
+                                        ✕
+                                      </button>
+                                    </div>
+                                    
+                                    {semanticResults ? (
+                                      <>
+                                        {semanticResults.length === 0 && (
+                                          <div style={{ padding: '10px', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '0.8rem' }}>
+                                            По смыслу ничего не найдено.
+                                          </div>
+                                        )}
+                                        {semanticResults.map(({ lawTitle, article, score }) => (
+                                          <div
+                                            key={article.id}
+                                            className="autocomplete-item"
+                                            onMouseDown={(e) => {
+                                              e.preventDefault();
+                                              handleQuickSelectArticle(article);
+                                              setActiveAutocompleteRowId(null);
+                                              setSemanticResults(null);
+                                            }}
                                           >
-                                            ✕
-                                          </button>
-                                        </div>
+                                            <div style={{ fontWeight: 600, fontSize: '0.84rem', color: 'var(--text-primary)', display: 'flex', justifyContent: 'space-between' }}>
+                                              <span>{article.articleNumber} — {article.title}</span>
+                                              <span style={{ fontSize: '0.7rem', color: 'var(--accent)', background: 'var(--accent-subtle)', padding: '2px 6px', borderRadius: '4px' }}>
+                                                {Math.round(score * 100)}% совпадение
+                                              </span>
+                                            </div>
+                                            <div style={{ fontSize: '0.73rem', color: 'var(--text-secondary)', display: 'flex', justifyContent: 'space-between', marginTop: '4px' }}>
+                                              <span style={{ color: 'var(--text-accent)' }}>{lawTitle}</span>
+                                              <span style={{ color: 'var(--text-tertiary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '60%' }}>
+                                                {article.content.substring(0, 100)}...
+                                              </span>
+                                            </div>
+                                          </div>
+                                        ))}
+                                      </>
+                                    ) : (
+                                      <>
                                         {suggestions.map(({ lawTitle, article }) => (
                                           <div
                                             key={article.id}
@@ -897,15 +956,33 @@ export const BillEditor: React.FC<BillEditorProps> = ({
                                             </div>
                                           </div>
                                         ))}
-                                      </div>
-                                    );
-                                  })()}
-                                </>
-                              ) : (
-                                <div style={{ fontWeight: 600, marginBottom: '4px' }}>
-                                  {row.articleTitle}
-                                </div>
-                              )}
+                                        
+                                        <div style={{ padding: '8px', borderTop: '1px solid var(--border-subtle)' }}>
+                                          <button
+                                            disabled={isSearchingSemantically || row.articleTitle.length < 3}
+                                            onMouseDown={(e) => {
+                                              e.preventDefault();
+                                              if (row.articleTitle.length >= 3) {
+                                                handleSemanticSearch(row.articleTitle);
+                                              }
+                                            }}
+                                            style={{
+                                              width: '100%', padding: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+                                              background: 'var(--accent-subtle)', color: 'var(--accent)', border: '1px solid var(--accent-border)',
+                                              borderRadius: '6px', fontSize: '0.8rem', fontWeight: 600, 
+                                              cursor: (isSearchingSemantically || row.articleTitle.length < 3) ? 'not-allowed' : 'pointer',
+                                              opacity: row.articleTitle.length < 3 ? 0.5 : 1
+                                            }}
+                                          >
+                                            {isSearchingSemantically ? <Loader2 size={16} className="animate-spin" /> : <Brain size={16} />}
+                                            {isSearchingSemantically ? semanticLoadingMsg : 'Найти статью по смыслу (ИИ)'}
+                                          </button>
+                                        </div>
+                                      </>
+                                    )}
+                                  </div>
+                                );
+                              })()}
                             </div>
 
                             {canEdit ? (

@@ -19,29 +19,51 @@ export async function extractTextFromPdf(file: File): Promise<string> {
     const page = await pdf.getPage(i);
     const textContent = await page.getTextContent();
     
-    let pageText = '';
-    let lastY = null;
+    // Structure: map of Y coordinate (rounded) to array of items
+    const linesMap = new Map<number, { str: string; x: number }[]>();
 
     for (const rawItem of textContent.items) {
       const item = rawItem as any;
-      if (item.str === undefined) continue;
+      if (item.str === undefined || item.str.trim() === '') continue;
       
-      const y = item.transform ? item.transform[5] : null;
+      const x = item.transform ? item.transform[4] : 0;
+      const y = item.transform ? item.transform[5] : 0;
       
-      // If Y coordinate changed significantly (e.g. > 4 points) or hasEOL is true, it's a new line
-      if (lastY !== null && y !== null && Math.abs(y - lastY) > 4) {
-        pageText += '\n';
-      } else if (item.hasEOL) {
-        pageText += '\n';
-      } else if (lastY !== null && item.str.trim() !== '') {
-         // Same line, add a space if needed
-         if (pageText.length > 0 && !pageText.endsWith(' ') && !pageText.endsWith('\n')) {
-           pageText += ' ';
-         }
+      // Group by Y with a tolerance of 4 points to handle slight misalignment
+      let matchedY = Array.from(linesMap.keys()).find(key => Math.abs(key - y) < 4);
+      if (matchedY === undefined) {
+        matchedY = Math.round(y);
+        linesMap.set(matchedY, []);
       }
       
-      pageText += item.str;
-      if (y !== null) lastY = y;
+      linesMap.get(matchedY)!.push({ str: item.str.trim(), x });
+    }
+
+    // PDF Y-coordinates typically start from the bottom left, so higher Y means higher on the page.
+    // Sort Y descending to read top-to-bottom.
+    const sortedYKeys = Array.from(linesMap.keys()).sort((a, b) => b - a);
+    
+    let pageText = '';
+    let previousY: number | null = null;
+
+    for (const yKey of sortedYKeys) {
+      const itemsOnLine = linesMap.get(yKey)!;
+      // Sort items on the line by X ascending (left-to-right)
+      itemsOnLine.sort((a, b) => a.x - b.x);
+      
+      const lineStr = itemsOnLine.map(i => i.str).join(' ');
+      
+      if (previousY !== null) {
+        // If the gap between lines is large (> 18 points), treat it as a new paragraph
+        if (Math.abs(previousY - yKey) > 18) {
+          pageText += '\n\n';
+        } else {
+          pageText += '\n';
+        }
+      }
+      
+      pageText += lineStr;
+      previousY = yKey;
     }
     
     pages.push(pageText);

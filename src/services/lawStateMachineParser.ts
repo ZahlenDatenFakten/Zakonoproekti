@@ -123,10 +123,11 @@ export function normalizeLawText(rawText: string): string {
 // ═══════════════════════════════════════
 
 const CHAPTER_RX = /^(?:Глава|Раздел|ГЛАВА|РАЗДЕЛ)\s+([IVXLCDM\d]+)\s*[.:]?\s*(.*)/i;
-const ARTICLE_RX = /^(?:Статья|СТАТЬЯ|Ст\.)\s+(\d+(?:\.\d+)*)\s*[.:]?\s*(.*)/i;
+const ARTICLE_RX = /^(?:(?:Статья|СТАТЬЯ|Ст\.)\s+|(?=\d+(?:\.\d+)+\s+[А-ЯA-Z]))(\d+(?:\.\d+)*)\s*[.:]?\s*(.*)/i;
 const SUBPOINT_NUM_RX = /^\s*(\d+(?:\.\d+)?)\s*[.)]\s*(.*)/;
 const SUBPOINT_LETTER_RX = /^\s*([а-яa-z])\s*[.)]\s*(.*)/i;
 const CROSS_REF_RX = /(?:ст\.|стать[яиеюямх]+\.?)\s*(\d+(?:\.\d+)*)\s*([A-ЯA-Z]{2,10})?/gi;
+const ABBREVIATION_RX = /\b(УАК|ПК|ДК|ТК|ЗАК|АК|СК)\b/g;
 
 // ═══════════════════════════════════════
 // 3. STATE MACHINE PARSER
@@ -179,6 +180,24 @@ export function parseLawWithStateMachine(rawText: string, defaultTitle?: string)
   // ═══ State Machine Loop ═══
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
+
+    // Scan for cross-references in every line
+    let refMatch;
+    while ((refMatch = CROSS_REF_RX.exec(line)) !== null) {
+      const code = refMatch[2] ? ` ${refMatch[2]}` : '';
+      const ref = `Статья ${refMatch[1]}${code}`;
+      if (!documentTree.crossReferences.includes(ref)) {
+        documentTree.crossReferences.push(ref);
+      }
+    }
+
+    // Scan for semantic abbreviations (УАК, ПК, ДК)
+    let abbrMatch;
+    while ((abbrMatch = ABBREVIATION_RX.exec(line)) !== null) {
+      if (!documentTree.crossReferences.includes(abbrMatch[1])) {
+        documentTree.crossReferences.push(abbrMatch[1]);
+      }
+    }
 
     // ── Check Chapter Match ──
     const chapMatch = CHAPTER_RX.exec(line);
