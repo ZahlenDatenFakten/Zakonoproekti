@@ -17,12 +17,10 @@ import { AdminWorkspace } from './components/AdminWorkspace';
 import { AccessModal } from './components/AccessModal';
 import { DbConfigModal } from './components/DbConfigModal';
 import { SettingsModal } from './components/SettingsModal';
-import { ForumBatchSyncModal } from './components/ForumBatchSyncModal';
 import { AboutSystemModal } from './components/AboutSystemModal';
 import { ConfirmModal } from './components/ConfirmModal';
 import { ToastContainer } from './components/Toast';
 import type { ToastMessage } from './components/Toast';
-import { Layers } from 'lucide-react';
 
 export const App: React.FC = () => {
   const [user, setUser] = useState<UserProfile>(getUserProfile());
@@ -44,7 +42,6 @@ export const App: React.FC = () => {
   const [showDbModal, setShowDbModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showAboutModal, setShowAboutModal] = useState(false);
-  const [showBatchSyncModal, setShowBatchSyncModal] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   // In-App Toast Notifications
@@ -183,16 +180,9 @@ export const App: React.FC = () => {
         onOpenAbout={() => setShowAboutModal(true)}
       />
 
-      {/* Floating Toolbar for Batch 36+ Forum Sync & DB Config (ADMIN ONLY) */}
+      {/* Floating Toolbar for DB Config (ADMIN ONLY) */}
       {isGovernorOrAdmin(user) && (
         <div style={{ maxWidth: '1240px', width: '100%', margin: '0 auto', padding: '0 24px', display: 'flex', justifyContent: 'flex-end', gap: '10px', marginBottom: '14px' }}>
-          <button
-            onClick={() => setShowBatchSyncModal(true)}
-            className="btn btn-secondary"
-            style={{ fontSize: '0.8rem', padding: '5px 12px', background: 'rgba(99, 102, 241, 0.12)', color: '#a5b4fc', border: '1px solid rgba(99, 102, 241, 0.3)' }}
-          >
-            <Layers size={14} /> 🌐 Пакетный импорт 36+ ссылок с Форума
-          </button>
 
           <button
             onClick={() => setShowDbModal(true)}
@@ -283,15 +273,6 @@ export const App: React.FC = () => {
       {/* About System Modal */}
       {showAboutModal && (
         <AboutSystemModal onClose={() => setShowAboutModal(false)} />
-      )}
-
-      {/* Batch 36+ Forum Links Sync Modal */}
-      {showBatchSyncModal && (
-        <ForumBatchSyncModal
-          onClose={() => setShowBatchSyncModal(false)}
-          onToast={addToast}
-          onLawsUpdated={loadData}
-        />
       )}
 
       {/* Delete Confirmation Modal */}

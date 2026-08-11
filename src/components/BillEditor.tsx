@@ -1,15 +1,7 @@
-import React, { useState, useEffect } from 'react';
-import type { Bill, ComparisonRow, AccessPermission, UserProfile, VoteDecision, CommissionVotes, BillStatus, FederalGovernmentVerdict } from '../types/bill';
-import { OFFICIAL_ROLE_LABELS } from '../types/bill';
-import { getAllStateLaws, saveCustomStateLaw } from '../data/stateLaws';
-import type { StateLaw, StateLawArticle } from '../data/stateLaws';
-import { parseForumTextToLaw, fetchLawFromForumUrl } from '../services/forumParserService';
-import { searchArticlesSemantically, semanticSearchEvents } from '../services/semanticSearchService';
-import { computeWordDiff } from '../services/diffService';
-import { sanitizeInput, isOfficialCommitteeMember, isSystemAdmin, computeDocumentHash } from '../services/securityService';
+import React, { useState } from 'react';
+import type { Bill, ComparisonRow, AccessPermission, UserProfile, BillStatus } from '../types/bill';
+import { sanitizeInput, computeDocumentHash } from '../services/securityService';
 import { CommentsSection } from './CommentsSection';
-import { ExpandedArticleModal } from './ExpandedArticleModal';
-import { CustomSelect } from './CustomSelect';
 import { 
   ArrowLeft, 
   Save, 
@@ -20,19 +12,10 @@ import {
   XCircle, 
   Clock, 
   FileText, 
-  Maximize2,
   RotateCcw,
   Send,
   Users,
-  Check,
-  ShieldCheck,
-  Lock,
-  AlertTriangle,
-  BookOpen,
-  Search,
-  FileCode,
-  Brain,
-  Loader2
+  ShieldCheck
 } from 'lucide-react';
 
 interface BillEditorProps {
@@ -58,1369 +41,397 @@ export const BillEditor: React.FC<BillEditorProps> = ({
   const [activeTab, setActiveTab] = useState<'editor' | 'comments'>('editor');
   const [isSavedNotice, setIsSavedNotice] = useState(false);
 
-  // View vs Diff Mode Toggle
-  const [showDiffHighlight, setShowDiffHighlight] = useState(true);
-
-  // Dynamic State Laws
-  const [allLaws, setAllLaws] = useState<StateLaw[]>(getAllStateLaws());
-  const [selectedLawId, setSelectedLawId] = useState<string>(allLaws[0]?.id || 'uk');
-  const [articleSearchQuery, setArticleSearchQuery] = useState('');
-  const [showLawPickerModal, setShowLawPickerModal] = useState(false);
-
-  // New Custom Law Form & Forum Link Parser State
-  const [showAddLawForm, setShowAddLawForm] = useState(false);
-  const [forumImportTab, setForumImportTab] = useState<'url' | 'paste' | 'manual'>('url');
-  const [forumUrlInput, setForumUrlInput] = useState('');
-  const [forumRawPasteInput, setForumRawPasteInput] = useState('');
-  const [isParsingForum, setIsParsingForum] = useState(false);
-
-  const [newLawTitle, setNewLawTitle] = useState('');
-  const [newLawCode, setNewLawCode] = useState('');
-  const [newArtNum, setNewArtNum] = useState('');
-  const [newArtTitle, setNewArtTitle] = useState('');
-  const [newArtContent, setNewArtContent] = useState('');
-
-  // Fullscreen Article Expander Modal State
-  const [expandedRow, setExpandedRow] = useState<ComparisonRow | null>(null);
-  const [activeAutocompleteRowId, setActiveAutocompleteRowId] = useState<string | null>(null);
-  const [semanticResults, setSemanticResults] = useState<{ article: StateLawArticle; score: number; lawTitle: string }[] | null>(null);
-  const [isSearchingSemantically, setIsSearchingSemantically] = useState(false);
-  const [semanticLoadingMsg, setSemanticLoadingMsg] = useState('');
-
-  useEffect(() => {
-    const handleProgress = (e: any) => {
-      const data = e.detail;
-      if (data.status === 'downloading') {
-        setSemanticLoadingMsg(`Загрузка ИИ модели: ${data.file} (${Math.round(data.progress || 0)}%)`);
-      } else if (data.status === 'init') {
-        setSemanticLoadingMsg('Инициализация нейросети...');
-      } else if (data.status === 'ready') {
-        setSemanticLoadingMsg('Нейросеть готова к работе');
-      }
-    };
-    semanticSearchEvents.addEventListener('progress', handleProgress);
-    return () => semanticSearchEvents.removeEventListener('progress', handleProgress);
-  }, []);
-
-  const handleSemanticSearch = async (query: string) => {
-    if (!query.trim()) return;
-    setIsSearchingSemantically(true);
-    setSemanticLoadingMsg('Анализируем смысл вашего запроса...');
-    try {
-      const results = await searchArticlesSemantically(query, allLaws.flatMap(l => l.articles));
-      // Map results back to include lawTitle
-      const mapped = results.map(r => {
-        const law = allLaws.find(l => l.articles.some(a => a.id === r.article.id));
-        return { ...r, lawTitle: law?.title || 'Закон' };
-      });
-      setSemanticResults(mapped.slice(0, 10)); // Top 10
-    } catch (e) {
-      onToast('error', 'Ошибка семантического поиска');
-    } finally {
-      setIsSearchingSemantically(false);
-    }
-  };
-
-  // Instant Article Autocomplete Lookup Engine
-  const getArticleSuggestions = (inputVal: string) => {
-    if (!inputVal || inputVal.trim().length === 0) return [];
-    const q = inputVal.trim().toLowerCase();
-    const cleanNumMatch = q.match(/\d+(?:\.\d+)*/);
-    const cleanNum = cleanNumMatch ? cleanNumMatch[0] : '';
-
-    const results: { lawTitle: string; article: StateLawArticle }[] = [];
-
-    for (const law of allLaws) {
-      for (const art of law.articles) {
-        const artNum = art.articleNumber.toLowerCase();
-        const artNumClean = artNum.replace(/[^0-9.]/g, '');
-
-        const isNumMatch = cleanNum && (artNumClean.includes(cleanNum) || artNum.includes(cleanNum));
-        const isTextMatch = artNum.includes(q) || art.title.toLowerCase().includes(q);
-
-        if (isNumMatch || isTextMatch) {
-          results.push({ lawTitle: law.title, article: art });
-          if (results.length >= 7) break;
-        }
-      }
-      if (results.length >= 7) break;
-    }
-    return results;
-  };
-
-  // Federal Government Modal State
-  const [showFedModal, setShowFedModal] = useState(false);
-  const [pendingFedStatus, setPendingFedStatus] = useState<VoteDecision | null>(null);
-  const [fedReasonInput, setFedReasonInput] = useState('');
-
   const canEdit = permission === 'edit';
-  const isCommittee = isOfficialCommitteeMember(user);
-  const isAdmin = isSystemAdmin(user);
-
   const currentFullName = `${user.firstName} ${user.lastName}`.trim();
   const isAuthor = bill.author.trim() === currentFullName;
-
-  const votes: CommissionVotes = bill.votes || {};
 
   const handleFieldChange = (field: keyof Bill, value: any) => {
     if (!canEdit) return;
     setBill((prev) => ({ ...prev, [field]: value }));
   };
 
-  // State Law Selection Handler
-  const handleSelectLaw = (lawId: string) => {
-    setSelectedLawId(lawId);
-    const targetLawObj = allLaws.find((l) => l.id === lawId);
-    if (targetLawObj && canEdit) {
-      setBill((prev) => ({ ...prev, targetLaw: targetLawObj.title }));
-    }
-  };
-
-  const handleParseForumUrl = async () => {
-    if (!forumUrlInput.trim()) {
-      onToast('error', 'Вставьте ссылку на тему форума (https://forum.gtap5rp.com/threads/...)');
-      return;
-    }
-
-    setIsParsingForum(true);
-    try {
-      const parsedLaw = await fetchLawFromForumUrl(forumUrlInput.trim());
-      const updated = saveCustomStateLaw(parsedLaw);
-      setAllLaws(updated);
-      setSelectedLawId(parsedLaw.id);
-      setShowAddLawForm(false);
-      setForumUrlInput('');
-      onToast('success', `Закон «${parsedLaw.title}» успешно спарсен и добавлен (${parsedLaw.articles.length} статей)!`);
-    } catch (err: any) {
-      if (err.message === 'CLOUDFLARE_PROTECTED') {
-        onToast('info', 'Тема защищена Cloudflare. Используйте соседнюю вкладку "Скопированный текст/HTML" — она сработает за 1 секунду!');
-        setForumImportTab('paste');
-      } else {
-        onToast('error', err.message || 'Ошибка парсинга по ссылке');
-      }
-    } finally {
-      setIsParsingForum(false);
-    }
-  };
-
-  const handleParseForumPaste = () => {
-    if (!forumRawPasteInput.trim()) {
-      onToast('error', 'Вставьте скопированный текст или исходный код темы с форума');
-      return;
-    }
-
-    try {
-      const parsedLaw = parseForumTextToLaw(forumRawPasteInput.trim(), newLawTitle.trim() || 'Спарсенный Закон с Форума');
-      const updated = saveCustomStateLaw(parsedLaw);
-      setAllLaws(updated);
-      setSelectedLawId(parsedLaw.id);
-      setShowAddLawForm(false);
-      setForumRawPasteInput('');
-      setNewLawTitle('');
-      onToast('success', `Успешно спарсено ${parsedLaw.articles.length} статей из вставленного текста!`);
-    } catch (err: any) {
-      onToast('error', 'Ошибка синтаксического разбора текста');
-    }
-  };
-
-  const handleCreateCustomLaw = () => {
-    if (!newLawTitle.trim() || !newArtNum.trim() || !newArtContent.trim()) {
-      onToast('error', 'Заполните Название закона, номер статьи и ее текст');
-      return;
-    }
-
-    const lawId = 'law_' + Date.now();
-    const newLaw: StateLaw = {
-      id: lawId,
-      title: newLawTitle.trim(),
-      code: newLawCode.trim() || 'АКТ-2026',
-      category: 'Пользовательские Законы',
-      articles: [
-        {
-          id: 'art_' + Date.now(),
-          articleNumber: newArtNum.trim(),
-          title: newArtTitle.trim() || 'Общие положения',
-          content: newArtContent.trim()
-        }
-      ]
-    };
-
-    const updated = saveCustomStateLaw(newLaw);
-    setAllLaws(updated);
-    setSelectedLawId(lawId);
-    setShowAddLawForm(false);
-    setNewLawTitle('');
-    setNewLawCode('');
-    setNewArtNum('');
-    setNewArtTitle('');
-    setNewArtContent('');
-    onToast('success', `Новый закон «${newLaw.title}» успешно добавлен в базу!`);
-  };
-
-  // Auto-Fill Article into "Было" and "Стало"
-  const handleAutoFillArticle = (articleNumber: string, articleTitle: string, content: string) => {
+  const addComparisonRow = () => {
     if (!canEdit) return;
     const newRow: ComparisonRow = {
-      id: 'comp_' + Date.now() + '_' + Math.random().toString(36).substring(2, 5),
-      articleTitle: `${articleNumber}. ${articleTitle}`,
-      wasContent: content,
-      becameContent: content, // Pre-populated for easy editing!
-      notes: ''
-    };
-
-    setBill((prev) => ({
-      ...prev,
-      comparisons: [...prev.comparisons, newRow]
-    }));
-
-    setShowLawPickerModal(false);
-    onToast('success', `Статья ${articleNumber} автозаполнена в «Было» и «Стало»!`);
-  };
-
-  // 1-st STAGE: Collegial Commission Vote
-  const handleCastCommissionVote = (decision: VoteDecision) => {
-    if (!isCommittee) {
-      onToast('error', 'Первый этап коллегиального голосования доступен только Прокурору, Судье и Губернатору.');
-      return;
-    }
-
-    let roleKey: 'prosecutor' | 'judge' | 'governor' | null = null;
-    if (user.officialRole === 'prosecutor') roleKey = 'prosecutor';
-    if (user.officialRole === 'judge') roleKey = 'judge';
-    if (user.officialRole === 'governor') roleKey = 'governor';
-
-    if (!roleKey) {
-      onToast('error', 'Ваша роль не входит в состав 1-го этапа Комиссии.');
-      return;
-    }
-
-    const updatedVotes: CommissionVotes = {
-      ...votes,
-      [roleKey]: decision
-    };
-
-    const votedCount = Object.keys(updatedVotes).length;
-    let newStatus = bill.status;
-    let statusReason = bill.statusReason || '';
-
-    if (votedCount >= 3) {
-      const tally: Record<VoteDecision, number> = { approved: 0, rejected: 0, needs_revision: 0 };
-      if (updatedVotes.prosecutor) tally[updatedVotes.prosecutor]++;
-      if (updatedVotes.judge) tally[updatedVotes.judge]++;
-      if (updatedVotes.governor) tally[updatedVotes.governor]++;
-
-      if (tally.approved >= 2) {
-        statusReason = `Специальной Законодательной Комиссией законопроект ОДОБРЕН по большинству голосов (${tally.approved}/3). Передано на 2-й этап в Федеральное Правительство.`;
-      } else if (tally.rejected >= 2) {
-        newStatus = 'rejected';
-        statusReason = `Специальной Законодательной Комиссией законопроект ОТКЛОНЕН по большинству голосов (${tally.rejected}/3).`;
-      } else {
-        newStatus = 'needs_revision';
-        statusReason = `Специальной Законодательной Комиссией законопроект отправлен НА ДОРАБОТКУ по большинству голосов.`;
-      }
-
-      onToast('success', `Голосование Комиссии 1-го этапа завершено (${votedCount}/3).`);
-    } else {
-      newStatus = 'under_review';
-      statusReason = `Голосование Специальной Комиссии в процессе (${votedCount}/3 голосов).`;
-      onToast('info', `Голос члена Комиссии принят! Прогресс: ${votedCount}/3`);
-    }
-
-    const updatedBill: Bill = {
-      ...bill,
-      status: newStatus,
-      statusReason,
-      votes: updatedVotes
-    };
-
-    setBill(updatedBill);
-    onSave(updatedBill);
-  };
-
-  // 2-nd STAGE: Federal Government Verdict Modal
-  const handleOpenFedVerdictModal = (decision: VoteDecision) => {
-    if (!isAdmin) {
-      onToast('error', 'Только Федеральное Правительство (Администрация) выносит вердикт 2-го этапа.');
-      return;
-    }
-
-    if (decision === 'approved') {
-      executeFederalVerdict('approved', 'Официально утверждено Федеральным Правительством.');
-    } else {
-      setPendingFedStatus(decision);
-      setFedReasonInput('');
-      setShowFedModal(true);
-    }
-  };
-
-  const executeFederalVerdict = (status: VoteDecision, reason: string) => {
-    const verdict: FederalGovernmentVerdict = {
-      status,
-      reason,
-      updatedAt: new Date().toISOString(),
-      adminName: `${user.firstName} ${user.lastName}`
-    };
-
-    let officialStatusReason = '';
-    const commissionApproved = (votes.prosecutor === 'approved' && votes.judge === 'approved') ||
-                              (votes.prosecutor === 'approved' && votes.governor === 'approved') ||
-                              (votes.judge === 'approved' && votes.governor === 'approved');
-
-    if (status === 'rejected') {
-      officialStatusReason = commissionApproved
-        ? 'Специальной законодательной комиссией законопроект был ОДОБРЕН, однако на 2-м этапе проверки Федеральным Правительством данный законопроект был ОТКЛОНЕН.'
-        : 'Отклонено на 2-м этапе проверки Федеральным Правительством.';
-    } else if (status === 'needs_revision') {
-      officialStatusReason = commissionApproved
-        ? 'Специальной законодательной комиссией законопроект был ОДОБРЕН, однако Федеральным Правительством отправлен НА ДОРАБОТКУ.'
-        : 'Отправлено на доработку Федеральным Правительством.';
-    } else {
-      officialStatusReason = 'Законопроект прошел оба этапа: Одобрен Законодательной Комиссией и официально утвержден Федеральным Правительством.';
-    }
-
-    const updatedBill: Bill = {
-      ...bill,
-      status,
-      statusReason: officialStatusReason,
-      federalVerdict: verdict
-    };
-
-    setBill(updatedBill);
-    onSave(updatedBill);
-    setShowFedModal(false);
-    onToast('success', `Вердикт Федерального Правительства вынесен: ${status === 'approved' ? 'ОДОБРЕНО' : status === 'rejected' ? 'ОТКЛОНЕНО' : 'НА ДОРАБОТКУ'}`);
-  };
-
-  const handleConfirmFedVerdictModal = () => {
-    if (!fedReasonInput.trim()) {
-      onToast('error', 'Введите обязательное мотивированное обоснование вердикта.');
-      return;
-    }
-    if (pendingFedStatus) {
-      executeFederalVerdict(pendingFedStatus, fedReasonInput.trim());
-    }
-  };
-
-  const handlePublishDraft = () => {
-    const updated = {
-      ...bill,
-      status: 'under_review' as BillStatus,
-      statusReason: 'Опубликовано автором и направлено на рассмотрение Законодательной Комиссии.'
-    };
-    setBill(updated);
-    onSave(updated);
-    onToast('success', 'Черновик опубликован и направлен на рассмотрение комиссии');
-  };
-
-  const handleAddComparisonRow = () => {
-    if (!canEdit) return;
-    const newRow: ComparisonRow = {
-      id: 'comp_' + Date.now() + '_' + Math.random().toString(36).substring(2, 5),
-      articleTitle: `Статья ${bill.comparisons.length + 1}.`,
+      id: 'comp_' + Date.now(),
+      articleTitle: '',
       wasContent: '',
       becameContent: '',
       notes: ''
     };
-    setBill((prev) => ({
-      ...prev,
-      comparisons: [...prev.comparisons, newRow]
-    }));
+    handleFieldChange('comparisons', [...bill.comparisons, newRow]);
   };
 
-  const handleUpdateRow = (id: string, field: keyof ComparisonRow, value: string) => {
+  const updateComparisonRow = (id: string, field: keyof ComparisonRow, value: string) => {
     if (!canEdit) return;
-    setBill((prev) => ({
-      ...prev,
-      comparisons: prev.comparisons.map((row) => (row.id === id ? { ...row, [field]: value } : row))
-    }));
-
-    if (expandedRow && expandedRow.id === id) {
-      setExpandedRow((prev) => (prev ? { ...prev, [field]: value } : null));
-    }
+    
+    setBill((prev) => {
+      const updatedComparisons = prev.comparisons.map((row) => {
+        if (row.id !== id) return row;
+        
+        const newRow = { ...row, [field]: value };
+        
+        // Auto-sync "Was" -> "Became" if typing in "Was" and "Became" matches old "Was" or is empty
+        if (field === 'wasContent' && (row.becameContent === '' || row.becameContent === row.wasContent)) {
+          newRow.becameContent = value;
+        }
+        
+        return newRow;
+      });
+      return { ...prev, comparisons: updatedComparisons };
+    });
   };
 
-  const handleDeleteRow = (id: string) => {
+  const markRowAsNew = (id: string) => {
     if (!canEdit) return;
-    setBill((prev) => ({
-      ...prev,
-      comparisons: prev.comparisons.filter((row) => row.id !== id)
-    }));
+    setBill((prev) => {
+      const updatedComparisons = prev.comparisons.map((row) => {
+        if (row.id !== id) return row;
+        return { 
+          ...row, 
+          wasContent: '— (Данной статьи не существовало) —',
+          becameContent: row.becameContent === row.wasContent ? '' : row.becameContent
+        };
+      });
+      return { ...prev, comparisons: updatedComparisons };
+    });
   };
 
-  const handleSaveClick = async () => {
-    const hash = await computeDocumentHash(bill);
-    const sanitizedBill: Bill = {
+  const removeComparisonRow = (id: string) => {
+    if (!canEdit) return;
+    handleFieldChange('comparisons', bill.comparisons.filter(c => c.id !== id));
+  };
+
+  const handleLocalSave = async () => {
+    if (!canEdit) return;
+    
+    const title = bill.title.trim() || 'Проект Закона без названия';
+    const targetLaw = bill.targetLaw.trim() || 'Уголовный Кодекс Штата (УК)';
+    
+    let updated: Bill = {
       ...bill,
-      sha256Hash: hash,
-      title: sanitizeInput(bill.title),
-      targetLaw: sanitizeInput(bill.targetLaw),
-      explanatoryNote: sanitizeInput(bill.explanatoryNote)
+      title: sanitizeInput(title),
+      targetLaw: sanitizeInput(targetLaw),
+      explanatoryNote: sanitizeInput(bill.explanatoryNote),
+      updatedAt: new Date().toISOString()
     };
-    onSave(sanitizedBill);
+
+    const integrityHash = await computeDocumentHash(updated);
+    updated.sha256Hash = integrityHash;
+    
+    setBill(updated);
+    onSave(updated);
+    onToast('success', 'Изменения успешно сохранены');
+    
     setIsSavedNotice(true);
-    setTimeout(() => setIsSavedNotice(false), 2500);
+    setTimeout(() => setIsSavedNotice(false), 3000);
   };
 
-  const renderVoteBadge = (decision?: VoteDecision) => {
-    if (!decision) return <span style={{ color: 'var(--text-tertiary)', fontSize: '0.78rem' }}>⏳ Ожидается голос</span>;
-    if (decision === 'approved') return <span style={{ color: '#4ade80', fontSize: '0.78rem', fontWeight: 600 }}>✅ Одобрено</span>;
-    if (decision === 'rejected') return <span style={{ color: '#f87171', fontSize: '0.78rem', fontWeight: 600 }}>❌ Отклонено</span>;
-    return <span style={{ color: '#93c5fd', fontSize: '0.78rem', fontWeight: 600 }}>🔄 На доработку</span>;
+  const getStatusBadge = (status: BillStatus) => {
+    const map: Record<BillStatus, { label: string; cls: string; icon: any }> = {
+      draft: { label: 'Черновик', cls: 'badge-draft', icon: Clock },
+      under_review: { label: 'На рассмотрении', cls: 'badge-under_review', icon: Clock },
+      needs_revision: { label: 'Отправлен на доработку', cls: 'badge-needs_revision', icon: RotateCcw },
+      approved: { label: 'Одобрен', cls: 'badge-approved', icon: CheckCircle2 },
+      rejected: { label: 'Отклонен', cls: 'badge-rejected', icon: XCircle }
+    };
+    const mapped = map[status] || map.draft;
+    const Icon = mapped.icon;
+    
+    return (
+      <div className={`badge-status ${mapped.cls}`}>
+        <Icon size={14} /> {mapped.label}
+      </div>
+    );
   };
 
-  // Active Law Object for Picker
-  const activeLawObj = allLaws.find((l) => l.id === selectedLawId) || allLaws[0];
-  const filteredArticles = (activeLawObj?.articles || []).filter((art) => {
-    const q = articleSearchQuery.toLowerCase();
-    return art.articleNumber.toLowerCase().includes(q) || art.title.toLowerCase().includes(q) || art.content.toLowerCase().includes(q);
-  });
+  const isReadOnly = bill.status === 'approved' || bill.status === 'rejected';
 
   return (
-    <div style={{ maxWidth: '1240px', margin: '0 auto', padding: '0 24px 60px 24px' }}>
-      
-      {/* Top Action Bar */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '14px', marginBottom: '20px' }}>
-        <button onClick={onBack} className="btn btn-secondary" style={{ fontSize: '0.85rem' }}>
-          <ArrowLeft size={16} /> К списку проектов
-        </button>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: 'var(--bg-base)' }}>
+      <div style={{ 
+        height: '60px', 
+        background: 'var(--bg-card)', 
+        borderBottom: '1px solid var(--border-subtle)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: '0 24px',
+        position: 'sticky',
+        top: 0,
+        zIndex: 100
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          <button onClick={onBack} className="btn btn-secondary" style={{ padding: '8px' }}>
+            <ArrowLeft size={18} />
+          </button>
+          
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <h2 style={{ fontSize: '1.1rem', margin: 0, color: 'var(--text-primary)', fontWeight: 600 }}>
+              {bill.title || 'Новый Законопроект'}
+            </h2>
+            {getStatusBadge(bill.status)}
+          </div>
+        </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          {permission !== 'edit' && (
-            <span style={{ fontSize: '0.8rem', background: 'var(--bg-input)', color: 'var(--text-secondary)', padding: '5px 12px', borderRadius: '6px', border: '1px solid var(--border-subtle)' }}>
-              👁️ Читатель (Чтение + Комментарии)
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          {isSavedNotice && (
+            <span style={{ fontSize: '0.85rem', color: 'var(--success)', display: 'flex', alignItems: 'center', gap: '4px', marginRight: '8px' }}>
+              <CheckCircle2 size={16} /> Сохранено
             </span>
           )}
-
-          {/* Author Publish Draft Button */}
-          {bill.status === 'draft' && isAuthor && (
-            <button 
-              onClick={handlePublishDraft} 
-              className="btn btn-primary" 
-              style={{ fontSize: '0.85rem', background: 'rgba(52, 211, 153, 0.15)', color: '#34d399', border: '1px solid rgba(52, 211, 153, 0.3)' }}
-            >
-              <Send size={15} /> Опубликовать черновик
-            </button>
-          )}
-
-          <button onClick={() => onShare(bill)} className="btn btn-secondary" style={{ fontSize: '0.85rem' }}>
-            <Share2 size={16} /> Ссылки доступа
+          
+          <button onClick={() => onShare(bill)} className="btn btn-secondary">
+            <Share2 size={16} /> Поделиться
           </button>
 
-          {canEdit && (
-            <button onClick={handleSaveClick} className="btn btn-primary" style={{ fontSize: '0.85rem' }}>
+          {canEdit && !isReadOnly && (
+            <button onClick={handleLocalSave} className="btn btn-primary">
               <Save size={16} /> Сохранить
             </button>
           )}
         </div>
       </div>
 
-      {/* 1-st STAGE PANEL: Collegial Commission Voting */}
-      <div 
-        className="card-dark" 
-        style={{ 
-          padding: '20px 24px', 
-          marginBottom: '20px', 
-          background: 'var(--bg-card)', 
-          border: '1px solid var(--border-medium)'
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', flexWrap: 'wrap', gap: '10px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <Users size={22} color="var(--text-primary)" />
-            <div>
-              <h3 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-primary)' }}>
-                1 этап: Голосование Специальной Законодательной Комиссии (3/3)
-              </h3>
-              <p style={{ fontSize: '0.78rem', color: 'var(--text-tertiary)' }}>
-                Первичная экспертиза: Прокурор, Председатель суда и Губернатор.
-              </p>
-            </div>
-          </div>
-
-          <div style={{ fontSize: '0.82rem', background: 'var(--bg-input)', padding: '4px 12px', borderRadius: '6px', border: '1px solid var(--border-subtle)', fontWeight: 600 }}>
-            Голоса: {Object.keys(votes).length} / 3
-          </div>
-        </div>
-
-        {/* Live Votes Status Grid */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '12px', marginBottom: '14px' }}>
-          
-          <div style={{ background: 'var(--bg-input)', border: '1px solid var(--border-subtle)', padding: '12px 14px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div>
-              <div style={{ fontSize: '0.85rem', fontWeight: 600 }}>⚖️ Генеральный прокурор</div>
-              {renderVoteBadge(votes.prosecutor)}
-            </div>
-            {votes.prosecutor && <Check size={16} color="#34d399" />}
-          </div>
-
-          <div style={{ background: 'var(--bg-input)', border: '1px solid var(--border-subtle)', padding: '12px 14px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div>
-              <div style={{ fontSize: '0.85rem', fontWeight: 600 }}>🏛️ Председатель суда</div>
-              {renderVoteBadge(votes.judge)}
-            </div>
-            {votes.judge && <Check size={16} color="#34d399" />}
-          </div>
-
-          <div style={{ background: 'var(--bg-input)', border: '1px solid var(--border-subtle)', padding: '12px 14px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div>
-              <div style={{ fontSize: '0.85rem', fontWeight: 600 }}>📜 Губернатор</div>
-              {renderVoteBadge(votes.governor)}
-            </div>
-            {votes.governor && <Check size={16} color="#34d399" />}
-          </div>
-        </div>
-
-        {/* Voting Buttons for Commission Members ONLY */}
-        {isCommittee && (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid var(--border-subtle)', paddingTop: '12px', flexWrap: 'wrap', gap: '10px' }}>
-            <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
-              Ваш голос (1 этап): <strong>{OFFICIAL_ROLE_LABELS[user.officialRole]}</strong>
-            </span>
-
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <button onClick={() => handleCastCommissionVote('approved')} className="btn" style={{ background: 'var(--status-approved-bg)', color: 'var(--status-approved-text)', border: '1px solid var(--status-approved-border)', fontSize: '0.82rem', padding: '6px 12px' }}>
-                <CheckCircle2 size={14} /> Одобрить (1 этап)
-              </button>
-              <button onClick={() => handleCastCommissionVote('needs_revision')} className="btn" style={{ background: 'rgba(59, 130, 246, 0.15)', color: '#93c5fd', border: '1px solid rgba(59, 130, 246, 0.3)', fontSize: '0.82rem', padding: '6px 12px' }}>
-                <RotateCcw size={14} /> На доработку
-              </button>
-              <button onClick={() => handleCastCommissionVote('rejected')} className="btn" style={{ background: 'var(--status-rejected-bg)', color: 'var(--status-rejected-text)', border: '1px solid var(--status-rejected-border)', fontSize: '0.82rem', padding: '6px 12px' }}>
-                <XCircle size={14} /> Отклонить (1 этап)
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* 2-nd STAGE PANEL: Federal Government Action */}
-      {isAdmin && (
-        <div 
-          className="card-dark" 
-          style={{ 
-            padding: '20px 24px', 
-            marginBottom: '24px', 
-            background: 'linear-gradient(135deg, rgba(30, 41, 59, 0.7), rgba(15, 23, 42, 0.95))', 
-            border: '1px solid rgba(99, 102, 241, 0.4)'
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', flexWrap: 'wrap', gap: '10px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <ShieldCheck size={22} color="#a5b4fc" />
-              <div>
-                <h3 style={{ fontSize: '1rem', fontWeight: 600, color: '#f8fafc' }}>
-                  2 этап: Панель Проверки Федерального Правительства
-                </h3>
-                <p style={{ fontSize: '0.78rem', color: '#94a3b8' }}>
-                  Вы вошли как Системный Администратор. Вынесите официальный вердикт 2-го этапа.
-                </p>
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <button onClick={() => handleOpenFedVerdictModal('approved')} className="btn" style={{ background: 'var(--status-approved-bg)', color: 'var(--status-approved-text)', border: '1px solid var(--status-approved-border)', fontSize: '0.84rem' }}>
-                <CheckCircle2 size={15} /> Одобрить (Правительство)
-              </button>
-              <button onClick={() => handleOpenFedVerdictModal('needs_revision')} className="btn" style={{ background: 'rgba(59, 130, 246, 0.2)', color: '#93c5fd', border: '1px solid rgba(59, 130, 246, 0.4)', fontSize: '0.84rem' }}>
-                <RotateCcw size={15} /> На доработку + Обоснование
-              </button>
-              <button onClick={() => handleOpenFedVerdictModal('rejected')} className="btn" style={{ background: 'var(--status-rejected-bg)', color: 'var(--status-rejected-text)', border: '1px solid var(--status-rejected-border)', fontSize: '0.84rem' }}>
-                <XCircle size={15} /> Отклонить + Обоснование
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* INTERNAL REASON CARD FOR COMMISSION & ADMIN ONLY */}
-      {bill.federalVerdict?.reason && (isCommittee || isAdmin) && (
-        <div style={{ background: 'rgba(30, 41, 59, 0.8)', border: '1px solid rgba(99, 102, 241, 0.3)', borderRadius: '12px', padding: '16px 20px', marginBottom: '24px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
-            <Lock size={15} color="#a5b4fc" />
-            <strong style={{ fontSize: '0.88rem', color: '#f8fafc' }}>
-              🔒 Закрытое мотивированное обоснование Федерального Правительства (Видно Комиссии и Администрации):
-            </strong>
-          </div>
-          <p style={{ fontSize: '0.88rem', color: '#cbd5e1', whiteSpace: 'pre-wrap', lineHeight: 1.5, paddingLeft: '24px' }}>
-            {bill.federalVerdict.reason}
-          </p>
-          <div style={{ fontSize: '0.75rem', color: '#64748b', textAlign: 'right', marginTop: '6px' }}>
-            Вынесено: {bill.federalVerdict.adminName} &bull; {new Date(bill.federalVerdict.updatedAt).toLocaleString('ru-RU')}
-          </div>
-        </div>
-      )}
-
-      {isSavedNotice && (
-        <div style={{ background: 'var(--status-approved-bg)', border: '1px solid var(--status-approved-border)', color: 'var(--status-approved-text)', padding: '10px 16px', borderRadius: '8px', marginBottom: '16px', fontSize: '0.88rem' }}>
-          ✓ Законопроект успешно сохранен
-        </div>
-      )}
-
-      {/* Main Document Card */}
-      <div className="card-dark" style={{ padding: '28px' }}>
-        
-        {/* Document Header */}
-        <div style={{ borderBottom: '1px solid var(--border-subtle)', paddingBottom: '20px', marginBottom: '24px' }}>
-          
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '14px', marginBottom: '16px' }}>
+      <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '32px 0' }}>
+          <div style={{ maxWidth: '900px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '24px' }}>
             
-            {/* Status Indicator */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ fontSize: '0.82rem', color: 'var(--text-tertiary)' }}>Итоговый статус:</span>
-              <span className={`badge-status badge-${bill.status}`}>
-                {bill.status === 'approved' && <CheckCircle2 size={13} />}
-                {bill.status === 'rejected' && <XCircle size={13} />}
-                {bill.status === 'under_review' && <Clock size={13} />}
-                {bill.status === 'needs_revision' && <RotateCcw size={13} />}
-                {bill.status === 'draft' && <FileText size={13} />}
-                {bill.status === 'approved' ? 'ОДОБРЕН' : bill.status === 'rejected' ? 'ОТКЛОНЕН' : bill.status === 'needs_revision' ? 'НА ДОРАБОТКЕ' : bill.status === 'under_review' ? 'НА РАССМОТРЕНИИ' : 'ЛИЧНЫЙ ЧЕРНОВИК'}
-              </span>
-            </div>
-
-            {/* SHA-256 Hash Badge */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              {bill.sha256Hash && (
-                <span style={{ fontSize: '0.72rem', background: 'rgba(52, 211, 153, 0.12)', color: '#34d399', padding: '3px 8px', borderRadius: '4px', border: '1px solid rgba(52, 211, 153, 0.3)', fontFamily: 'var(--font-mono)' }} title="SHA-256 Отпечаток целостности подтвержден">
-                  ✓ SHA-256: {bill.sha256Hash.substring(0, 8)}...
-                </span>
-              )}
-            </div>
-
-          </div>
-
-          {/* Official Public Status Message */}
-          {bill.statusReason && (
-            <div style={{ fontSize: '0.86rem', color: 'var(--text-primary)', background: 'var(--bg-input)', border: '1px solid var(--border-medium)', padding: '12px 16px', borderRadius: '10px', marginBottom: '16px', lineHeight: 1.5, display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
-              <AlertTriangle size={18} color="#facc15" style={{ flexShrink: 0, marginTop: '2px' }} />
-              <div>
-                <strong>Официальная формулировка решения:</strong>
-                <div style={{ marginTop: '2px', color: 'var(--text-secondary)' }}>{bill.statusReason}</div>
-              </div>
-            </div>
-          )}
-
-          {/* Bill Title Input */}
-          <div style={{ marginBottom: '16px' }}>
-            <label style={{ fontSize: '0.8rem', color: 'var(--text-tertiary)', display: 'block', marginBottom: '4px' }}>
-              НАЗВАНИЕ ЗАКОНОПРОЕКТА
-            </label>
-            {canEdit ? (
-              <input
-                type="text"
-                className="input-field"
-                value={bill.title}
-                onChange={(e) => handleFieldChange('title', e.target.value)}
-                placeholder="Наименование законопроекта..."
-                style={{ fontSize: '1.15rem', fontWeight: 600, color: 'var(--text-primary)' }}
-              />
-            ) : (
-              <h2 style={{ fontSize: '1.25rem', fontWeight: 600, color: 'var(--text-primary)' }}>{bill.title}</h2>
-            )}
-          </div>
-
-          {/* STATE LAWS SELECTOR & AUTO-FILL ARTICLE PICKER */}
-          <div style={{ background: 'var(--bg-input)', border: '1px solid var(--border-medium)', borderRadius: '12px', padding: '16px', marginBottom: '16px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px', flexWrap: 'wrap', gap: '10px' }}>
-              <label style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <BookOpen size={16} /> ИЗМЕНЯЕМЫЙ НОРМАТИВНО-ПРАВОВОЙ АКТ И СТАТЬИ ШТАТА (GTA5RP):
-              </label>
-
-              {canEdit && (
-                <button 
-                  onClick={() => setShowLawPickerModal(true)} 
-                  className="btn btn-primary" 
-                  style={{ fontSize: '0.8rem', padding: '5px 12px' }}
-                >
-                  <Search size={14} /> 🔍 Найти и добавить статью закона...
-                </button>
-              )}
-            </div>
-
-            {canEdit ? (
-              <CustomSelect
-                options={allLaws.map((law) => ({
-                  value: law.id,
-                  label: `${law.title} (${law.code})`
-                }))}
-                value={selectedLawId}
-                onChange={handleSelectLaw}
-                width="100%"
-              />
-            ) : (
-              <div style={{ fontSize: '0.95rem', color: 'var(--text-primary)', fontWeight: 600 }}>
-                {bill.targetLaw}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Navigation Tabs & Diff Mode Toggle */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border-subtle)', marginBottom: '24px', flexWrap: 'wrap', gap: '10px' }}>
-          <div style={{ display: 'flex', gap: '12px' }}>
-            <button
-              onClick={() => setActiveTab('editor')}
-              style={{
-                background: 'none',
-                border: 'none',
-                borderBottom: activeTab === 'editor' ? '2px solid var(--text-primary)' : '2px solid transparent',
-                color: activeTab === 'editor' ? 'var(--text-primary)' : 'var(--text-tertiary)',
-                fontSize: '0.9rem',
-                fontWeight: 500,
-                padding: '8px 12px',
-                cursor: 'pointer'
-              }}
-            >
-              Сравнительная таблица («Было / Стало»)
-            </button>
-
-            <button
-              onClick={() => setActiveTab('comments')}
-              style={{
-                background: 'none',
-                border: 'none',
-                borderBottom: activeTab === 'comments' ? '2px solid var(--text-primary)' : '2px solid transparent',
-                color: activeTab === 'comments' ? 'var(--text-primary)' : 'var(--text-tertiary)',
-                fontSize: '0.9rem',
-                fontWeight: 500,
-                padding: '8px 12px',
-                cursor: 'pointer'
-              }}
-            >
-              Комментарии ({bill.comments?.length || 0})
-            </button>
-          </div>
-
-          {activeTab === 'editor' && (
-            <button
-              onClick={() => setShowDiffHighlight(!showDiffHighlight)}
-              className="btn btn-secondary"
-              style={{
-                fontSize: '0.78rem',
-                padding: '4px 10px',
-                background: showDiffHighlight ? 'rgba(52, 211, 153, 0.15)' : 'transparent',
-                borderColor: showDiffHighlight ? 'rgba(52, 211, 153, 0.4)' : 'var(--border-subtle)',
-                color: showDiffHighlight ? '#34d399' : 'var(--text-secondary)'
-              }}
-            >
-              <FileCode size={13} /> {showDiffHighlight ? '✨ Подсветка правки активна (Зачеркивание / Зеленый цвет)' : 'Обычный просмотр'}
-            </button>
-          )}
-        </div>
-
-        {activeTab === 'comments' ? (
-          <CommentsSection
-            billId={bill.id}
-            user={user}
-            comments={bill.comments || []}
-            canComment={true}
-            onAddComment={(updatedComments) => {
-              setBill((prev) => ({ ...prev, comments: updatedComments }));
-              onSave({ ...bill, comments: updatedComments });
-            }}
-          />
-        ) : (
-          <div>
-            {/* COMPARATIVE MATRIX */}
-            <div style={{ marginBottom: '28px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
-                <h3 style={{ fontSize: '1.05rem', fontWeight: 600, color: 'var(--text-primary)' }}>
-                  Таблица изменений («Было / Стало»)
-                </h3>
-
-                {canEdit && (
-                  <button onClick={handleAddComparisonRow} className="btn btn-secondary" style={{ padding: '6px 12px', fontSize: '0.82rem' }}>
-                    <Plus size={15} /> Добавить статью вручную
-                  </button>
-                )}
-              </div>
-
-              {/* Table */}
-              <div style={{ width: '100%' }}>
-                <table className="comparison-table">
-                  <thead>
-                    <tr>
-                      <th style={{ width: '45%' }}>БЫЛО (Старая редакция / Удаляемый текст)</th>
-                      <th style={{ width: '45%' }}>СТАЛО (Новая редакция / Итоговая формулировка)</th>
-                      <th style={{ width: '10%', textAlign: 'center' }}>Действия</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {bill.comparisons.map((row) => {
-                      const diff = computeWordDiff(row.wasContent, row.becameContent);
-
-                      const handleQuickSelectArticle = (art: StateLawArticle) => {
-                        handleUpdateRow(row.id, 'articleTitle', `${art.articleNumber}. ${art.title}`);
-                        handleUpdateRow(row.id, 'wasContent', art.content);
-                        handleUpdateRow(row.id, 'becameContent', art.content);
-                        onToast('success', `Статья ${art.articleNumber} подставлена в «Было» и «Стало»!`);
-                      };
-
-                      return (
-                        <tr key={row.id}>
-                          {/* Was Cell */}
-                          <td className="cell-was">
-                            <div style={{ position: 'relative', marginBottom: '6px' }}>
-                              {canEdit ? (
-                                <div style={{ background: 'var(--bg-input)', border: '1px solid var(--border-subtle)', borderRadius: '8px', padding: '6px 8px', marginBottom: '8px' }}>
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                    <Search size={13} color="var(--text-tertiary)" />
-                                    <input
-                                      type="text"
-                                      className="input-field"
-                                      value={row.articleTitle}
-                                      onFocus={() => setActiveAutocompleteRowId(row.id)}
-                                      onChange={(e) => {
-                                        handleUpdateRow(row.id, 'articleTitle', e.target.value);
-                                        setActiveAutocompleteRowId(row.id);
-                                        setSemanticResults(null);
-                                      }}
-                                      placeholder="Введите номер или название статьи..."
-                                      style={{ fontWeight: 600, fontSize: '0.88rem', width: '100%' }}
-                                    />
-                                  </div>
-                                </div>
-                              ) : (
-                                <div style={{ fontWeight: 600, marginBottom: '4px' }}>
-                                  {row.articleTitle}
-                                </div>
-                              )}
-
-                              {canEdit && activeAutocompleteRowId === row.id && (() => {
-                                const suggestions = getArticleSuggestions(row.articleTitle);
-                                if (suggestions.length === 0 && !semanticResults && !isSearchingSemantically) return null;
-
-                                return (
-                                  <div className="autocomplete-dropdown">
-                                    <div style={{ padding: '6px 10px', fontSize: '0.72rem', color: 'var(--text-tertiary)', borderBottom: '1px solid var(--border-subtle)', background: 'var(--bg-1)', display: 'flex', justifyContent: 'space-between' }}>
-                                      <span>⚡ {semanticResults ? 'ИИ Результаты' : 'Мгновенная подстановка статьи'}</span>
-                                      <button
-                                        onMouseDown={(e) => { e.preventDefault(); setActiveAutocompleteRowId(null); setSemanticResults(null); }}
-                                        style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: '0.72rem' }}
-                                      >
-                                        ✕
-                                      </button>
-                                    </div>
-                                    
-                                    {semanticResults ? (
-                                      <>
-                                        {semanticResults.length === 0 && (
-                                          <div style={{ padding: '10px', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '0.8rem' }}>
-                                            По смыслу ничего не найдено.
-                                          </div>
-                                        )}
-                                        {semanticResults.map(({ lawTitle, article, score }) => (
-                                          <div
-                                            key={article.id}
-                                            className="autocomplete-item"
-                                            onMouseDown={(e) => {
-                                              e.preventDefault();
-                                              handleQuickSelectArticle(article);
-                                              setActiveAutocompleteRowId(null);
-                                              setSemanticResults(null);
-                                            }}
-                                          >
-                                            <div style={{ fontWeight: 600, fontSize: '0.84rem', color: 'var(--text-primary)', display: 'flex', justifyContent: 'space-between' }}>
-                                              <span>{article.articleNumber} — {article.title}</span>
-                                              <span style={{ fontSize: '0.7rem', color: 'var(--accent)', background: 'var(--accent-subtle)', padding: '2px 6px', borderRadius: '4px' }}>
-                                                {Math.round(score * 100)}% совпадение
-                                              </span>
-                                            </div>
-                                            <div style={{ fontSize: '0.73rem', color: 'var(--text-secondary)', display: 'flex', justifyContent: 'space-between', marginTop: '4px' }}>
-                                              <span style={{ color: 'var(--text-accent)' }}>{lawTitle}</span>
-                                              <span style={{ color: 'var(--text-tertiary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '60%' }}>
-                                                {article.content.substring(0, 100)}...
-                                              </span>
-                                            </div>
-                                          </div>
-                                        ))}
-                                      </>
-                                    ) : (
-                                      <>
-                                        {suggestions.map(({ lawTitle, article }) => (
-                                          <div
-                                            key={article.id}
-                                            className="autocomplete-item"
-                                            onMouseDown={(e) => {
-                                              e.preventDefault();
-                                              handleQuickSelectArticle(article);
-                                              setActiveAutocompleteRowId(null);
-                                            }}
-                                          >
-                                            <div style={{ fontWeight: 600, fontSize: '0.84rem', color: 'var(--text-primary)' }}>
-                                              {article.articleNumber} — {article.title}
-                                            </div>
-                                            <div style={{ fontSize: '0.73rem', color: 'var(--text-secondary)', display: 'flex', justifyContent: 'space-between', marginTop: '2px' }}>
-                                              <span style={{ color: 'var(--text-accent)' }}>{lawTitle}</span>
-                                              <span style={{ color: 'var(--text-tertiary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '180px' }}>
-                                                {article.content.substring(0, 40)}...
-                                              </span>
-                                            </div>
-                                          </div>
-                                        ))}
-                                        
-                                        <div style={{ padding: '8px', borderTop: '1px solid var(--border-subtle)' }}>
-                                          <button
-                                            disabled={isSearchingSemantically || row.articleTitle.length < 3}
-                                            onMouseDown={(e) => {
-                                              e.preventDefault();
-                                              if (row.articleTitle.length >= 3) {
-                                                handleSemanticSearch(row.articleTitle);
-                                              }
-                                            }}
-                                            style={{
-                                              width: '100%', padding: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
-                                              background: 'var(--accent-subtle)', color: 'var(--accent)', border: '1px solid var(--accent-border)',
-                                              borderRadius: '6px', fontSize: '0.8rem', fontWeight: 600, 
-                                              cursor: (isSearchingSemantically || row.articleTitle.length < 3) ? 'not-allowed' : 'pointer',
-                                              opacity: row.articleTitle.length < 3 ? 0.5 : 1
-                                            }}
-                                          >
-                                            {isSearchingSemantically ? <Loader2 size={16} className="animate-spin" /> : <Brain size={16} />}
-                                            {isSearchingSemantically ? semanticLoadingMsg : 'Найти статью по смыслу (ИИ)'}
-                                          </button>
-                                        </div>
-                                      </>
-                                    )}
-                                  </div>
-                                );
-                              })()}
-                            </div>
-
-                            {canEdit ? (
-                              <div>
-                                <textarea
-                                  className="textarea-field"
-                                  value={row.wasContent}
-                                  onChange={(e) => handleUpdateRow(row.id, 'wasContent', e.target.value)}
-                                  placeholder="Текст статьи в 'Было'..."
-                                  style={{ fontSize: '0.88rem', width: '100%', minHeight: '80px', marginBottom: '6px' }}
-                                />
-
-                                {showDiffHighlight && (
-                                  <div style={{ background: 'var(--bg-card)', padding: '8px 10px', borderRadius: '6px', fontSize: '0.82rem', border: '1px solid var(--border-subtle)', lineHeight: 1.5 }}>
-                                    <span style={{ fontSize: '0.72rem', color: 'var(--text-tertiary)', display: 'block', marginBottom: '2px' }}>Визуальный отпечаток (Удаления зачеркнуты):</span>
-                                    {diff.wasFormatted}
-                                  </div>
-                                )}
-                              </div>
-                            ) : (
-                              <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>
-                                {showDiffHighlight ? diff.wasFormatted : row.wasContent || '—'}
-                              </div>
-                            )}
-                          </td>
-
-                          {/* Became Cell */}
-                          <td className="cell-became">
-                            <div style={{ height: '32px' }}></div>
-                            {canEdit ? (
-                              <div>
-                                <textarea
-                                  className="textarea-field"
-                                  value={row.becameContent}
-                                  onChange={(e) => handleUpdateRow(row.id, 'becameContent', e.target.value)}
-                                  placeholder="Итоговая формулировка в 'Стало'..."
-                                  style={{ fontSize: '0.88rem', width: '100%', minHeight: '80px', marginBottom: '6px' }}
-                                />
-
-                                {showDiffHighlight && (
-                                  <div style={{ background: 'var(--bg-card)', padding: '8px 10px', borderRadius: '6px', fontSize: '0.82rem', border: '1px solid var(--border-subtle)', lineHeight: 1.5 }}>
-                                    <span style={{ fontSize: '0.72rem', color: 'var(--text-tertiary)', display: 'block', marginBottom: '2px' }}>Визуальный отпечаток (Добавления выделены зеленым):</span>
-                                    {diff.becameFormatted}
-                                  </div>
-                                )}
-                              </div>
-                            ) : (
-                              <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>
-                                {showDiffHighlight ? diff.becameFormatted : row.becameContent || '—'}
-                              </div>
-                            )}
-                          </td>
-
-                          {/* Actions */}
-                          <td style={{ textAlign: 'center', verticalAlign: 'middle' }}>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'center' }}>
-                              <button
-                                onClick={() => setExpandedRow(row)}
-                                className="btn btn-secondary"
-                                style={{ padding: '6px', fontSize: '0.78rem' }}
-                                title="🔍 Развернуть во весь экран"
-                              >
-                                <Maximize2 size={15} />
-                              </button>
-
-                              {canEdit && (
-                                <button
-                                  onClick={() => handleDeleteRow(row.id)}
-                                  className="btn btn-danger"
-                                  style={{ padding: '6px' }}
-                                  title="Удалить статью"
-                                >
-                                  <Trash2 size={15} />
-                                </button>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            {/* BILL COMMENT */}
-            <div style={{ background: 'var(--bg-input)', border: '1px solid var(--border-subtle)', borderRadius: '10px', padding: '18px' }}>
-              <h4 style={{ fontSize: '0.92rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '8px' }}>
-                Комментарий к законопроекту
-              </h4>
-              {canEdit ? (
-                <textarea
-                  className="textarea-field"
-                  rows={4}
-                  value={bill.explanatoryNote}
-                  onChange={(e) => handleFieldChange('explanatoryNote', e.target.value)}
-                  placeholder="Введите пояснительный комментарий..."
-                />
-              ) : (
-                <p style={{ fontSize: '0.88rem', color: 'var(--text-secondary)', whiteSpace: 'pre-wrap' }}>
-                  {bill.explanatoryNote}
-                </p>
-              )}
-            </div>
-
-            {/* Author Footer */}
-            <div style={{ marginTop: '24px', paddingTop: '16px', borderTop: '1px solid var(--border-subtle)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.82rem', color: 'var(--text-tertiary)' }}>
-              <div>Автор: {bill.author} ({bill.authorRole})</div>
-              <div>Обновлено: {new Date(bill.updatedAt).toLocaleDateString('ru-RU')}</div>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* STATE LAW ARTICLE SEARCH & PICKER MODAL */}
-      {showLawPickerModal && (
-        <div className="modal-overlay" onClick={() => setShowLawPickerModal(false)} style={{ zIndex: 8500 }}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '780px', width: '95vw', maxHeight: '88vh', display: 'flex', flexDirection: 'column' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <BookOpen size={20} color="var(--text-primary)" />
-                <h3 style={{ fontSize: '1.1rem', fontWeight: 600, color: 'var(--text-primary)' }}>
-                  Поиск статей действующего законодательства Штата
-                </h3>
-              </div>
-
-              <button onClick={() => setShowLawPickerModal(false)} className="btn btn-secondary" style={{ padding: '6px' }}>
-                <XCircle size={18} />
-              </button>
-            </div>
-
-            {/* Law Dropdown & Search Bar & Add Custom Law Button */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: '10px', marginBottom: '14px', alignItems: 'end' }}>
-              <div>
-                <label style={{ fontSize: '0.78rem', color: 'var(--text-tertiary)', display: 'block', marginBottom: '4px' }}>
-                  Выберите Кодекс / Закон:
-                </label>
-                <CustomSelect
-                  options={allLaws.map((l) => ({ value: l.id, label: l.title }))}
-                  value={selectedLawId}
-                  onChange={(val) => setSelectedLawId(val)}
-                  width="100%"
-                />
-              </div>
-
-              <div>
-                <label style={{ fontSize: '0.78rem', color: 'var(--text-tertiary)', display: 'block', marginBottom: '4px' }}>
-                  Поиск по номеру или ключевому слову:
-                </label>
-                <div style={{ position: 'relative' }}>
-                  <Search size={15} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-tertiary)' }} />
-                  <input
-                    type="text"
+            <div className="card-dark" style={{ padding: '24px' }}>
+              <div style={{ display: 'flex', gap: '24px', marginBottom: '20px' }}>
+                <div style={{ flex: 2 }}>
+                  <label className="input-label">Название законопроекта</label>
+                  <input 
+                    type="text" 
+                    value={bill.title}
+                    onChange={(e) => handleFieldChange('title', e.target.value)}
+                    disabled={!canEdit || isReadOnly}
                     className="input-field"
-                    placeholder="Например: 5.2, оружие, парковка..."
-                    value={articleSearchQuery}
-                    onChange={(e) => setArticleSearchQuery(e.target.value)}
-                    style={{ paddingLeft: '32px', fontSize: '0.85rem' }}
+                    style={{ width: '100%', fontSize: '1.1rem', fontWeight: 600 }}
+                    placeholder="О внесении изменений в..."
+                  />
+                </div>
+                
+                <div style={{ flex: 1 }}>
+                  <label className="input-label">Изменяемый Закон</label>
+                  <input 
+                    type="text" 
+                    value={bill.targetLaw}
+                    onChange={(e) => handleFieldChange('targetLaw', e.target.value)}
+                    disabled={!canEdit || isReadOnly}
+                    className="input-field"
+                    style={{ width: '100%', fontFamily: 'var(--font-mono)' }}
+                    placeholder="Например: Уголовный Кодекс (УК)"
                   />
                 </div>
               </div>
 
-              <button
-                onClick={() => setShowAddLawForm(!showAddLawForm)}
-                className="btn btn-secondary"
-                style={{ fontSize: '0.8rem', padding: '8px 12px', whiteSpace: 'nowrap' }}
-              >
-                {showAddLawForm ? 'Отмена' : '📥 Добавить свой закон'}
-              </button>
+              <div>
+                <label className="input-label">Пояснительная записка</label>
+                <textarea 
+                  value={bill.explanatoryNote}
+                  onChange={(e) => handleFieldChange('explanatoryNote', e.target.value)}
+                  disabled={!canEdit || isReadOnly}
+                  className="input-field"
+                  style={{ width: '100%', minHeight: '80px', resize: 'vertical' }}
+                  placeholder="Укажите причину и цель внесения поправок..."
+                />
+              </div>
             </div>
 
-            {/* Custom Law & Forum Parser Quick Add Form */}
-            {showAddLawForm && (
-              <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-medium)', borderRadius: '12px', padding: '16px', marginBottom: '16px' }}>
-                
-                {/* Tabs */}
-                <div style={{ display: 'flex', gap: '8px', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '8px', marginBottom: '14px' }}>
-                  <button
-                    onClick={() => setForumImportTab('url')}
-                    className="btn btn-secondary"
-                    style={{
-                      fontSize: '0.78rem',
-                      padding: '4px 10px',
-                      background: forumImportTab === 'url' ? 'var(--bg-input)' : 'transparent',
-                      color: forumImportTab === 'url' ? 'var(--text-primary)' : 'var(--text-tertiary)',
-                      borderColor: forumImportTab === 'url' ? 'var(--border-medium)' : 'transparent'
-                    }}
-                  >
-                    🌐 1. Авто-парсинг по ссылке URL
-                  </button>
-
-                  <button
-                    onClick={() => setForumImportTab('paste')}
-                    className="btn btn-secondary"
-                    style={{
-                      fontSize: '0.78rem',
-                      padding: '4px 10px',
-                      background: forumImportTab === 'paste' ? 'var(--bg-input)' : 'transparent',
-                      color: forumImportTab === 'paste' ? 'var(--text-primary)' : 'var(--text-tertiary)',
-                      borderColor: forumImportTab === 'paste' ? 'var(--border-medium)' : 'transparent'
-                    }}
-                  >
-                    📋 2. Вставка текста / HTML со страницы форума
-                  </button>
-
-                  <button
-                    onClick={() => setForumImportTab('manual')}
-                    className="btn btn-secondary"
-                    style={{
-                      fontSize: '0.78rem',
-                      padding: '4px 10px',
-                      background: forumImportTab === 'manual' ? 'var(--bg-input)' : 'transparent',
-                      color: forumImportTab === 'manual' ? 'var(--text-primary)' : 'var(--text-tertiary)',
-                      borderColor: forumImportTab === 'manual' ? 'var(--border-medium)' : 'transparent'
-                    }}
-                  >
-                    ✏️ 3. Ручной ввод статьи
-                  </button>
-                </div>
-
-                {/* TAB 1: URL Link Auto-Parser */}
-                {forumImportTab === 'url' && (
-                  <div>
-                    <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginBottom: '8px' }}>
-                      Вставьте прямую ссылку на тему форума (например: <code>https://forum.gtap5rp.com/threads/уголовный-кодекс...</code>):
-                    </p>
-
-                    <div style={{ display: 'flex', gap: '8px' }}>
-                      <input
-                        type="text"
-                        className="input-field"
-                        placeholder="https://forum.gtap5rp.com/threads/..."
-                        value={forumUrlInput}
-                        onChange={(e) => setForumUrlInput(e.target.value)}
-                        style={{ fontSize: '0.84rem', flex: 1 }}
-                      />
-
-                      <button onClick={handleParseForumUrl} disabled={isParsingForum} className="btn btn-primary" style={{ fontSize: '0.82rem', whiteSpace: 'nowrap' }}>
-                        {isParsingForum ? '🔄 Парсинг...' : '⚡ Спарсить закон по ссылке'}
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {/* TAB 2: Text / HTML Source Paste */}
-                {forumImportTab === 'paste' && (
-                  <div>
-                    <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginBottom: '8px' }}>
-                      Откройте тему на форуме в браузере, выделите весь текст (<code>Ctrl+A</code>) и вставьте сюда — парсер мгновенно разобьет его по статьям:
-                    </p>
-
-                    <input
-                      type="text"
-                      className="input-field"
-                      placeholder="Опционально: Название Закона (Например: Закон 'О FIB')..."
-                      value={newLawTitle}
-                      onChange={(e) => setNewLawTitle(e.target.value)}
-                      style={{ fontSize: '0.84rem', marginBottom: '8px' }}
-                    />
-
-                    <textarea
-                      className="textarea-field"
-                      rows={5}
-                      placeholder="Вставьте скопированный текст или исходный код темы..."
-                      value={forumRawPasteInput}
-                      onChange={(e) => setForumRawPasteInput(e.target.value)}
-                      style={{ fontSize: '0.82rem', marginBottom: '8px' }}
-                    />
-
-                    <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                      <button onClick={handleParseForumPaste} className="btn btn-primary" style={{ fontSize: '0.82rem' }}>
-                        ⚡ Мгновенно разобрать текст по статьям
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {/* TAB 3: Manual Entry */}
-                {forumImportTab === 'manual' && (
-                  <div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 140px', gap: '8px', marginBottom: '8px' }}>
-                      <input
-                        type="text"
-                        className="input-field"
-                        placeholder="Название закона (Например: Закон 'О FIB')..."
-                        value={newLawTitle}
-                        onChange={(e) => setNewLawTitle(e.target.value)}
-                        style={{ fontSize: '0.84rem' }}
-                      />
-                      <input
-                        type="text"
-                        className="input-field"
-                        placeholder="Код (FIB-2026)..."
-                        value={newLawCode}
-                        onChange={(e) => setNewLawCode(e.target.value)}
-                        style={{ fontSize: '0.84rem' }}
-                      />
-                    </div>
-
-                    <div style={{ display: 'grid', gridTemplateColumns: '130px 1fr', gap: '8px', marginBottom: '8px' }}>
-                      <input
-                        type="text"
-                        className="input-field"
-                        placeholder="Статья 1.1..."
-                        value={newArtNum}
-                        onChange={(e) => setNewArtNum(e.target.value)}
-                        style={{ fontSize: '0.84rem' }}
-                      />
-                      <input
-                        type="text"
-                        className="input-field"
-                        placeholder="Заголовок статьи (Общие положения)..."
-                        value={newArtTitle}
-                        onChange={(e) => setNewArtTitle(e.target.value)}
-                        style={{ fontSize: '0.84rem' }}
-                      />
-                    </div>
-
-                    <textarea
-                      className="textarea-field"
-                      rows={3}
-                      placeholder="Текст статьи закона..."
-                      value={newArtContent}
-                      onChange={(e) => setNewArtContent(e.target.value)}
-                      style={{ fontSize: '0.84rem', marginBottom: '8px' }}
-                    />
-
-                    <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                      <button onClick={handleCreateCustomLaw} className="btn btn-primary" style={{ fontSize: '0.82rem' }}>
-                        Сохранить закон в базу
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-              </div>
-            )}
-
-            {/* Cross-References Links Bar */}
-            {activeLawObj?.crossReferences && activeLawObj.crossReferences.length > 0 && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', marginBottom: '12px', padding: '8px 12px', background: 'var(--bg-input)', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}>
-                <span style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>🔗 Выявленные перекрёстные ссылки в законе:</span>
-                {activeLawObj.crossReferences.map((ref, idx) => (
-                  <span
-                    key={idx}
-                    className="cross-ref-badge"
-                    onClick={() => setArticleSearchQuery(ref.replace(/Статья\s*/i, ''))}
-                    title="Нажмите для мгновенного поиска по этой ссылке"
-                  >
-                    {ref}
-                  </span>
-                ))}
-              </div>
-            )}
-
-            {/* Articles List */}
-            <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '10px', paddingRight: '4px' }}>
-              {filteredArticles.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '30px', color: 'var(--text-tertiary)', fontSize: '0.88rem' }}>
-                  Статей по вашему запросу не найдено.
-                </div>
-              ) : (
-                filteredArticles.map((art) => (
-                  <div key={art.id} style={{ background: 'var(--bg-input)', border: '1px solid var(--border-subtle)', borderRadius: '10px', padding: '14px' }}>
-                    {art.chapterRef && (
-                      <div style={{ fontSize: '0.72rem', color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '4px', fontWeight: 600 }}>
-                        {art.chapterRef}
-                      </div>
-                    )}
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
-                      <strong style={{ fontSize: '0.92rem', color: 'var(--text-primary)' }}>
-                        {art.articleNumber}. {art.title}
-                      </strong>
-
-                      <button
-                        onClick={() => handleAutoFillArticle(art.articleNumber, art.title, art.content)}
-                        className="btn btn-primary"
-                        style={{ fontSize: '0.78rem', padding: '4px 10px' }}
-                      >
-                        <Plus size={13} /> Вставить в Было / Стало
-                      </button>
-                    </div>
-
-                    <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
-                      {art.content}
-                    </p>
-                  </div>
-                ))
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <h3 style={{ margin: 0, fontSize: '1.2rem', color: 'var(--text-primary)' }}>Редактируемые Статьи</h3>
+              {canEdit && !isReadOnly && (
+                <button onClick={addComparisonRow} className="btn btn-secondary" style={{ fontSize: '0.8rem', padding: '6px 12px' }}>
+                  <Plus size={14} /> Добавить статью
+                </button>
               )}
             </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+              {bill.comparisons.map((row, index) => (
+                <div key={row.id} className="card-dark" style={{ padding: '0', overflow: 'hidden' }}>
+                  <div style={{ background: 'var(--bg-input)', padding: '12px 20px', borderBottom: '1px solid var(--border-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1 }}>
+                      <span style={{ fontSize: '0.85rem', color: 'var(--text-tertiary)', fontWeight: 600 }}>#{index + 1}</span>
+                      <input 
+                        type="text" 
+                        value={row.articleTitle}
+                        onChange={(e) => updateComparisonRow(row.id, 'articleTitle', e.target.value)}
+                        disabled={!canEdit || isReadOnly}
+                        className="input-field"
+                        style={{ width: '300px', padding: '6px 12px' }}
+                        placeholder="Номер или название статьи (Статья 1.1)"
+                      />
+                    </div>
+                    {canEdit && !isReadOnly && (
+                      <button 
+                        onClick={() => removeComparisonRow(row.id)}
+                        className="btn"
+                        style={{ padding: '6px', color: 'var(--danger)', background: 'transparent' }}
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    )}
+                  </div>
+
+                  <div style={{ display: 'flex', width: '100%', minHeight: '200px' }}>
+                    
+                    <div style={{ flex: 1, borderRight: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column' }}>
+                      <div style={{ padding: '8px 20px', background: 'rgba(239, 68, 68, 0.05)', color: '#fca5a5', fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--border-subtle)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span>Было (Действующая редакция)</span>
+                        {canEdit && !isReadOnly && (
+                          <button 
+                            onClick={() => markRowAsNew(row.id)}
+                            style={{ background: 'transparent', border: 'none', color: '#fca5a5', fontSize: '0.7rem', cursor: 'pointer', textDecoration: 'underline' }}
+                          >
+                            Не было раньше
+                          </button>
+                        )}
+                      </div>
+                      <textarea 
+                        value={row.wasContent}
+                        onChange={(e) => updateComparisonRow(row.id, 'wasContent', e.target.value)}
+                        disabled={!canEdit || isReadOnly}
+                        style={{ 
+                          flex: 1, 
+                          border: 'none', 
+                          background: 'transparent', 
+                          color: 'var(--text-primary)', 
+                          padding: '16px 20px', 
+                          resize: 'none',
+                          outline: 'none',
+                          fontFamily: 'var(--font-sans)',
+                          fontSize: '0.95rem',
+                          lineHeight: 1.6
+                        }}
+                        placeholder="Вставьте текущий текст статьи..."
+                      />
+                    </div>
+
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+                      <div style={{ padding: '8px 20px', background: 'rgba(16, 185, 129, 0.05)', color: '#6ee7b7', fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--border-subtle)' }}>
+                        Стало (Проектируемая редакция)
+                      </div>
+                      <textarea 
+                        value={row.becameContent}
+                        onChange={(e) => updateComparisonRow(row.id, 'becameContent', e.target.value)}
+                        disabled={!canEdit || isReadOnly}
+                        style={{ 
+                          flex: 1, 
+                          border: 'none', 
+                          background: 'transparent', 
+                          color: 'var(--text-primary)', 
+                          padding: '16px 20px', 
+                          resize: 'none',
+                          outline: 'none',
+                          fontFamily: 'var(--font-sans)',
+                          fontSize: '0.95rem',
+                          lineHeight: 1.6
+                        }}
+                        placeholder="Внесите ваши изменения..."
+                      />
+                    </div>
+                  </div>
+                </div>
+              ))}
+
+              {bill.comparisons.length === 0 && (
+                <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--text-tertiary)' }}>
+                  <FileText size={48} style={{ opacity: 0.2, margin: '0 auto 16px' }} />
+                  <p>В этом законопроекте пока нет ни одной статьи.</p>
+                  {canEdit && !isReadOnly && (
+                    <button onClick={addComparisonRow} className="btn btn-primary" style={{ marginTop: '16px' }}>
+                      <Plus size={16} /> Добавить первую поправку
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+            
+            <div style={{ height: '100px' }}></div>
           </div>
         </div>
-      )}
 
-      {/* Mandatory Federal Government Justification Modal */}
-      {showFedModal && (
-        <div className="modal-overlay" onClick={() => setShowFedModal(false)} style={{ zIndex: 8000 }}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '540px', padding: '24px' }}>
-            <h3 style={{ fontSize: '1.1rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '12px' }}>
-              Обязательное мотивированное обоснование Федерального Правительства
-            </h3>
+        <div style={{ width: '380px', borderLeft: '1px solid var(--border-subtle)', background: 'var(--bg-card)', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ display: 'flex', padding: '12px', gap: '8px', borderBottom: '1px solid var(--border-subtle)' }}>
+            <button 
+              onClick={() => setActiveTab('editor')}
+              className="btn btn-secondary"
+              style={{ flex: 1, background: activeTab === 'editor' ? 'var(--bg-hover)' : 'transparent', border: 'none' }}
+            >
+              <FileText size={16} /> Детали
+            </button>
+            <button 
+              onClick={() => setActiveTab('comments')}
+              className="btn btn-secondary"
+              style={{ flex: 1, background: activeTab === 'comments' ? 'var(--bg-hover)' : 'transparent', border: 'none' }}
+            >
+              <Users size={16} /> Обсуждение
+            </button>
+          </div>
 
-            <p style={{ fontSize: '0.84rem', color: 'var(--text-secondary)', marginBottom: '14px', lineHeight: 1.5 }}>
-              Вы выносите вердикт: <strong style={{ color: pendingFedStatus === 'rejected' ? '#f87171' : '#93c5fd' }}>{pendingFedStatus === 'rejected' ? 'ОТКЛОНИТЬ' : 'НА ДОРАБОТКУ'}</strong>.
-              Укажите закрытые замечания и причину отказа (будет видно Комиссии):
-            </p>
+          <div style={{ flex: 1, overflowY: 'auto' }}>
+            {activeTab === 'editor' ? (
+              <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                
+                <div>
+                  <h4 style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-tertiary)', marginBottom: '8px' }}>Автор инициативы</h4>
+                  <div style={{ background: 'var(--bg-input)', padding: '12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)' }}>
+                    <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{bill.author}</div>
+                    <div style={{ fontSize: '0.8rem', color: 'var(--accent)', marginTop: '2px' }}>{bill.authorRole}</div>
+                  </div>
+                </div>
 
-            <div style={{ marginBottom: '18px' }}>
-              <textarea
-                className="textarea-field"
-                rows={4}
-                placeholder="Подробное мотивированное обоснование..."
-                value={fedReasonInput}
-                onChange={(e) => setFedReasonInput(e.target.value)}
+                {canEdit && bill.status === 'draft' && isAuthor && (
+                  <div>
+                    <h4 style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-tertiary)', marginBottom: '8px' }}>Действия</h4>
+                    <button 
+                      onClick={() => {
+                        const upd: Bill = { ...bill, status: 'under_review', updatedAt: new Date().toISOString() };
+                        setBill(upd);
+                        onSave(upd);
+                        onToast('success', 'Законопроект отправлен на рассмотрение Комиссии!');
+                      }}
+                      className="btn btn-primary"
+                      style={{ width: '100%', padding: '12px' }}
+                    >
+                      <Send size={16} /> Отправить на рассмотрение
+                    </button>
+                  </div>
+                )}
+
+                {bill.sha256Hash && (
+                  <div>
+                    <h4 style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-tertiary)', marginBottom: '8px' }}>Целостность документа</h4>
+                    <div style={{ background: 'rgba(52, 211, 153, 0.05)', border: '1px solid rgba(52, 211, 153, 0.2)', padding: '12px', borderRadius: 'var(--radius-md)' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--success)', fontWeight: 600, fontSize: '0.8rem', marginBottom: '4px' }}>
+                        <ShieldCheck size={14} /> SHA-256 Verified
+                      </div>
+                      <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.65rem', wordBreak: 'break-all', color: 'var(--text-secondary)' }}>
+                        {bill.sha256Hash}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+              </div>
+            ) : (
+              <CommentsSection 
+                billId={bill.id} 
+                user={user} 
+                comments={bill.comments} 
+                canComment={!isReadOnly}
+                onAddComment={(updatedComments) => {
+                  const upd = { ...bill, comments: updatedComments };
+                  setBill(upd); 
+                  onSave(upd);
+                }} 
               />
-            </div>
-
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-              <button onClick={() => setShowFedModal(false)} className="btn btn-secondary">
-                Отмена
-              </button>
-              <button onClick={handleConfirmFedVerdictModal} className="btn btn-primary">
-                Подтвердить и отправить решение
-              </button>
-            </div>
+            )}
           </div>
         </div>
-      )}
-
-      {/* Fullscreen Article Expansion Modal */}
-      {expandedRow && (
-        <ExpandedArticleModal
-          row={expandedRow}
-          canEdit={canEdit}
-          onUpdateRow={handleUpdateRow}
-          onClose={() => setExpandedRow(null)}
-        />
-      )}
+      </div>
     </div>
   );
 };
