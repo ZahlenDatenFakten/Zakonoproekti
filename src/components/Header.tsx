@@ -1,7 +1,7 @@
 import React from 'react';
 import type { UserProfile, AppTheme } from '../types/bill';
 import { OFFICIAL_ROLE_LABELS } from '../types/bill';
-import { isOfficialCommitteeMember, isSystemAdmin } from '../services/securityService';
+import { isSystemAdmin } from '../services/securityService';
 import { 
   Settings,
   Shield,
@@ -35,7 +35,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenSettings,
   onOpenDbConfig
 }) => {
-  const isCommitteeOrAdmin = isOfficialCommitteeMember(user) || isSystemAdmin(user);
+  const isAdmin = isSystemAdmin(user);
 
   return (
     <header style={{ 
@@ -55,37 +55,37 @@ export const Header: React.FC<HeaderProps> = ({
         display: 'flex', 
         alignItems: 'center', 
         justifyContent: 'space-between',
-        flexWrap: 'wrap',
-        gap: '14px'
+        flexWrap: 'nowrap',
+        gap: '16px'
       }}>
         
         {/* BRAND / GOVERNMENT TECH SEAL */}
         <div 
           onClick={() => onNavigate('dashboard')} 
-          style={{ display: 'flex', alignItems: 'center', gap: '14px', cursor: 'pointer' }}
+          style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer', flexShrink: 0 }}
         >
           <div style={{ 
-            width: '42px', height: '42px', borderRadius: 'var(--radius-md)',
+            width: '40px', height: '40px', borderRadius: 'var(--radius-md)',
             background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)', 
-            boxShadow: '0 0 20px rgba(56, 189, 248, 0.35)',
+            boxShadow: '0 0 18px rgba(56, 189, 248, 0.35)',
             border: '1px solid rgba(56, 189, 248, 0.4)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            transition: 'transform 0.25s ease'
+            flexShrink: 0
           }}>
             <Shield size={20} color="#ffffff" />
           </div>
 
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <h1 style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '0.04em', lineHeight: 1.2 }}>
+              <h1 style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '0.04em', lineHeight: 1.2, margin: 0, whiteSpace: 'nowrap' }}>
                 ГОСУДАРСТВЕННЫЙ РЕЕСТР
               </h1>
-              <span className="decree-stamp" style={{ padding: '2px 6px', fontSize: '0.65rem' }}>
+              <span className="decree-stamp" style={{ padding: '2px 6px', fontSize: '0.62rem' }}>
                 SA GOV TECH
               </span>
             </div>
-            <p style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', lineHeight: 1.2, marginTop: '2px', fontFamily: 'var(--font-mono)' }}>
-              Цифровая платформа реформ и законопроектов
+            <p style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', lineHeight: 1.2, margin: '2px 0 0 0', fontFamily: 'var(--font-mono)', whiteSpace: 'nowrap' }}>
+              Цифровая платформа реформ
             </p>
           </div>
         </div>
@@ -98,7 +98,8 @@ export const Header: React.FC<HeaderProps> = ({
           padding: '4px', 
           borderRadius: 'var(--radius-pill)', 
           border: '1px solid var(--border-subtle)',
-          boxShadow: 'inset 0 1px 3px rgba(0, 0, 0, 0.4)'
+          boxShadow: 'inset 0 1px 3px rgba(0, 0, 0, 0.4)',
+          flexShrink: 0
         }}>
           <button
             onClick={() => onNavigate('dashboard')}
@@ -116,7 +117,8 @@ export const Header: React.FC<HeaderProps> = ({
             <LayoutDashboard size={14} /> Реестр актов
           </button>
 
-          {isCommitteeOrAdmin && (
+          {/* ADMIN TAB — ACCESSIBLE STRICTLY AND ONLY BY SYSTEM ADMIN */}
+          {isAdmin && (
             <button
               onClick={() => onNavigate('admin_workspace')}
               className="btn btn-pill"
@@ -136,7 +138,7 @@ export const Header: React.FC<HeaderProps> = ({
         </nav>
 
         {/* RIGHT: CONTROLS, NEW BILL & USER PROFILE */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
           
           <button 
             onClick={onOpenNewBill}
@@ -146,44 +148,47 @@ export const Header: React.FC<HeaderProps> = ({
             <Plus size={15} /> Внести проект
           </button>
 
-          {/* PROFILE BADGE */}
+          {/* PROFILE BADGE WITH TRUNCATION */}
           <div 
             onClick={onOpenSettings}
             style={{ 
               display: 'flex', 
               alignItems: 'center', 
-              gap: '10px', 
+              gap: '8px', 
               padding: '5px 12px 5px 6px', 
               borderRadius: 'var(--radius-pill)', 
               background: 'var(--bg-surface-elevated)', 
               border: '1px solid var(--border-subtle)',
               cursor: 'pointer',
-              transition: 'all 0.2s ease'
+              transition: 'all 0.2s ease',
+              maxWidth: '220px'
             }}
+            title={`${user.firstName} ${user.lastName} (${OFFICIAL_ROLE_LABELS[user.officialRole] || 'Гражданин'})`}
           >
             <div style={{
-              width: '30px', height: '30px', borderRadius: '50%',
+              width: '28px', height: '28px', borderRadius: '50%',
               background: 'var(--primary-gradient)', 
-              boxShadow: '0 0 12px var(--primary-glow)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center'
+              boxShadow: '0 0 10px var(--primary-glow)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              flexShrink: 0
             }}>
-              <User size={15} color="#ffffff" />
+              <User size={14} color="#ffffff" />
             </div>
-            <div>
-              <div style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-primary)', lineHeight: 1.2 }}>
+            <div style={{ overflow: 'hidden' }}>
+              <div style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-primary)', lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                 {user.firstName} {user.lastName}
               </div>
-              <div style={{ fontSize: '0.66rem', color: 'var(--text-accent)', lineHeight: 1.2, fontFamily: 'var(--font-mono)', fontWeight: 500 }}>
+              <div style={{ fontSize: '0.65rem', color: 'var(--text-accent)', lineHeight: 1.2, fontFamily: 'var(--font-mono)', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                 {OFFICIAL_ROLE_LABELS[user.officialRole] || 'Гражданин'}
               </div>
             </div>
           </div>
 
-          <div style={{ width: '1px', height: '22px', background: 'var(--border-subtle)' }} />
+          <div style={{ width: '1px', height: '20px', background: 'var(--border-subtle)' }} />
 
           {/* SYSTEM TOOL BUTTONS */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-            {isSystemAdmin(user) && onOpenDbConfig && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
+            {isAdmin && onOpenDbConfig && (
               <button 
                 className="btn btn-ghost" 
                 onClick={onOpenDbConfig} 

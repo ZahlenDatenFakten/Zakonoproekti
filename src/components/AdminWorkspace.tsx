@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import type { Bill, UserProfile, VoteDecision, FederalGovernmentVerdict } from '../types/bill';
-import { isSystemAdmin, isOfficialCommitteeMember } from '../services/securityService';
+import { isSystemAdmin } from '../services/securityService';
 import { 
   ShieldCheck, 
   Eye, 
@@ -31,8 +31,7 @@ export const AdminWorkspace: React.FC<AdminWorkspaceProps> = ({
   onToast
 }) => {
   const isAdmin = isSystemAdmin(user);
-  const isCommittee = isOfficialCommitteeMember(user);
-  const isAuthorizedToAccess = isAdmin || isCommittee;
+  const isAuthorizedToAccess = isAdmin;
 
   const [selectedBillForAction, setSelectedBillForAction] = useState<Bill | null>(null);
   const [pendingDecision, setPendingDecision] = useState<VoteDecision | null>(null);
