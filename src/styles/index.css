@@ -7,16 +7,16 @@
 
 :root {
   /* --- Deep Dark Base Palette --- */
-  --bg-base: #08090a;
-  --bg-surface: #12151e;
-  --bg-surface-elevated: #161922;
+  --bg-base: #050608;
+  --bg-surface: #0f1219;
+  --bg-surface-elevated: #151923;
   --bg-surface-active: #1c202e;
-  --bg-input: #0e111a;
+  --bg-input: #0a0c10;
   --bg-hover: rgba(255, 255, 255, 0.04);
-  --bg-glass: rgba(18, 21, 30, 0.75);
+  --bg-glass: rgba(15, 18, 25, 0.75);
 
-  --border-subtle: rgba(255, 255, 255, 0.07);
-  --border-medium: rgba(255, 255, 255, 0.14);
+  --border-subtle: rgba(255, 255, 255, 0.08);
+  --border-medium: rgba(255, 255, 255, 0.16);
   --border-accent: rgba(56, 189, 248, 0.35);
   --border-focus: #38bdf8;
 
@@ -77,10 +77,6 @@
   --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
   --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
 
-  --mesh-bg-1: radial-gradient(circle at 15% 0%, rgba(56, 189, 248, 0.04) 0%, transparent 50%);
-  --mesh-bg-2: radial-gradient(circle at 85% 100%, rgba(30, 41, 59, 0.2) 0%, transparent 50%);
-  --grid-pattern: repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.015) 0px, rgba(255, 255, 255, 0.015) 1px, transparent 1px, transparent 24px),
-                  repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.015) 0px, rgba(255, 255, 255, 0.015) 1px, transparent 1px, transparent 24px);
 }
 
 /* Light Theme Override */
@@ -102,13 +98,18 @@
   padding: 0;
 }
 
-body {
+body, #root {
   margin: 0;
   padding: 0;
   font-family: var(--font-sans);
-  background-color: var(--bg-base);
-  background-image: var(--mesh-bg-1), var(--mesh-bg-2), var(--grid-pattern);
-  background-attachment: fixed;
+  background-image: none !important;
+  background: radial-gradient(
+    circle at 50% 25%, 
+    #181c24 0%, 
+    #0d0f14 55%, 
+    #050608 100%
+  ) !important;
+  background-attachment: fixed !important;
   color: var(--text-primary);
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
