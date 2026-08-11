@@ -1,91 +1,149 @@
 import React from 'react';
 
+export interface DiffToken {
+  type: 'same' | 'added' | 'removed';
+  value: string;
+}
+
 export interface DiffResult {
   wasFormatted: React.ReactNode[];
   becameFormatted: React.ReactNode[];
+  unifiedFormatted: React.ReactNode[];
+  stats: {
+    addedWords: number;
+    removedWords: number;
+    totalChanges: number;
+  };
 }
 
 /**
- * Word-level Diff Engine for LegalDraft Pro
- * Highlights deleted text in WAS column with strikethrough & red styling
- * Highlights newly added text in BECAME column with bold & green text styling
+ * 100% Exact Sequence LCS (Longest Common Subsequence) Legal Diff Engine
+ * Accurately highlights exact deleted phrases in WAS column (- red strikethrough)
+ * and newly inserted phrases in BECAME column (+ neon green background)
  */
 export function computeWordDiff(wasText: string, becameText: string): DiffResult {
-  if (!wasText && !becameText) {
-    return { wasFormatted: [], becameFormatted: [] };
+  const cleanWas = wasText || '';
+  const cleanBecame = becameText || '';
+
+  if (!cleanWas && !cleanBecame) {
+    return {
+      wasFormatted: [],
+      becameFormatted: [],
+      unifiedFormatted: [],
+      stats: { addedWords: 0, removedWords: 0, totalChanges: 0 }
+    };
   }
 
-  const wasWords = (wasText || '').split(/(\s+)/);
-  const becameWords = (becameText || '').split(/(\s+)/);
+  // Tokenize by word boundaries including spaces and punctuation
+  const wasTokens = cleanWas.match(/\S+|\s+/g) || [];
+  const becameTokens = cleanBecame.match(/\S+|\s+/g) || [];
 
-  const becameSet = new Set(becameWords.map((w) => w.trim().toLowerCase()).filter(Boolean));
-  const wasSet = new Set(wasWords.map((w) => w.trim().toLowerCase()).filter(Boolean));
+  const m = wasTokens.length;
+  const n = becameTokens.length;
 
-  // Format WAS column: mark words missing in BECAME as DELETED (Strikethrough + Red)
-  const wasFormatted: React.ReactNode[] = wasWords.map((word, idx) => {
-    const clean = word.trim().toLowerCase();
-    const isWhitespace = /^\s+$/.test(word);
+  // Build LCS matrix
+  const dp: number[][] = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
 
-    if (isWhitespace || !clean) {
-      return <span key={`w_space_${idx}`}>{word}</span>;
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      if (wasTokens[i - 1] === becameTokens[j - 1]) {
+        dp[i][j] = dp[i - 1][j - 1] + 1;
+      } else {
+        dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1]);
+      }
     }
+  }
 
-    const isDeleted = !becameSet.has(clean);
-    if (isDeleted) {
-      return (
+  // Backtrack edit script
+  let i = m;
+  let j = n;
+  const edits: DiffToken[] = [];
+
+  while (i > 0 || j > 0) {
+    if (i > 0 && j > 0 && wasTokens[i - 1] === becameTokens[j - 1]) {
+      edits.unshift({ type: 'same', value: wasTokens[i - 1] });
+      i--;
+      j--;
+    } else if (j > 0 && (i === 0 || dp[i][j - 1] >= dp[i - 1][j])) {
+      edits.unshift({ type: 'added', value: becameTokens[j - 1] });
+      j--;
+    } else if (i > 0 && (j === 0 || dp[i][j - 1] < dp[i - 1][j])) {
+      edits.unshift({ type: 'removed', value: wasTokens[i - 1] });
+      i--;
+    }
+  }
+
+  let addedWords = 0;
+  let removedWords = 0;
+
+  const wasFormatted: React.ReactNode[] = [];
+  const becameFormatted: React.ReactNode[] = [];
+  const unifiedFormatted: React.ReactNode[] = [];
+
+  edits.forEach((token, idx) => {
+    const isWord = /\S+/.test(token.value);
+
+    if (token.type === 'removed') {
+      if (isWord) removedWords++;
+      const node = (
         <span
           key={`was_del_${idx}`}
           style={{
-            color: '#f87171',
+            color: '#f85149',
             textDecoration: 'line-through',
-            background: 'rgba(248, 113, 113, 0.15)',
-            padding: '1px 4px',
+            background: 'rgba(248, 81, 73, 0.18)',
+            borderBottom: '1.5px solid #f85149',
+            padding: '1px 5px',
             borderRadius: '4px',
             fontWeight: 600,
             margin: '0 1px'
           }}
-          title="Удаляемый фрагмент нормы"
+          title="Удаляемая действующая норма"
         >
-          {word}
+          {token.value}
         </span>
       );
-    }
-
-    return <span key={`was_same_${idx}`}>{word}</span>;
-  });
-
-  // Format BECAME column: mark words missing in WAS as ADDED (Green text + bold)
-  const becameFormatted: React.ReactNode[] = becameWords.map((word, idx) => {
-    const clean = word.trim().toLowerCase();
-    const isWhitespace = /^\s+$/.test(word);
-
-    if (isWhitespace || !clean) {
-      return <span key={`b_space_${idx}`}>{word}</span>;
-    }
-
-    const isAdded = !wasSet.has(clean);
-    if (isAdded) {
-      return (
+      wasFormatted.push(node);
+      unifiedFormatted.push(node);
+    } else if (token.type === 'added') {
+      if (isWord) addedWords++;
+      const node = (
         <span
           key={`bec_add_${idx}`}
           style={{
-            color: '#34d399',
+            color: '#3fb950',
             fontWeight: 700,
-            background: 'rgba(52, 211, 153, 0.18)',
+            background: 'rgba(63, 185, 80, 0.18)',
+            borderBottom: '1.5px solid #3fb950',
             padding: '1px 5px',
             borderRadius: '4px',
-            borderBottom: '1.5px solid #34d399',
             margin: '0 1px'
           }}
-          title="Добавляемый фрагмент нормы"
+          title="Новая проектируемая норма"
         >
-          {word}
+          {token.value}
         </span>
       );
+      becameFormatted.push(node);
+      unifiedFormatted.push(node);
+    } else {
+      const sameNodeWas = <span key={`same_w_${idx}`}>{token.value}</span>;
+      const sameNodeBec = <span key={`same_b_${idx}`}>{token.value}</span>;
+      const sameNodeUni = <span key={`same_u_${idx}`}>{token.value}</span>;
+      wasFormatted.push(sameNodeWas);
+      becameFormatted.push(sameNodeBec);
+      unifiedFormatted.push(sameNodeUni);
     }
-
-    return <span key={`bec_same_${idx}`}>{word}</span>;
   });
 
-  return { wasFormatted, becameFormatted };
+  return {
+    wasFormatted,
+    becameFormatted,
+    unifiedFormatted,
+    stats: {
+      addedWords,
+      removedWords,
+      totalChanges: addedWords + removedWords
+    }
+  };
 }

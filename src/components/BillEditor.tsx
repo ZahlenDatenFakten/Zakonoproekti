@@ -3,6 +3,7 @@ import type { Bill, ComparisonRow, AccessPermission, UserProfile, BillStatus, Vo
 import { CommentsSection } from './CommentsSection';
 import { ExpandedArticleModal } from './ExpandedArticleModal';
 import { isSystemAdmin } from '../services/securityService';
+import { computeWordDiff } from '../services/diffService';
 import { 
   ArrowLeft, 
   Save, 
@@ -378,144 +379,211 @@ export const BillEditor: React.FC<BillEditorProps> = ({
 
           {/* COMPARISON CARDS LIST */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '22px' }}>
-            {bill.comparisons.map((row, index) => (
-              <div key={row.id} className="card" style={{ padding: '0', overflow: 'hidden', border: '1px solid var(--border-medium)' }}>
-                
-                {/* ARTICLE HEADER CONTROL BAR */}
-                <div style={{ 
-                  background: 'var(--bg-surface-elevated)', 
-                  padding: '12px 24px', 
-                  borderBottom: '1px solid var(--border-subtle)', 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  justifyContent: 'space-between',
-                  gap: '16px'
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1 }}>
-                    <span style={{ fontSize: '0.85rem', color: 'var(--text-accent)', fontWeight: 800, fontFamily: 'var(--font-mono)' }}>
-                      §{index + 1}
-                    </span>
-                    <input 
-                      type="text" 
-                      value={row.articleTitle}
-                      onChange={(e) => updateComparisonRow(row.id, 'articleTitle', e.target.value)}
-                      disabled={!canEdit || isReadOnly}
-                      className="input-field"
-                      style={{ width: '380px', padding: '7px 14px', fontWeight: 600, fontSize: '0.9rem' }}
-                      placeholder="Статья 1. Наименование статьи..."
-                    />
-                  </div>
+            {bill.comparisons.map((row, index) => {
+              const diff = computeWordDiff(row.wasContent, row.becameContent);
+
+              return (
+                <div key={row.id} className="card" style={{ padding: '0', overflow: 'hidden', border: '1px solid var(--border-medium)' }}>
                   
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    {canEdit && !isReadOnly && (
+                  {/* ARTICLE HEADER CONTROL BAR */}
+                  <div style={{ 
+                    background: 'var(--bg-surface-elevated)', 
+                    padding: '12px 24px', 
+                    borderBottom: '1px solid var(--border-subtle)', 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'space-between',
+                    gap: '16px',
+                    flexWrap: 'wrap'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1, minWidth: '320px' }}>
+                      <span style={{ fontSize: '0.85rem', color: 'var(--text-accent)', fontWeight: 800, fontFamily: 'var(--font-mono)' }}>
+                        §{index + 1}
+                      </span>
+                      <input 
+                        type="text" 
+                        value={row.articleTitle}
+                        onChange={(e) => updateComparisonRow(row.id, 'articleTitle', e.target.value)}
+                        disabled={!canEdit || isReadOnly}
+                        className="input-field"
+                        style={{ width: '380px', padding: '7px 14px', fontWeight: 600, fontSize: '0.9rem' }}
+                        placeholder="Статья 1. Наименование статьи..."
+                      />
+
+                      {/* LIVE DIFF METRIC CHIPS */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        {diff.stats.addedWords > 0 && (
+                          <span className="badge badge-status-approved" style={{ fontSize: '0.68rem', padding: '2px 8px' }}>
+                            +{diff.stats.addedWords} слов
+                          </span>
+                        )}
+                        {diff.stats.removedWords > 0 && (
+                          <span className="badge badge-status-rejected" style={{ fontSize: '0.68rem', padding: '2px 8px' }}>
+                            -{diff.stats.removedWords} слов
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      {canEdit && !isReadOnly && (
+                        <button 
+                          onClick={() => copyWasToBecame(row.id)}
+                          className="btn btn-secondary"
+                          style={{ padding: '6px 12px', fontSize: '0.76rem', fontFamily: 'var(--font-mono)' }}
+                          title="Скопировать оригинальный текст в проектируемый"
+                        >
+                          <Copy size={13} /> Копировать оригинал
+                        </button>
+                      )}
+
                       <button 
-                        onClick={() => copyWasToBecame(row.id)}
+                        onClick={() => setExpandedRow(row)}
                         className="btn btn-secondary"
                         style={{ padding: '6px 12px', fontSize: '0.76rem', fontFamily: 'var(--font-mono)' }}
-                        title="Скопировать оригинальный текст в проектируемый"
+                        title="Развернуть в полноэкранный режим 100% Diff"
                       >
-                        <Copy size={13} /> Копировать оригинал
+                        <Maximize2 size={13} /> 100% Diff Экран
                       </button>
-                    )}
 
-                    <button 
-                      onClick={() => setExpandedRow(row)}
-                      className="btn btn-secondary"
-                      style={{ padding: '6px 12px', fontSize: '0.76rem', fontFamily: 'var(--font-mono)' }}
-                      title="Развернуть в полноэкранный режим"
-                    >
-                      <Maximize2 size={13} /> Просмотр
-                    </button>
+                      {canEdit && !isReadOnly && bill.comparisons.length > 1 && (
+                        <button 
+                          onClick={() => removeComparisonRow(row.id)}
+                          className="btn btn-ghost"
+                          style={{ padding: '6px', color: 'var(--danger-text)' }}
+                          title="Удалить статью"
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      )}
+                    </div>
+                  </div>
 
-                    {canEdit && !isReadOnly && bill.comparisons.length > 1 && (
-                      <button 
-                        onClick={() => removeComparisonRow(row.id)}
-                        className="btn btn-ghost"
-                        style={{ padding: '6px', color: 'var(--danger-text)' }}
-                        title="Удалить статью"
-                      >
-                        <Trash2 size={15} />
-                      </button>
-                    )}
+                  {/* SIDE-BY-SIDE DIFF COLUMNS */}
+                  <div style={{ display: 'flex', width: '100%', minHeight: '220px', flexWrap: 'wrap' }}>
+                    
+                    {/* LEFT: ORIGINAL TEXT & LIVE REMOVAL PREVIEW */}
+                    <div style={{ flex: '1 1 300px', borderRight: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column' }}>
+                      <div style={{ 
+                        padding: '8px 24px', 
+                        background: 'rgba(248, 81, 73, 0.08)', 
+                        color: 'var(--danger-text)', 
+                        fontSize: '0.7rem', 
+                        fontWeight: 700, 
+                        textTransform: 'uppercase', 
+                        letterSpacing: '0.08em', 
+                        fontFamily: 'var(--font-mono)',
+                        borderBottom: '1px solid var(--border-subtle)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between'
+                      }}>
+                        <span>Действующая редакция (Оригинал)</span>
+                        <span style={{ fontSize: '0.65rem', opacity: 0.8 }}>УДАЛЕНИЯ (-)</span>
+                      </div>
+                      
+                      <textarea 
+                        value={row.wasContent}
+                        onChange={(e) => updateComparisonRow(row.id, 'wasContent', e.target.value)}
+                        disabled={!canEdit || isReadOnly}
+                        style={{ 
+                          flex: 1, 
+                          border: 'none', 
+                          background: 'transparent', 
+                          color: 'var(--text-primary)', 
+                          padding: '16px 24px', 
+                          resize: 'vertical', 
+                          outline: 'none', 
+                          fontFamily: 'var(--font-sans)', 
+                          fontSize: '0.9rem', 
+                          lineHeight: 1.6,
+                          minHeight: '140px'
+                        }}
+                        placeholder="Текст действующей статьи..."
+                      />
+
+                      {/* LIVE REAL-TIME DIFF VISUALIZER BOX */}
+                      {row.wasContent && (
+                        <div style={{ 
+                          margin: '0 16px 16px', 
+                          padding: '12px 16px', 
+                          background: 'var(--bg-input)', 
+                          border: '1px solid rgba(248, 81, 73, 0.3)', 
+                          borderRadius: 'var(--radius-sm)', 
+                          fontSize: '0.86rem', 
+                          lineHeight: 1.6 
+                        }}>
+                          <div className="tech-label" style={{ color: 'var(--danger-text)', marginBottom: '4px', fontSize: '0.65rem' }}>
+                            🔍 Живой аналитический просмотр вычеркиваний:
+                          </div>
+                          {diff.wasFormatted}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* RIGHT: PROPOSED REFORM TEXT & LIVE ADDITION PREVIEW */}
+                    <div style={{ flex: '1 1 300px', display: 'flex', flexDirection: 'column' }}>
+                      <div style={{ 
+                        padding: '8px 24px', 
+                        background: 'rgba(63, 185, 80, 0.08)', 
+                        color: 'var(--success-text)', 
+                        fontSize: '0.7rem', 
+                        fontWeight: 700, 
+                        textTransform: 'uppercase', 
+                        letterSpacing: '0.08em', 
+                        fontFamily: 'var(--font-mono)',
+                        borderBottom: '1px solid var(--border-subtle)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between'
+                      }}>
+                        <span>Проектируемая редакция (Поправки)</span>
+                        <span style={{ fontSize: '0.65rem', opacity: 0.8 }}>ДОБАВЛЕНИЯ (+)</span>
+                      </div>
+
+                      <textarea 
+                        value={row.becameContent}
+                        onChange={(e) => updateComparisonRow(row.id, 'becameContent', e.target.value)}
+                        disabled={!canEdit || isReadOnly}
+                        style={{ 
+                          flex: 1, 
+                          border: 'none', 
+                          background: 'transparent', 
+                          color: 'var(--text-primary)', 
+                          padding: '16px 24px', 
+                          resize: 'vertical', 
+                          outline: 'none', 
+                          fontFamily: 'var(--font-sans)', 
+                          fontSize: '0.9rem', 
+                          lineHeight: 1.6,
+                          minHeight: '140px'
+                        }}
+                        placeholder="Предлагаемая формулировка статьи..."
+                      />
+
+                      {/* LIVE REAL-TIME DIFF VISUALIZER BOX */}
+                      {row.becameContent && (
+                        <div style={{ 
+                          margin: '0 16px 16px', 
+                          padding: '12px 16px', 
+                          background: 'var(--bg-input)', 
+                          border: '1px solid rgba(63, 185, 80, 0.3)', 
+                          borderRadius: 'var(--radius-sm)', 
+                          fontSize: '0.86rem', 
+                          lineHeight: 1.6 
+                        }}>
+                          <div className="tech-label" style={{ color: 'var(--success-text)', marginBottom: '4px', fontSize: '0.65rem' }}>
+                            🔍 Живой аналитический просмотр поправок:
+                          </div>
+                          {diff.becameFormatted}
+                        </div>
+                      )}
+                    </div>
+
                   </div>
                 </div>
-
-                {/* SIDE-BY-SIDE DIFF COLUMNS */}
-                <div style={{ display: 'flex', width: '100%', minHeight: '220px', flexWrap: 'wrap' }}>
-                  
-                  {/* LEFT: ORIGINAL TEXT */}
-                  <div style={{ flex: '1 1 300px', borderRight: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column' }}>
-                    <div style={{ 
-                      padding: '8px 24px', 
-                      background: 'rgba(248, 81, 73, 0.08)', 
-                      color: 'var(--danger-text)', 
-                      fontSize: '0.7rem', 
-                      fontWeight: 700, 
-                      textTransform: 'uppercase', 
-                      letterSpacing: '0.08em', 
-                      fontFamily: 'var(--font-mono)',
-                      borderBottom: '1px solid var(--border-subtle)' 
-                    }}>
-                      Действующая редакция (Оригинал)
-                    </div>
-                    <textarea 
-                      value={row.wasContent}
-                      onChange={(e) => updateComparisonRow(row.id, 'wasContent', e.target.value)}
-                      disabled={!canEdit || isReadOnly}
-                      style={{ 
-                        flex: 1, 
-                        border: 'none', 
-                        background: 'transparent', 
-                        color: 'var(--text-primary)', 
-                        padding: '16px 24px', 
-                        resize: 'vertical', 
-                        outline: 'none', 
-                        fontFamily: 'var(--font-sans)', 
-                        fontSize: '0.9rem', 
-                        lineHeight: 1.6 
-                      }}
-                      placeholder="Текст действующей статьи..."
-                    />
-                  </div>
-
-                  {/* RIGHT: PROPOSED REFORM TEXT */}
-                  <div style={{ flex: '1 1 300px', display: 'flex', flexDirection: 'column' }}>
-                    <div style={{ 
-                      padding: '8px 24px', 
-                      background: 'rgba(63, 185, 80, 0.08)', 
-                      color: 'var(--success-text)', 
-                      fontSize: '0.7rem', 
-                      fontWeight: 700, 
-                      textTransform: 'uppercase', 
-                      letterSpacing: '0.08em', 
-                      fontFamily: 'var(--font-mono)',
-                      borderBottom: '1px solid var(--border-subtle)' 
-                    }}>
-                      Проектируемая редакция (Поправки)
-                    </div>
-                    <textarea 
-                      value={row.becameContent}
-                      onChange={(e) => updateComparisonRow(row.id, 'becameContent', e.target.value)}
-                      disabled={!canEdit || isReadOnly}
-                      style={{ 
-                        flex: 1, 
-                        border: 'none', 
-                        background: 'transparent', 
-                        color: 'var(--text-primary)', 
-                        padding: '16px 24px', 
-                        resize: 'vertical', 
-                        outline: 'none', 
-                        fontFamily: 'var(--font-sans)', 
-                        fontSize: '0.9rem', 
-                        lineHeight: 1.6 
-                      }}
-                      placeholder="Предлагаемая формулировка статьи..."
-                    />
-                  </div>
-
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
         </div>
