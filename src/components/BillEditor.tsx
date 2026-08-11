@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import type { Bill, ComparisonRow, AccessPermission, UserProfile, BillStatus } from '../types/bill';
 import { sanitizeInput, computeDocumentHash } from '../services/securityService';
 import { CommentsSection } from './CommentsSection';
+import { computeWordDiff } from '../utils/diff';
 import { 
   ArrowLeft, 
   Save, 
@@ -15,7 +16,9 @@ import {
   RotateCcw,
   Send,
   Users,
-  ShieldCheck
+  ShieldCheck,
+  Eye,
+  Edit3
 } from 'lucide-react';
 
 interface BillEditorProps {
@@ -40,6 +43,7 @@ export const BillEditor: React.FC<BillEditorProps> = ({
   const [bill, setBill] = useState<Bill>(initialBill);
   const [activeTab, setActiveTab] = useState<'editor' | 'comments'>('editor');
   const [isSavedNotice, setIsSavedNotice] = useState(false);
+  const [viewMode, setViewMode] = useState<Record<string, 'edit' | 'diff'>>({});
 
   const canEdit = permission === 'edit';
   const currentFullName = `${user.firstName} ${user.lastName}`.trim();
@@ -52,14 +56,16 @@ export const BillEditor: React.FC<BillEditorProps> = ({
 
   const addComparisonRow = () => {
     if (!canEdit) return;
+    const newId = 'comp_' + Date.now();
     const newRow: ComparisonRow = {
-      id: 'comp_' + Date.now(),
+      id: newId,
       articleTitle: '',
       wasContent: '',
       becameContent: '',
       notes: ''
     };
     handleFieldChange('comparisons', [...bill.comparisons, newRow]);
+    setViewMode(prev => ({ ...prev, [newId]: 'edit' }));
   };
 
   const updateComparisonRow = (id: string, field: keyof ComparisonRow, value: string) => {
@@ -71,7 +77,6 @@ export const BillEditor: React.FC<BillEditorProps> = ({
         
         const newRow = { ...row, [field]: value };
         
-        // Auto-sync "Was" -> "Became" if typing in "Was" and "Became" matches old "Was" or is empty
         if (field === 'wasContent' && (row.becameContent === '' || row.becameContent === row.wasContent)) {
           newRow.becameContent = value;
         }
@@ -102,15 +107,20 @@ export const BillEditor: React.FC<BillEditorProps> = ({
     handleFieldChange('comparisons', bill.comparisons.filter(c => c.id !== id));
   };
 
+  const toggleRowMode = (id: string) => {
+    setViewMode(prev => ({
+      ...prev,
+      [id]: prev[id] === 'diff' ? 'edit' : 'diff'
+    }));
+  };
+
   const handleLocalSave = async () => {
     if (!canEdit) return;
     
-    const title = bill.title.trim() || 'Проект Закона без названия';
-    const targetLaw = bill.targetLaw.trim() || 'Уголовный Кодекс Штата (УК)';
+    const targetLaw = bill.targetLaw.trim() || 'Новый Закон';
     
     let updated: Bill = {
       ...bill,
-      title: sanitizeInput(title),
       targetLaw: sanitizeInput(targetLaw),
       explanatoryNote: sanitizeInput(bill.explanatoryNote),
       updatedAt: new Date().toISOString()
@@ -129,17 +139,17 @@ export const BillEditor: React.FC<BillEditorProps> = ({
 
   const getStatusBadge = (status: BillStatus) => {
     const map: Record<BillStatus, { label: string; cls: string; icon: any }> = {
-      draft: { label: 'Черновик', cls: 'badge-draft', icon: Clock },
-      under_review: { label: 'На рассмотрении', cls: 'badge-under_review', icon: Clock },
-      needs_revision: { label: 'Отправлен на доработку', cls: 'badge-needs_revision', icon: RotateCcw },
-      approved: { label: 'Одобрен', cls: 'badge-approved', icon: CheckCircle2 },
-      rejected: { label: 'Отклонен', cls: 'badge-rejected', icon: XCircle }
+      draft: { label: 'Черновик', cls: 'badge-status-draft', icon: Clock },
+      under_review: { label: 'На рассмотрении', cls: 'badge-status-review', icon: Clock },
+      needs_revision: { label: 'На доработке', cls: 'badge-status-revision', icon: RotateCcw },
+      approved: { label: 'Одобрен', cls: 'badge-status-approved', icon: CheckCircle2 },
+      rejected: { label: 'Отклонен', cls: 'badge-status-rejected', icon: XCircle }
     };
     const mapped = map[status] || map.draft;
     const Icon = mapped.icon;
     
     return (
-      <div className={`badge-status ${mapped.cls}`}>
+      <div className={`badge ${mapped.cls}`}>
         <Icon size={14} /> {mapped.label}
       </div>
     );
@@ -147,11 +157,48 @@ export const BillEditor: React.FC<BillEditorProps> = ({
 
   const isReadOnly = bill.status === 'approved' || bill.status === 'rejected';
 
+  const renderDiffView = (was: string, became: string) => {
+    const isNew = was === '— (Данной статьи не существовало) —';
+    if (isNew) {
+      return (
+        <div style={{ display: 'flex', width: '100%', minHeight: '150px' }}>
+          <div style={{ flex: 1, padding: '16px 20px', color: 'var(--text-muted)', borderRight: '1px solid var(--border-subtle)' }}>
+            {was}
+          </div>
+          <div style={{ flex: 1, padding: '16px 20px', whiteSpace: 'pre-wrap' }}>
+            <span className="diff-add">{became}</span>
+          </div>
+        </div>
+      );
+    }
+
+    const diffs = computeWordDiff(was, became);
+    return (
+      <div style={{ display: 'flex', width: '100%', minHeight: '150px' }}>
+        <div style={{ flex: 1, padding: '16px 20px', whiteSpace: 'pre-wrap', borderRight: '1px solid var(--border-subtle)', lineHeight: 1.6 }}>
+          {diffs.map((d, i) => (
+            <span key={i} className={d.type === 'removed' ? 'diff-remove' : d.type === 'added' ? 'diff-hidden' : ''} style={{ display: d.type === 'added' ? 'none' : 'inline' }}>
+              {d.value}
+            </span>
+          ))}
+        </div>
+        <div style={{ flex: 1, padding: '16px 20px', whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>
+          {diffs.map((d, i) => (
+            <span key={i} className={d.type === 'added' ? 'diff-add' : d.type === 'removed' ? 'diff-hidden' : ''} style={{ display: d.type === 'removed' ? 'none' : 'inline' }}>
+              {d.value}
+            </span>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: 'var(--bg-base)' }}>
+      {/* COURTRAN Style Toolbar */}
       <div style={{ 
-        height: '60px', 
-        background: 'var(--bg-card)', 
+        height: '64px', 
+        background: 'var(--bg-surface)', 
         borderBottom: '1px solid var(--border-subtle)',
         display: 'flex',
         alignItems: 'center',
@@ -168,7 +215,7 @@ export const BillEditor: React.FC<BillEditorProps> = ({
           
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <h2 style={{ fontSize: '1.1rem', margin: 0, color: 'var(--text-primary)', fontWeight: 600 }}>
-              {bill.title || 'Новый Законопроект'}
+              {bill.targetLaw || 'Редактор законопроекта'}
             </h2>
             {getStatusBadge(bill.status)}
           </div>
@@ -181,13 +228,13 @@ export const BillEditor: React.FC<BillEditorProps> = ({
             </span>
           )}
           
-          <button onClick={() => onShare(bill)} className="btn btn-secondary">
+          <button onClick={() => onShare(bill)} className="btn btn-ghost">
             <Share2 size={16} /> Поделиться
           </button>
 
           {canEdit && !isReadOnly && (
             <button onClick={handleLocalSave} className="btn btn-primary">
-              <Save size={16} /> Сохранить
+              <Save size={16} /> Сохранить изменения
             </button>
           )}
         </div>
@@ -197,33 +244,19 @@ export const BillEditor: React.FC<BillEditorProps> = ({
         <div style={{ flex: 1, overflowY: 'auto', padding: '32px 0' }}>
           <div style={{ maxWidth: '900px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '24px' }}>
             
-            <div className="card-dark" style={{ padding: '24px' }}>
-              <div style={{ display: 'flex', gap: '24px', marginBottom: '20px' }}>
-                <div style={{ flex: 2 }}>
-                  <label className="input-label">Название законопроекта</label>
-                  <input 
-                    type="text" 
-                    value={bill.title}
-                    onChange={(e) => handleFieldChange('title', e.target.value)}
-                    disabled={!canEdit || isReadOnly}
-                    className="input-field"
-                    style={{ width: '100%', fontSize: '1.1rem', fontWeight: 600 }}
-                    placeholder="О внесении изменений в..."
-                  />
-                </div>
-                
-                <div style={{ flex: 1 }}>
-                  <label className="input-label">Изменяемый Закон</label>
-                  <input 
-                    type="text" 
-                    value={bill.targetLaw}
-                    onChange={(e) => handleFieldChange('targetLaw', e.target.value)}
-                    disabled={!canEdit || isReadOnly}
-                    className="input-field"
-                    style={{ width: '100%', fontFamily: 'var(--font-mono)' }}
-                    placeholder="Например: Уголовный Кодекс (УК)"
-                  />
-                </div>
+            {/* Meta Card */}
+            <div className="card" style={{ padding: '24px' }}>
+              <div style={{ marginBottom: '20px' }}>
+                <label className="input-label">Изменяемый Закон / Документ</label>
+                <input 
+                  type="text" 
+                  value={bill.targetLaw}
+                  onChange={(e) => handleFieldChange('targetLaw', e.target.value)}
+                  disabled={!canEdit || isReadOnly}
+                  className="input-field"
+                  style={{ width: '100%', fontSize: '1.1rem', fontWeight: 600, background: 'var(--bg-base)' }}
+                  placeholder="Например: Уголовный Кодекс Штата"
+                />
               </div>
 
               <div>
@@ -233,118 +266,110 @@ export const BillEditor: React.FC<BillEditorProps> = ({
                   onChange={(e) => handleFieldChange('explanatoryNote', e.target.value)}
                   disabled={!canEdit || isReadOnly}
                   className="input-field"
-                  style={{ width: '100%', minHeight: '80px', resize: 'vertical' }}
-                  placeholder="Укажите причину и цель внесения поправок..."
+                  style={{ width: '100%', minHeight: '80px', resize: 'vertical', background: 'var(--bg-base)' }}
+                  placeholder="Обоснование и цели внесения поправок..."
                 />
               </div>
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <h3 style={{ margin: 0, fontSize: '1.2rem', color: 'var(--text-primary)' }}>Редактируемые Статьи</h3>
+              <h3 style={{ margin: 0, fontSize: '1rem', color: 'var(--text-secondary)' }}>СТАТЬИ К ИЗМЕНЕНИЮ</h3>
               {canEdit && !isReadOnly && (
-                <button onClick={addComparisonRow} className="btn btn-secondary" style={{ fontSize: '0.8rem', padding: '6px 12px' }}>
+                <button onClick={addComparisonRow} className="btn btn-primary" style={{ fontSize: '0.8rem', padding: '6px 12px' }}>
                   <Plus size={14} /> Добавить статью
                 </button>
               )}
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-              {bill.comparisons.map((row, index) => (
-                <div key={row.id} className="card-dark" style={{ padding: '0', overflow: 'hidden' }}>
-                  <div style={{ background: 'var(--bg-input)', padding: '12px 20px', borderBottom: '1px solid var(--border-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1 }}>
-                      <span style={{ fontSize: '0.85rem', color: 'var(--text-tertiary)', fontWeight: 600 }}>#{index + 1}</span>
-                      <input 
-                        type="text" 
-                        value={row.articleTitle}
-                        onChange={(e) => updateComparisonRow(row.id, 'articleTitle', e.target.value)}
-                        disabled={!canEdit || isReadOnly}
-                        className="input-field"
-                        style={{ width: '300px', padding: '6px 12px' }}
-                        placeholder="Номер или название статьи (Статья 1.1)"
-                      />
-                    </div>
-                    {canEdit && !isReadOnly && (
-                      <button 
-                        onClick={() => removeComparisonRow(row.id)}
-                        className="btn"
-                        style={{ padding: '6px', color: 'var(--danger)', background: 'transparent' }}
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    )}
-                  </div>
+              {bill.comparisons.map((row, index) => {
+                const mode = isReadOnly ? 'diff' : (viewMode[row.id] || 'edit');
 
-                  <div style={{ display: 'flex', width: '100%', minHeight: '200px' }}>
-                    
-                    <div style={{ flex: 1, borderRight: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column' }}>
-                      <div style={{ padding: '8px 20px', background: 'rgba(239, 68, 68, 0.05)', color: '#fca5a5', fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--border-subtle)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span>Было (Действующая редакция)</span>
+                return (
+                  <div key={row.id} className="card" style={{ padding: '0', overflow: 'hidden', border: '1px solid var(--border-medium)' }}>
+                    <div style={{ background: 'var(--bg-input)', padding: '12px 20px', borderBottom: '1px solid var(--border-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1 }}>
+                        <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 600 }}>#{index + 1}</span>
+                        <input 
+                          type="text" 
+                          value={row.articleTitle}
+                          onChange={(e) => updateComparisonRow(row.id, 'articleTitle', e.target.value)}
+                          disabled={!canEdit || isReadOnly}
+                          className="input-field"
+                          style={{ width: '300px', padding: '6px 12px', background: 'var(--bg-base)', border: '1px solid var(--border-subtle)' }}
+                          placeholder="Номер или название статьи"
+                        />
+                      </div>
+                      
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        {!isReadOnly && (
+                          <button 
+                            onClick={() => toggleRowMode(row.id)}
+                            className="btn btn-secondary"
+                            style={{ padding: '6px 12px', fontSize: '0.75rem' }}
+                          >
+                            {mode === 'edit' ? <><Eye size={14} /> Просмотр Diff</> : <><Edit3 size={14} /> Редактировать</>}
+                          </button>
+                        )}
                         {canEdit && !isReadOnly && (
                           <button 
-                            onClick={() => markRowAsNew(row.id)}
-                            style={{ background: 'transparent', border: 'none', color: '#fca5a5', fontSize: '0.7rem', cursor: 'pointer', textDecoration: 'underline' }}
+                            onClick={() => removeComparisonRow(row.id)}
+                            className="btn btn-ghost"
+                            style={{ padding: '6px', color: 'var(--danger)' }}
+                            title="Удалить статью"
                           >
-                            Не было раньше
+                            <Trash2 size={16} />
                           </button>
                         )}
                       </div>
-                      <textarea 
-                        value={row.wasContent}
-                        onChange={(e) => updateComparisonRow(row.id, 'wasContent', e.target.value)}
-                        disabled={!canEdit || isReadOnly}
-                        style={{ 
-                          flex: 1, 
-                          border: 'none', 
-                          background: 'transparent', 
-                          color: 'var(--text-primary)', 
-                          padding: '16px 20px', 
-                          resize: 'none',
-                          outline: 'none',
-                          fontFamily: 'var(--font-sans)',
-                          fontSize: '0.95rem',
-                          lineHeight: 1.6
-                        }}
-                        placeholder="Вставьте текущий текст статьи..."
-                      />
                     </div>
 
-                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-                      <div style={{ padding: '8px 20px', background: 'rgba(16, 185, 129, 0.05)', color: '#6ee7b7', fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--border-subtle)' }}>
-                        Стало (Проектируемая редакция)
+                    {mode === 'edit' ? (
+                      <div style={{ display: 'flex', width: '100%', minHeight: '200px' }}>
+                        <div style={{ flex: 1, borderRight: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column' }}>
+                          <div style={{ padding: '8px 20px', background: 'rgba(239, 68, 68, 0.05)', color: '#fca5a5', fontSize: '0.7rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--border-subtle)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span>Было (Оригинал)</span>
+                            {canEdit && !isReadOnly && (
+                              <button 
+                                onClick={() => markRowAsNew(row.id)}
+                                style={{ background: 'transparent', border: 'none', color: '#fca5a5', fontSize: '0.7rem', cursor: 'pointer', textDecoration: 'underline' }}
+                              >
+                                Не было раньше
+                              </button>
+                            )}
+                          </div>
+                          <textarea 
+                            value={row.wasContent}
+                            onChange={(e) => updateComparisonRow(row.id, 'wasContent', e.target.value)}
+                            disabled={!canEdit || isReadOnly}
+                            style={{ flex: 1, border: 'none', background: 'transparent', color: 'var(--text-primary)', padding: '16px 20px', resize: 'vertical', outline: 'none', fontFamily: 'var(--font-sans)', fontSize: '0.9rem', lineHeight: 1.6 }}
+                            placeholder="Вставьте текущий текст статьи..."
+                          />
+                        </div>
+
+                        <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+                          <div style={{ padding: '8px 20px', background: 'rgba(16, 185, 129, 0.05)', color: '#6ee7b7', fontSize: '0.7rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--border-subtle)' }}>
+                            Стало (Проект)
+                          </div>
+                          <textarea 
+                            value={row.becameContent}
+                            onChange={(e) => updateComparisonRow(row.id, 'becameContent', e.target.value)}
+                            disabled={!canEdit || isReadOnly}
+                            style={{ flex: 1, border: 'none', background: 'transparent', color: 'var(--text-primary)', padding: '16px 20px', resize: 'vertical', outline: 'none', fontFamily: 'var(--font-sans)', fontSize: '0.9rem', lineHeight: 1.6 }}
+                            placeholder="Внесите ваши изменения..."
+                          />
+                        </div>
                       </div>
-                      <textarea 
-                        value={row.becameContent}
-                        onChange={(e) => updateComparisonRow(row.id, 'becameContent', e.target.value)}
-                        disabled={!canEdit || isReadOnly}
-                        style={{ 
-                          flex: 1, 
-                          border: 'none', 
-                          background: 'transparent', 
-                          color: 'var(--text-primary)', 
-                          padding: '16px 20px', 
-                          resize: 'none',
-                          outline: 'none',
-                          fontFamily: 'var(--font-sans)',
-                          fontSize: '0.95rem',
-                          lineHeight: 1.6
-                        }}
-                        placeholder="Внесите ваши изменения..."
-                      />
-                    </div>
+                    ) : (
+                      renderDiffView(row.wasContent, row.becameContent)
+                    )}
                   </div>
-                </div>
-              ))}
+                );
+              })}
 
               {bill.comparisons.length === 0 && (
-                <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--text-tertiary)' }}>
-                  <FileText size={48} style={{ opacity: 0.2, margin: '0 auto 16px' }} />
-                  <p>В этом законопроекте пока нет ни одной статьи.</p>
-                  {canEdit && !isReadOnly && (
-                    <button onClick={addComparisonRow} className="btn btn-primary" style={{ marginTop: '16px' }}>
-                      <Plus size={16} /> Добавить первую поправку
-                    </button>
-                  )}
+                <div style={{ textAlign: 'center', padding: '60px 0', border: '1px dashed var(--border-medium)', borderRadius: 'var(--radius-md)' }}>
+                  <p style={{ color: 'var(--text-muted)' }}>В этом законопроекте пока нет ни одной статьи.</p>
                 </div>
               )}
             </div>
@@ -353,19 +378,19 @@ export const BillEditor: React.FC<BillEditorProps> = ({
           </div>
         </div>
 
-        <div style={{ width: '380px', borderLeft: '1px solid var(--border-subtle)', background: 'var(--bg-card)', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ width: '380px', borderLeft: '1px solid var(--border-subtle)', background: 'var(--bg-surface)', display: 'flex', flexDirection: 'column' }}>
           <div style={{ display: 'flex', padding: '12px', gap: '8px', borderBottom: '1px solid var(--border-subtle)' }}>
             <button 
               onClick={() => setActiveTab('editor')}
-              className="btn btn-secondary"
-              style={{ flex: 1, background: activeTab === 'editor' ? 'var(--bg-hover)' : 'transparent', border: 'none' }}
+              className="btn"
+              style={{ flex: 1, background: activeTab === 'editor' ? 'var(--bg-hover)' : 'transparent', color: activeTab === 'editor' ? 'var(--text-primary)' : 'var(--text-secondary)' }}
             >
-              <FileText size={16} /> Детали
+              <FileText size={16} /> Сведения
             </button>
             <button 
               onClick={() => setActiveTab('comments')}
-              className="btn btn-secondary"
-              style={{ flex: 1, background: activeTab === 'comments' ? 'var(--bg-hover)' : 'transparent', border: 'none' }}
+              className="btn"
+              style={{ flex: 1, background: activeTab === 'comments' ? 'var(--bg-hover)' : 'transparent', color: activeTab === 'comments' ? 'var(--text-primary)' : 'var(--text-secondary)' }}
             >
               <Users size={16} /> Обсуждение
             </button>
@@ -373,40 +398,40 @@ export const BillEditor: React.FC<BillEditorProps> = ({
 
           <div style={{ flex: 1, overflowY: 'auto' }}>
             {activeTab === 'editor' ? (
-              <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
                 
                 <div>
-                  <h4 style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-tertiary)', marginBottom: '8px' }}>Автор инициативы</h4>
-                  <div style={{ background: 'var(--bg-input)', padding: '12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)' }}>
+                  <h4 style={{ fontSize: '0.7rem', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '8px' }}>Инициатор</h4>
+                  <div style={{ background: 'var(--bg-input)', padding: '16px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)' }}>
                     <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{bill.author}</div>
-                    <div style={{ fontSize: '0.8rem', color: 'var(--accent)', marginTop: '2px' }}>{bill.authorRole}</div>
+                    <div style={{ fontSize: '0.8rem', color: 'var(--primary)', marginTop: '4px' }}>{bill.authorRole}</div>
                   </div>
                 </div>
 
                 {canEdit && bill.status === 'draft' && isAuthor && (
                   <div>
-                    <h4 style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-tertiary)', marginBottom: '8px' }}>Действия</h4>
+                    <h4 style={{ fontSize: '0.7rem', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '8px' }}>Действия</h4>
                     <button 
                       onClick={() => {
                         const upd: Bill = { ...bill, status: 'under_review', updatedAt: new Date().toISOString() };
                         setBill(upd);
                         onSave(upd);
-                        onToast('success', 'Законопроект отправлен на рассмотрение Комиссии!');
+                        onToast('success', 'Законопроект отправлен на рассмотрение!');
                       }}
                       className="btn btn-primary"
                       style={{ width: '100%', padding: '12px' }}
                     >
-                      <Send size={16} /> Отправить на рассмотрение
+                      <Send size={16} /> Опубликовать проект
                     </button>
                   </div>
                 )}
 
                 {bill.sha256Hash && (
                   <div>
-                    <h4 style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-tertiary)', marginBottom: '8px' }}>Целостность документа</h4>
-                    <div style={{ background: 'rgba(52, 211, 153, 0.05)', border: '1px solid rgba(52, 211, 153, 0.2)', padding: '12px', borderRadius: 'var(--radius-md)' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--success)', fontWeight: 600, fontSize: '0.8rem', marginBottom: '4px' }}>
-                        <ShieldCheck size={14} /> SHA-256 Verified
+                    <h4 style={{ fontSize: '0.7rem', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '8px' }}>Электронная подпись</h4>
+                    <div style={{ background: 'rgba(33, 123, 248, 0.05)', border: '1px solid rgba(33, 123, 248, 0.2)', padding: '12px', borderRadius: 'var(--radius-md)' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--primary)', fontWeight: 600, fontSize: '0.8rem', marginBottom: '4px' }}>
+                        <ShieldCheck size={14} /> SHA-256
                       </div>
                       <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.65rem', wordBreak: 'break-all', color: 'var(--text-secondary)' }}>
                         {bill.sha256Hash}

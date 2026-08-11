@@ -168,6 +168,11 @@ export const App: React.FC = () => {
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
       
+      {/* Top Red Alert Bar (COURTRAN Style) */}
+      <div className="system-alert-bar">
+        <span>⚠️ Внимание: Рассмотрение законопроектов может занять дополнительное время.</span>
+      </div>
+
       {/* Global Header */}
       <Header
         user={user}

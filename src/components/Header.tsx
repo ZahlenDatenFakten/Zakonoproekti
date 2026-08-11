@@ -1,16 +1,13 @@
 import React from 'react';
 import type { UserProfile, AppTheme } from '../types/bill';
-import { isOfficialCommitteeMember, isSystemAdmin } from '../services/securityService';
-import { OFFICIAL_ROLE_LABELS } from '../types/bill';
 import { 
-  Plus, 
-  Moon, 
-  Sun,
   Settings,
-  ShieldCheck,
-  LayoutDashboard,
   Shield,
-  Brain
+  Bell,
+  HelpCircle,
+  LogOut,
+  User,
+  ChevronDown
 } from 'lucide-react';
 
 interface HeaderProps {
@@ -26,143 +23,87 @@ interface HeaderProps {
 
 export const Header: React.FC<HeaderProps> = ({
   user,
-  theme,
-  currentView,
   onNavigate,
-  onToggleTheme,
-  onOpenNewBill,
   onOpenSettings,
   onOpenAbout
 }) => {
-  const isCommitteeOrAdmin = isOfficialCommitteeMember(user) || isSystemAdmin(user);
-
   return (
-    <header 
-      className="card-accent" 
-      style={{ 
-        borderRadius: 0, 
-        borderTop: 'none', 
-        borderLeft: 'none', 
-        borderRight: 'none',
-        padding: '0',
-        marginBottom: '28px'
-      }}
-    >
-      <div style={{ maxWidth: '1280px', margin: '0 auto', padding: '14px 28px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '14px' }}>
+    <header style={{ 
+      background: 'var(--bg-base)', 
+      borderBottom: '1px solid var(--border-subtle)',
+      padding: '0'
+    }}>
+      <div style={{ 
+        maxWidth: '1440px', 
+        margin: '0 auto', 
+        padding: '16px 24px', 
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'space-between'
+      }}>
         
-        {/* ═══ Left: Brand ═══ */}
+        {/* LEFT: Brand */}
         <div 
           onClick={() => onNavigate('dashboard')} 
           style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer' }}
         >
           <div style={{ 
-            width: '36px', height: '36px', borderRadius: '8px',
-            background: 'var(--accent-subtle)', 
-            border: '1px solid var(--accent-border)',
+            width: '40px', height: '40px', borderRadius: '8px',
+            background: 'var(--primary-subtle)', 
+            border: '1px solid rgba(33, 123, 248, 0.2)',
             display: 'flex', alignItems: 'center', justifyContent: 'center'
           }}>
-            <Shield size={18} color="var(--accent)" />
+            <Shield size={20} color="var(--primary)" />
           </div>
 
           <div>
-            <h1 style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '0.03em', lineHeight: 1.2 }}>
-              ПОРТАЛ ЗАКОНОПРОЕКТОВ
+            <h1 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-primary)', letterSpacing: '0.02em', lineHeight: 1.2 }}>
+              LEGAL DRAFT
             </h1>
-            <p style={{ fontSize: '0.7rem', color: 'var(--text-tertiary)', lineHeight: 1.2 }}>
-              Правительство Штата San Andreas
+            <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', lineHeight: 1.2, marginTop: '2px' }}>
+              Кабинет законодателя
             </p>
           </div>
         </div>
 
-        {/* ═══ Center: Navigation ═══ */}
-        <nav style={{ display: 'flex', gap: '2px', background: 'var(--bg-input)', padding: '3px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)' }}>
-          <button
-            onClick={() => onNavigate('dashboard')}
-            style={{
-              fontSize: '0.78rem',
-              fontWeight: 550,
-              padding: '6px 14px',
-              borderRadius: 'var(--radius-xs)',
-              border: 'none',
-              cursor: 'pointer',
-              display: 'flex', alignItems: 'center', gap: '6px',
-              transition: 'all 0.15s ease',
-              background: currentView === 'dashboard' ? 'var(--bg-4)' : 'transparent',
-              color: currentView === 'dashboard' ? 'var(--text-primary)' : 'var(--text-tertiary)'
-            }}
-          >
-            <LayoutDashboard size={13} /> Реестр
-          </button>
-
-          {isCommitteeOrAdmin && (
-            <button
-              onClick={() => onNavigate('admin_workspace')}
-              style={{
-                fontSize: '0.78rem',
-                fontWeight: 550,
-                padding: '6px 14px',
-                borderRadius: 'var(--radius-xs)',
-                border: 'none',
-                cursor: 'pointer',
-                display: 'flex', alignItems: 'center', gap: '6px',
-                transition: 'all 0.15s ease',
-                background: currentView === 'admin_workspace' ? 'var(--bg-4)' : 'transparent',
-                color: currentView === 'admin_workspace' ? 'var(--text-primary)' : 'var(--text-tertiary)'
-              }}
-            >
-              <ShieldCheck size={13} /> Администрация
-            </button>
-          )}
-        </nav>
-
-        {/* ═══ Right: Controls ═══ */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          {/* User info */}
-          <div style={{ marginRight: '8px', textAlign: 'right' }}>
-            <div style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-primary)', lineHeight: 1.2 }}>
-              {user.firstName} {user.lastName}
+        {/* RIGHT: User & Controls */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+          
+          {/* User Profile */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}>
+            <div style={{
+              width: '32px', height: '32px', borderRadius: '50%',
+              background: 'var(--bg-hover)', border: '1px solid var(--border-medium)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center'
+            }}>
+              <User size={16} color="var(--text-secondary)" />
             </div>
-            <div style={{ fontSize: '0.67rem', color: 'var(--text-tertiary)', lineHeight: 1.2 }}>
-              {OFFICIAL_ROLE_LABELS[user.officialRole]}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span style={{ fontSize: '0.85rem', fontWeight: 500, color: 'var(--text-primary)' }}>
+                {user.firstName} {user.lastName}
+              </span>
+              <ChevronDown size={14} color="var(--text-muted)" />
             </div>
           </div>
 
-          <div style={{ width: '1px', height: '24px', background: 'var(--border-medium)', margin: '0 4px' }} />
+          <div style={{ width: '1px', height: '24px', background: 'var(--border-subtle)' }} />
 
-          <button 
-            onClick={onToggleTheme} 
-            className="btn btn-secondary"
-            style={{ padding: '7px 10px', fontSize: '0.78rem' }}
-            title="Тема оформления"
-          >
-            {theme === 'dark' ? <Moon size={14} /> : <Sun size={14} />}
-          </button>
+          {/* Action Icons */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+            <button className="btn btn-ghost" style={{ padding: '8px' }} title="Уведомления">
+              <Bell size={18} />
+            </button>
+            <button className="btn btn-ghost" onClick={onOpenAbout} style={{ padding: '8px' }} title="Справка">
+              <HelpCircle size={18} />
+            </button>
+            <button className="btn btn-ghost" onClick={onOpenSettings} style={{ padding: '8px' }} title="Настройки">
+              <Settings size={18} />
+            </button>
+            <button className="btn btn-ghost" style={{ padding: '8px' }} title="Выход">
+              <LogOut size={18} />
+            </button>
+          </div>
 
-          <button 
-            onClick={onOpenSettings} 
-            className="btn btn-secondary" 
-            style={{ padding: '7px 10px' }} 
-            title="Настройки"
-          >
-            <Settings size={14} />
-          </button>
-
-          <button 
-            onClick={onOpenAbout} 
-            className="btn btn-secondary" 
-            style={{ padding: '7px 10px', color: 'var(--accent)' }} 
-            title="Как работает ИИ"
-          >
-            <Brain size={14} />
-          </button>
-
-          <button 
-            onClick={onOpenNewBill} 
-            className="btn btn-primary" 
-            style={{ padding: '7px 14px', fontSize: '0.78rem' }}
-          >
-            <Plus size={14} /> Новый проект
-          </button>
         </div>
       </div>
     </header>

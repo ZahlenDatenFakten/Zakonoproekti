@@ -52,12 +52,12 @@ export const CommentsSection: React.FC<CommentsSectionProps> = ({
           </div>
 
           <textarea
-            className="textarea-field"
+            className="input-field"
             rows={3}
             placeholder="Текст комментария к законопроекту..."
             value={newCommentText}
             onChange={(e) => setNewCommentText(e.target.value)}
-            style={{ marginBottom: '12px', minHeight: '80px' }}
+            style={{ width: '100%', marginBottom: '12px', minHeight: '80px', resize: 'vertical' }}
           />
 
           <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
@@ -87,13 +87,13 @@ export const CommentsSection: React.FC<CommentsSectionProps> = ({
             <div key={cm.id} style={{ background: 'var(--bg-input)', border: '1px solid var(--border-subtle)', borderRadius: '10px', padding: '14px 16px' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: 'var(--bg-card)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: 'var(--bg-hover)', border: '1px solid var(--border-medium)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <User size={14} color="var(--text-secondary)" />
                   </div>
                   <strong style={{ color: 'var(--text-primary)', fontSize: '0.88rem' }}>{cm.authorName}</strong>
                 </div>
 
-                <span style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}>
                   <Calendar size={11} /> {new Date(cm.createdAt).toLocaleString('ru-RU')}
                 </span>
               </div>

@@ -1,21 +1,9 @@
 import React, { useState, useMemo } from 'react';
 import type { Bill, BillStatus, UserProfile } from '../types/bill';
-import { CustomSelect } from './CustomSelect';
 import { 
   Search, 
-  CheckCircle2, 
-  XCircle, 
-  Clock, 
-  FileText, 
-  Share2, 
-  Trash2, 
-  User as UserIcon, 
-  Eye, 
-  Calendar,
-  Layers,
-  Plus,
-  RotateCcw,
-  Users
+  ChevronRight,
+  FileText
 } from 'lucide-react';
 
 interface DashboardProps {
@@ -31,102 +19,92 @@ export const Dashboard: React.FC<DashboardProps> = ({
   user,
   bills,
   onSelectBill,
-  onShareBill,
-  onDeleteBill,
   onNewBill
 }) => {
-  const [activeTab, setActiveTab] = useState<BillStatus | 'all'>('all');
+  const [activeTab, setActiveTab] = useState<'all' | 'my' | 'active' | 'archive'>('active');
   const [searchQuery, setSearchQuery] = useState('');
-  const [sortBy, setSortBy] = useState<'date' | 'title'>('date');
 
   const currentFullName = `${user.firstName} ${user.lastName}`.trim();
 
-  // Filter out private drafts created by other users!
-  const visibleBills = useMemo(() => {
-    return bills.filter((b) => {
-      if (b.status === 'draft') {
-        return b.author.trim() === currentFullName;
-      }
-      return true;
-    });
-  }, [bills, currentFullName]);
-
-  // Statistics calculation
-  const stats = useMemo(() => {
-    return {
-      total: visibleBills.length,
-      under_review: visibleBills.filter((b) => b.status === 'under_review').length,
-      needs_revision: visibleBills.filter((b) => b.status === 'needs_revision').length,
-      approved: visibleBills.filter((b) => b.status === 'approved').length,
-      rejected: visibleBills.filter((b) => b.status === 'rejected').length,
-      draft: visibleBills.filter((b) => b.status === 'draft').length
-    };
-  }, [visibleBills]);
-
-  // Filtered & Sorted bills
+  // Filter bills based on active tab and search
   const filteredBills = useMemo(() => {
-    return visibleBills
-      .filter((bill) => {
-        const matchesStatus = activeTab === 'all' || bill.status === activeTab;
-        const query = searchQuery.toLowerCase();
-        const matchesSearch =
-          bill.title.toLowerCase().includes(query) ||
-          bill.targetLaw.toLowerCase().includes(query) ||
-          (bill.lawCode && bill.lawCode.toLowerCase().includes(query)) ||
-          bill.author.toLowerCase().includes(query);
-        return matchesStatus && matchesSearch;
-      })
-      .sort((a, b) => {
-        if (sortBy === 'title') {
-          return a.title.localeCompare(b.title);
+    return bills
+      .filter((b) => {
+        // Exclude drafts of other users
+        if (b.status === 'draft' && b.author.trim() !== currentFullName) return false;
+        
+        // Tab filtering
+        if (activeTab === 'my') {
+          if (b.author.trim() !== currentFullName) return false;
+        } else if (activeTab === 'active') {
+          if (b.status === 'approved' || b.status === 'rejected' || b.status === 'draft') return false;
+        } else if (activeTab === 'archive') {
+          if (b.status !== 'approved' && b.status !== 'rejected') return false;
         }
-        return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
-      });
-  }, [visibleBills, activeTab, searchQuery, sortBy]);
+
+        // Search filtering
+        if (searchQuery) {
+          const query = searchQuery.toLowerCase();
+          return (
+            b.targetLaw.toLowerCase().includes(query) ||
+            b.author.toLowerCase().includes(query) ||
+            (b.title && b.title.toLowerCase().includes(query))
+          );
+        }
+
+        return true;
+      })
+      .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+  }, [bills, activeTab, searchQuery, currentFullName]);
+
+  const formatDate = (isoStr: string) => {
+    const d = new Date(isoStr);
+    return `${d.toLocaleDateString('ru-RU')} ${d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}`;
+  };
 
   const getStatusBadge = (status: BillStatus) => {
     switch (status) {
       case 'approved':
-        return <span className="badge-status badge-approved"><CheckCircle2 size={13} /> Одобрен</span>;
+        return <span className="badge badge-status-approved">Одобрен</span>;
       case 'rejected':
-        return <span className="badge-status badge-rejected"><XCircle size={13} /> Отклонен</span>;
+        return <span className="badge badge-status-rejected">Отклонен</span>;
       case 'needs_revision':
-        return <span className="badge-status" style={{ background: 'rgba(59, 130, 246, 0.12)', color: '#93c5fd', borderColor: 'rgba(59, 130, 246, 0.3)' }}><RotateCcw size={13} /> На доработке</span>;
+        return <span className="badge badge-status-revision">Отправлен на доработку</span>;
       case 'under_review':
-        return <span className="badge-status badge-under_review"><Clock size={13} /> На рассмотрении</span>;
+        return <span className="badge badge-status-review">На рассмотрении</span>;
       case 'draft':
       default:
-        return <span className="badge-status badge-draft"><FileText size={13} /> Личный черновик</span>;
+        return <span className="badge badge-status-draft">Черновик</span>;
     }
   };
 
   return (
-    <div style={{ maxWidth: '1240px', margin: '0 auto', padding: '0 24px 60px 24px' }}>
+    <div style={{ maxWidth: '1024px', margin: '0 auto', padding: '0 24px 60px' }}>
       
-      {/* Counters & Filter Tabs */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '14px', marginBottom: '20px' }}>
+      {/* Top Controls Row */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
         
-        {/* Status Filter Buttons */}
-        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+        {/* Pills Navigation */}
+        <div style={{ display: 'flex', gap: '8px' }}>
           {[
-            { key: 'all', label: `Все (${stats.total})` },
-            { key: 'under_review', label: `⏳ На рассмотрении (${stats.under_review})` },
-            { key: 'needs_revision', label: `🔄 На доработке (${stats.needs_revision})` },
-            { key: 'approved', label: `✅ Одобренные (${stats.approved})` },
-            { key: 'rejected', label: `❌ Отклоненные (${stats.rejected})` },
-            { key: 'draft', label: `🔒 Мои черновики (${stats.draft})` }
+            { id: 'my', label: 'Мои проекты' },
+            { id: 'all', label: 'Все проекты' },
+            { id: 'active', label: 'Актуальные' },
+            { id: 'archive', label: 'Архив' },
           ].map((tab) => (
             <button
-              key={tab.key}
-              onClick={() => setActiveTab(tab.key as any)}
-              className="btn btn-secondary"
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id as any)}
               style={{
-                fontSize: '0.82rem',
-                padding: '6px 14px',
-                borderRadius: '6px',
-                background: activeTab === tab.key ? 'var(--bg-input)' : 'transparent',
-                borderColor: activeTab === tab.key ? 'var(--border-medium)' : 'transparent',
-                color: activeTab === tab.key ? 'var(--text-primary)' : 'var(--text-secondary)'
+                background: activeTab === tab.id ? 'var(--primary)' : 'transparent',
+                color: activeTab === tab.id ? '#fff' : 'var(--text-secondary)',
+                border: 'none',
+                padding: '6px 16px',
+                borderRadius: '20px',
+                fontSize: '0.85rem',
+                fontWeight: 500,
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
               }}
             >
               {tab.label}
@@ -134,136 +112,80 @@ export const Dashboard: React.FC<DashboardProps> = ({
           ))}
         </div>
 
-        {/* Search */}
-        <div style={{ display: 'flex', gap: '10px', width: '100%', maxWidth: '380px' }}>
-          <div style={{ position: 'relative', width: '100%' }}>
-            <Search size={15} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-tertiary)' }} />
-            <input
-              type="text"
-              className="input-field"
-              placeholder="Поиск законопроекта..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              style={{ paddingLeft: '36px', fontSize: '0.85rem' }}
-            />
-          </div>
-
-          <CustomSelect
-            options={[
-              { value: 'date', label: 'По дате' },
-              { value: 'title', label: 'По названию' }
-            ]}
-            value={sortBy}
-            onChange={(val) => setSortBy(val as any)}
-            width="135px"
-          />
-        </div>
+        {/* Action Button */}
+        <button onClick={onNewBill} className="btn btn-primary" style={{ borderRadius: '20px', padding: '6px 20px' }}>
+          + Создать проект
+        </button>
       </div>
 
-      {/* Bill List Cards */}
-      {filteredBills.length === 0 ? (
-        <div className="card-dark" style={{ padding: '48px 20px', textAlign: 'center', color: 'var(--text-tertiary)' }}>
-          <Layers size={36} color="var(--text-tertiary)" style={{ opacity: 0.5, marginBottom: '12px' }} />
-          <h3 style={{ fontSize: '1.05rem', color: 'var(--text-primary)', marginBottom: '6px' }}>
-            Список пуст
-          </h3>
-          <p style={{ fontSize: '0.85rem', marginBottom: '16px' }}>
-            Законопроектов в выбранной категории не найдено.
-          </p>
-          <button onClick={onNewBill} className="btn btn-primary" style={{ fontSize: '0.85rem' }}>
-            <Plus size={15} /> Создать новый проект
-          </button>
-        </div>
-      ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: '16px' }}>
-          {filteredBills.map((bill) => {
-            const voteCount = bill.votes ? Object.keys(bill.votes).length : 0;
-            return (
-              <div key={bill.id} className="card-dark" style={{ padding: '20px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
-                    {getStatusBadge(bill.status)}
-                    
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      {bill.status === 'under_review' && (
-                        <span style={{ fontSize: '0.75rem', background: 'var(--bg-input)', color: 'var(--text-secondary)', padding: '2px 8px', borderRadius: '4px', border: '1px solid var(--border-subtle)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          <Users size={11} /> Голосы: {voteCount}/3
-                        </span>
-                      )}
+      {/* Search Bar */}
+      <div style={{ position: 'relative', marginBottom: '24px' }}>
+        <Search 
+          size={16} 
+          color="var(--text-muted)" 
+          style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)' }} 
+        />
+        <input 
+          type="text" 
+          placeholder="Поиск по закону или автору..." 
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          style={{
+            width: '100%',
+            background: 'var(--bg-input)',
+            border: 'none',
+            borderRadius: 'var(--radius-md)',
+            padding: '12px 16px 12px 42px',
+            color: 'var(--text-primary)',
+            fontSize: '0.9rem',
+            outline: 'none',
+          }}
+        />
+      </div>
 
-                    </div>
-                  </div>
-
-                  <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: '8px' }}>
-                    Целевой закон: <strong style={{ color: 'var(--text-primary)' }}>{bill.targetLaw}</strong>
-                  </div>
-
-                  <h3 
-                    onClick={() => onSelectBill(bill)}
-                    style={{ 
-                      fontSize: '1.02rem', 
-                      fontWeight: 600, 
-                      color: 'var(--text-primary)', 
-                      lineHeight: 1.4, 
-                      marginBottom: '10px',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    {bill.title}
+      {/* Bills List */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        {filteredBills.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--text-muted)' }}>
+            <FileText size={48} style={{ opacity: 0.2, margin: '0 auto 16px' }} />
+            <p style={{ fontSize: '0.9rem' }}>Законопроекты не найдены</p>
+          </div>
+        ) : (
+          filteredBills.map((bill) => (
+            <div 
+              key={bill.id}
+              onClick={() => onSelectBill(bill)}
+              className="card card-hover"
+              style={{
+                cursor: 'pointer',
+                padding: '20px 24px',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                background: 'var(--bg-surface)'
+              }}
+            >
+              <div style={{ flex: 1, paddingRight: '24px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
+                  <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                    {bill.targetLaw || bill.title || 'Новый законопроект'}
                   </h3>
-
-                  {bill.statusReason && (
-                    <div style={{ fontSize: '0.78rem', color: 'var(--text-tertiary)', background: 'var(--bg-input)', padding: '6px 10px', borderRadius: '6px', marginBottom: '14px' }}>
-                      {bill.statusReason}
-                    </div>
-                  )}
+                  {getStatusBadge(bill.status)}
                 </div>
-
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.78rem', color: 'var(--text-tertiary)', paddingTop: '10px', borderTop: '1px solid var(--border-subtle)', marginBottom: '12px' }}>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <UserIcon size={12} /> {bill.author}
-                    </span>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <Calendar size={12} /> {new Date(bill.updatedAt).toLocaleDateString('ru-RU')}
-                    </span>
-                  </div>
-
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <button 
-                      onClick={() => onSelectBill(bill)} 
-                      className="btn btn-primary" 
-                      style={{ flex: 1, fontSize: '0.82rem', padding: '6px 10px' }}
-                    >
-                      <Eye size={14} /> Открыть
-                    </button>
-
-                    <button 
-                      onClick={() => onShareBill(bill)} 
-                      className="btn btn-secondary" 
-                      style={{ padding: '6px 9px' }} 
-                      title="Ссылки доступа"
-                    >
-                      <Share2 size={14} />
-                    </button>
-
-                    {bill.author.trim() === currentFullName && (
-                      <button 
-                        onClick={() => onDeleteBill(bill.id)} 
-                        className="btn btn-danger" 
-                        style={{ padding: '6px 9px' }} 
-                        title="Удалить"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    )}
-                  </div>
+                
+                <div style={{ display: 'flex', alignItems: 'center', gap: '16px', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                  <span>Автор: <strong style={{ color: 'var(--text-secondary)', fontWeight: 500 }}>{bill.author}</strong></span>
+                  <span>Изменено: <strong style={{ color: 'var(--text-secondary)', fontWeight: 500 }}>{formatDate(bill.updatedAt)}</strong></span>
+                  <span>Статей: <strong style={{ color: 'var(--text-secondary)', fontWeight: 500 }}>{bill.comparisons.length}</strong></span>
                 </div>
               </div>
-            );
-          })}
-        </div>
-      )}
+              
+              <ChevronRight size={20} color="var(--text-muted)" />
+            </div>
+          ))
+        )}
+      </div>
+
     </div>
   );
 };
