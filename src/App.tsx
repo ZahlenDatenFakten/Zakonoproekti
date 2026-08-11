@@ -16,9 +16,9 @@ import { AdminWorkspace } from './components/AdminWorkspace';
 import { AccessModal } from './components/AccessModal';
 import { DbConfigModal } from './components/DbConfigModal';
 import { SettingsModal } from './components/SettingsModal';
-import { AboutSystemModal } from './components/AboutSystemModal';
 import { ConfirmModal } from './components/ConfirmModal';
 import { ToastContainer } from './components/Toast';
+import { IdentityModal } from './components/IdentityModal';
 import type { ToastMessage } from './components/Toast';
 
 export const App: React.FC = () => {
@@ -31,6 +31,11 @@ export const App: React.FC = () => {
     return (localStorage.getItem('legaldraft_theme') as AppTheme) || 'dark';
   });
 
+  // Mandatory Citizen Identity State
+  const [isIdentityConfirmed, setIsIdentityConfirmed] = useState<boolean>(() => {
+    return localStorage.getItem('legaldraft_identity_confirmed') === 'true';
+  });
+
   // Navigation View State
   const [currentView, setCurrentView] = useState<'dashboard' | 'editor' | 'admin_workspace'>('dashboard');
   const [selectedBill, setSelectedBill] = useState<Bill | null>(null);
@@ -40,7 +45,6 @@ export const App: React.FC = () => {
   const [showShareModal, setShowShareModal] = useState(false);
   const [showDbModal, setShowDbModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
-  const [showAboutModal, setShowAboutModal] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   // In-App Toast Notifications
@@ -54,6 +58,19 @@ export const App: React.FC = () => {
 
   const toggleTheme = () => {
     setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
+  };
+
+  const handleConfirmIdentity = (firstName: string, lastName: string) => {
+    const updatedUser: UserProfile = {
+      ...user,
+      firstName,
+      lastName
+    };
+    setUser(updatedUser);
+    saveUserProfile(updatedUser);
+    localStorage.setItem('legaldraft_identity_confirmed', 'true');
+    setIsIdentityConfirmed(true);
+    addToast('success', `Идентификация пройдена: ${firstName} ${lastName}`);
   };
 
   const addToast = (type: 'success' | 'error' | 'info', text: string) => {
@@ -201,7 +218,6 @@ export const App: React.FC = () => {
         onToggleTheme={toggleTheme}
         onOpenNewBill={handleCreateNewBill}
         onOpenSettings={() => setShowSettingsModal(true)}
-        onOpenAbout={() => setShowAboutModal(true)}
         onOpenDbConfig={() => setShowDbModal(true)}
       />
 
@@ -247,6 +263,15 @@ export const App: React.FC = () => {
         )}
       </main>
 
+      {/* Mandatory Citizen Identity Confirmation Modal */}
+      {!isIdentityConfirmed && (
+        <IdentityModal
+          initialFirstName={user.firstName}
+          initialLastName={user.lastName}
+          onSubmit={handleConfirmIdentity}
+        />
+      )}
+
       {/* Toast Notification Container */}
       <ToastContainer toasts={toasts} onDismiss={removeToast} />
 
@@ -279,11 +304,6 @@ export const App: React.FC = () => {
           onClose={() => setShowSettingsModal(false)}
           onToast={addToast}
         />
-      )}
-
-      {/* About System Modal */}
-      {showAboutModal && (
-        <AboutSystemModal onClose={() => setShowAboutModal(false)} />
       )}
 
       {/* Delete Confirmation Modal */}

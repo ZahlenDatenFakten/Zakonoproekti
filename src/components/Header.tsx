@@ -5,7 +5,6 @@ import { isOfficialCommitteeMember, isSystemAdmin, isGovernorOrAdmin } from '../
 import { 
   Settings,
   Shield,
-  HelpCircle,
   User,
   LayoutDashboard,
   ShieldCheck,
@@ -18,11 +17,10 @@ interface HeaderProps {
   user: UserProfile;
   theme: AppTheme;
   currentView: 'dashboard' | 'editor' | 'admin_workspace';
-  onNavigate: (view: 'dashboard' | 'admin_workspace') => void;
+  onNavigate: (view: 'dashboard' | 'admin_workspace' | 'editor') => void;
   onToggleTheme: () => void;
   onOpenNewBill: () => void;
   onOpenSettings: () => void;
-  onOpenAbout: () => void;
   onOpenDbConfig?: () => void;
 }
 
@@ -33,7 +31,6 @@ export const Header: React.FC<HeaderProps> = ({
   onNavigate,
   onToggleTheme,
   onOpenSettings,
-  onOpenAbout,
   onOpenDbConfig
 }) => {
   const isCommitteeOrAdmin = isOfficialCommitteeMember(user) || isSystemAdmin(user);
@@ -187,15 +184,6 @@ export const Header: React.FC<HeaderProps> = ({
               title="Тема оформления"
             >
               {theme === 'dark' ? <Moon size={18} color="var(--text-accent)" /> : <Sun size={18} color="var(--primary)" />}
-            </button>
-
-            <button 
-              className="btn btn-ghost" 
-              onClick={onOpenAbout} 
-              style={{ padding: '9px', borderRadius: 'var(--radius-pill)' }} 
-              title="Справка по системе"
-            >
-              <HelpCircle size={18} color="var(--text-secondary)" />
             </button>
 
             <button 
