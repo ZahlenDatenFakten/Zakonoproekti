@@ -3,7 +3,6 @@ import type { Bill, UserProfile, VoteDecision, FederalGovernmentVerdict } from '
 import { isSystemAdmin } from '../services/securityService';
 import { ForumExportModal } from './ForumExportModal';
 import { 
-  ShieldCheck, 
   Eye, 
   CheckCircle2, 
   XCircle, 
@@ -166,15 +165,17 @@ export const AdminWorkspace: React.FC<AdminWorkspaceProps> = ({
       {/* HEADER SECTION WITH ENACTMENT ACTION BUTTON */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '32px', flexWrap: 'wrap', gap: '18px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '18px' }}>
-          <div style={{ 
-            width: '50px', height: '50px', borderRadius: 'var(--radius-md)', 
-            background: 'var(--primary-gradient)', 
-            boxShadow: '0 0 20px var(--primary-glow)',
-            border: '1px solid rgba(56, 189, 248, 0.4)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center' 
-          }}>
-            <ShieldCheck size={26} color="#ffffff" />
-          </div>
+          <img 
+            src="/logo.png" 
+            alt="State Seal" 
+            style={{ 
+              width: '48px', 
+              height: '48px', 
+              objectFit: 'contain', 
+              filter: 'drop-shadow(0 0 10px rgba(56, 189, 248, 0.4))',
+              flexShrink: 0 
+            }} 
+          />
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               <h2 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.01em' }}>

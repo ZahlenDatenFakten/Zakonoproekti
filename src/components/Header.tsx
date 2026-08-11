@@ -4,7 +4,6 @@ import { OFFICIAL_ROLE_LABELS } from '../types/bill';
 import { isSystemAdmin } from '../services/securityService';
 import { 
   Settings,
-  Shield,
   User,
   LayoutDashboard,
   ShieldCheck,
@@ -64,16 +63,18 @@ export const Header: React.FC<HeaderProps> = ({
           onClick={() => onNavigate('dashboard')} 
           style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer', flexShrink: 0 }}
         >
-          <div style={{ 
-            width: '40px', height: '40px', borderRadius: 'var(--radius-md)',
-            background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)', 
-            boxShadow: '0 0 18px rgba(56, 189, 248, 0.35)',
-            border: '1px solid rgba(56, 189, 248, 0.4)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            flexShrink: 0
-          }}>
-            <Shield size={20} color="#ffffff" />
-          </div>
+          <img 
+            src="/logo.png" 
+            alt="State of San Andreas Seal" 
+            style={{ 
+              width: '42px', 
+              height: '42px', 
+              objectFit: 'contain',
+              filter: 'drop-shadow(0 0 10px rgba(56, 189, 248, 0.4))',
+              transition: 'transform 0.25s ease',
+              flexShrink: 0
+            }} 
+          />
 
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -85,7 +86,7 @@ export const Header: React.FC<HeaderProps> = ({
               </span>
             </div>
             <p style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', lineHeight: 1.2, margin: '2px 0 0 0', fontFamily: 'var(--font-mono)', whiteSpace: 'nowrap' }}>
-              Цифровая платформа реформ
+              LEGISLATURE • STATE OF SAN ANDREAS
             </p>
           </div>
         </div>
