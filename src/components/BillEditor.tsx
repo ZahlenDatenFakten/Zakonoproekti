@@ -30,6 +30,7 @@ interface BillEditorProps {
   bill: Bill;
   user: UserProfile;
   permission: AccessPermission;
+  returnView?: 'dashboard' | 'admin_workspace';
   onSave: (updatedBill: Bill) => void;
   onBack: () => void;
   onShare: (bill: Bill) => void;
@@ -40,6 +41,7 @@ export const BillEditor: React.FC<BillEditorProps> = ({
   bill: initialBill,
   user,
   permission,
+  returnView = 'dashboard',
   onSave,
   onBack,
   onShare,
@@ -295,7 +297,7 @@ export const BillEditor: React.FC<BillEditorProps> = ({
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '18px' }}>
           <button onClick={onBack} className="btn btn-secondary btn-pill" style={{ padding: '7px 16px', fontSize: '0.82rem' }}>
-            <ArrowLeft size={15} /> В реестр
+            <ArrowLeft size={15} /> {returnView === 'admin_workspace' ? 'В администрацию' : 'В реестр'}
           </button>
           
           <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>

@@ -38,6 +38,9 @@ export const App: React.FC = () => {
 
   // Navigation View State
   const [currentView, setCurrentView] = useState<'dashboard' | 'editor' | 'admin_workspace'>('dashboard');
+  const [returnView, setReturnView] = useState<'dashboard' | 'admin_workspace'>(() => {
+    return (localStorage.getItem('legaldraft_return_view') as any) || 'dashboard';
+  });
   const [selectedBill, setSelectedBill] = useState<Bill | null>(null);
   const [currentPermission, setCurrentPermission] = useState<AccessPermission>('edit');
   
@@ -55,6 +58,24 @@ export const App: React.FC = () => {
     document.documentElement.setAttribute('data-theme', theme);
     localStorage.setItem('legaldraft_theme', theme);
   }, [theme]);
+
+  // Handle native browser Back / Forward buttons (popstate)
+  useEffect(() => {
+    const handlePopState = (event: PopStateEvent) => {
+      if (event.state && event.state.view) {
+        setCurrentView(event.state.view);
+        if (event.state.returnView) {
+          setReturnView(event.state.returnView);
+        }
+      } else {
+        const savedReturn = (localStorage.getItem('legaldraft_return_view') as any) || 'dashboard';
+        setCurrentView(savedReturn);
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   const toggleTheme = () => {
     setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
@@ -173,12 +194,26 @@ export const App: React.FC = () => {
     localStorage.setItem('legaldraft_current_view', 'editor');
   };
 
-  const handleOpenBill = (bill: Bill) => {
+  const handleOpenBill = (bill: Bill, sourceView?: 'dashboard' | 'admin_workspace') => {
+    const origin = sourceView || (currentView === 'admin_workspace' ? 'admin_workspace' : 'dashboard');
+    setReturnView(origin);
+    localStorage.setItem('legaldraft_return_view', origin);
     setSelectedBill(bill);
     setCurrentPermission('edit');
     setCurrentView('editor');
     localStorage.setItem('legaldraft_active_bill_id', bill.id);
     localStorage.setItem('legaldraft_current_view', 'editor');
+
+    try {
+      window.history.pushState({ view: 'editor', billId: bill.id, returnView: origin }, '', `?billId=${bill.id}`);
+    } catch (e) {
+      // Ignore if iframe/sandbox blocks pushState
+    }
+  };
+
+  const handleBackFromEditor = () => {
+    const target = returnView || (localStorage.getItem('legaldraft_return_view') as any) || 'dashboard';
+    handleNavigateView(target);
   };
 
   const handleNavigateView = (view: 'dashboard' | 'admin_workspace' | 'editor') => {
@@ -186,6 +221,9 @@ export const App: React.FC = () => {
     localStorage.setItem('legaldraft_current_view', view);
     if (view !== 'editor') {
       localStorage.removeItem('legaldraft_active_bill_id');
+      try {
+        window.history.pushState({ view }, '', window.location.pathname);
+      } catch (e) {}
     }
   };
 
@@ -242,8 +280,9 @@ export const App: React.FC = () => {
             bill={selectedBill}
             user={user}
             permission={currentPermission}
+            returnView={returnView}
             onSave={handleSaveBill}
-            onBack={() => handleNavigateView('dashboard')}
+            onBack={handleBackFromEditor}
             onShare={(b) => {
               setSelectedBill(b);
               setShowShareModal(true);
