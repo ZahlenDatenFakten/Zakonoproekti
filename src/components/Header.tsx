@@ -67,8 +67,9 @@ export const Header: React.FC<HeaderProps> = ({
             src="/logo.png" 
             alt="State of San Andreas Seal" 
             style={{ 
-              width: '42px', 
-              height: '42px', 
+              width: '44px', 
+              height: '44px', 
+              aspectRatio: '1 / 1',
               objectFit: 'contain',
               filter: 'drop-shadow(0 0 10px rgba(56, 189, 248, 0.4))',
               transition: 'transform 0.25s ease',

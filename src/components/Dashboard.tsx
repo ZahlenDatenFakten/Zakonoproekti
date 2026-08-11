@@ -133,7 +133,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
         <div style={{ position: 'relative', zIndex: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '20px' }}>
           <div>
             <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '4px 12px', borderRadius: 'var(--radius-pill)', background: 'rgba(56, 189, 248, 0.08)', border: '1px solid rgba(56, 189, 248, 0.2)', color: 'var(--text-accent)', fontSize: '0.74rem', fontFamily: 'var(--font-mono)', fontWeight: 600, marginBottom: '12px' }}>
-              <img src="/logo.png" alt="Seal" style={{ width: '16px', height: '16px', objectFit: 'contain' }} /> LEGISLATURE • STATE OF SAN ANDREAS
+              <img src="/logo.png" alt="Seal" style={{ width: '18px', height: '18px', aspectRatio: '1 / 1', objectFit: 'contain' }} /> LEGISLATURE • STATE OF SAN ANDREAS
             </div>
             <h2 style={{ fontSize: '1.75rem', fontWeight: 800, margin: '0 0 6px 0', letterSpacing: '-0.02em', color: 'var(--text-primary)' }}>
               Законотворческий Портал Реформ

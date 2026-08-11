@@ -169,10 +169,11 @@ export const AdminWorkspace: React.FC<AdminWorkspaceProps> = ({
             src="/logo.png" 
             alt="State Seal" 
             style={{ 
-              width: '48px', 
-              height: '48px', 
+              width: '50px', 
+              height: '50px', 
+              aspectRatio: '1 / 1',
               objectFit: 'contain', 
-              filter: 'drop-shadow(0 0 10px rgba(56, 189, 248, 0.4))',
+              filter: 'drop-shadow(0 0 12px rgba(56, 189, 248, 0.4))',
               flexShrink: 0 
             }} 
           />
