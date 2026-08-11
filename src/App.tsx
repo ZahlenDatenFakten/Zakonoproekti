@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import type { Bill, UserProfile, DbConfig, AccessPermission, AppTheme, OfficialRole } from './types/bill';
 import { OFFICIAL_ROLE_LABELS } from './types/bill';
-import { isGovernorOrAdmin } from './services/securityService';
 import { 
   fetchAllBills, 
   saveBill, 
@@ -168,11 +167,6 @@ export const App: React.FC = () => {
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
       
-      {/* Top Red Alert Bar (COURTRAN Style) */}
-      <div className="system-alert-bar">
-        <span>⚠️ Внимание: Рассмотрение законопроектов может занять дополнительное время.</span>
-      </div>
-
       {/* Global Header */}
       <Header
         user={user}
@@ -183,21 +177,8 @@ export const App: React.FC = () => {
         onOpenNewBill={handleCreateNewBill}
         onOpenSettings={() => setShowSettingsModal(true)}
         onOpenAbout={() => setShowAboutModal(true)}
+        onOpenDbConfig={() => setShowDbModal(true)}
       />
-
-      {/* Floating Toolbar for DB Config (ADMIN ONLY) */}
-      {isGovernorOrAdmin(user) && (
-        <div style={{ maxWidth: '1240px', width: '100%', margin: '0 auto', padding: '0 24px', display: 'flex', justifyContent: 'flex-end', gap: '10px', marginBottom: '14px' }}>
-
-          <button
-            onClick={() => setShowDbModal(true)}
-            className="btn btn-secondary"
-            style={{ fontSize: '0.8rem', padding: '5px 12px' }}
-          >
-            ⚙️ Облачная БД (Firebase / Supabase)
-          </button>
-        </div>
-      )}
 
       {/* Main View Router */}
       <main style={{ flex: 1 }}>
