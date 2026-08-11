@@ -528,17 +528,29 @@ export const BillEditor: React.FC<BillEditorProps> = ({
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '14px' }}>
               <div style={{
                 width: '40px', height: '40px', borderRadius: '50%',
-                background: 'var(--primary-gradient)',
+                background: 'rgba(56, 189, 248, 0.12)',
+                border: '1px solid rgba(56, 189, 248, 0.3)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                boxShadow: '0 0 16px var(--primary-glow)'
+                flexShrink: 0
               }}>
-                <UserCheck size={18} color="#ffffff" />
+                <UserCheck size={18} color="var(--text-accent)" />
               </div>
               <div>
-                <div style={{ fontSize: '0.92rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                <div style={{ fontSize: '0.96rem', fontWeight: 700, color: '#f8fafc', lineHeight: 1.2 }}>
                   {bill.author}
                 </div>
-                <div style={{ fontSize: '0.74rem', color: 'var(--text-accent)', fontFamily: 'var(--font-mono)', fontWeight: 600 }}>
+                <div style={{ 
+                  padding: '2px 8px', 
+                  borderRadius: '6px', 
+                  background: 'rgba(255, 255, 255, 0.05)', 
+                  border: '1px solid rgba(255, 255, 255, 0.1)', 
+                  color: '#cbd5e1', 
+                  fontSize: '0.72rem', 
+                  fontWeight: 600, 
+                  display: 'inline-flex', 
+                  alignItems: 'center', 
+                  marginTop: '4px' 
+                }}>
                   {bill.authorRole}
                 </div>
               </div>

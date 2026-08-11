@@ -11,7 +11,6 @@ import {
   ShieldCheck,
   CheckCircle2,
   Clock,
-  Archive,
   FileCode2
 } from 'lucide-react';
 
@@ -30,7 +29,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
   onSelectBill,
   onNewBill
 }) => {
-  const [activeTab, setActiveTab] = useState<'all' | 'my' | 'active' | 'archive'>('active');
+  const [activeTab, setActiveTab] = useState<'all' | 'my' | 'active'>('active');
   const [searchQuery, setSearchQuery] = useState('');
 
   const currentFullName = `${user.firstName} ${user.lastName}`.trim();
@@ -44,6 +43,10 @@ export const Dashboard: React.FC<DashboardProps> = ({
     return { total, active, approved, myCount };
   }, [bills, currentFullName]);
 
+  // Tab filtering logic
+  // 'my' -> User's own bills
+  // 'active' -> Under review or needs revision
+  // 'all' -> "Весь реестр" = Reviewed bills (Approved or Rejected)
   const filteredBills = useMemo(() => {
     return bills
       .filter((b) => {
@@ -53,7 +56,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
           if (b.author.trim() !== currentFullName) return false;
         } else if (activeTab === 'active') {
           if (b.status === 'approved' || b.status === 'rejected' || b.status === 'draft') return false;
-        } else if (activeTab === 'archive') {
+        } else if (activeTab === 'all') {
+          // "Весь реестр" = все уже рассмотренные законопроекты (одобрены / отклонены)
           if (b.status !== 'approved' && b.status !== 'rejected') return false;
         }
 
@@ -94,7 +98,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
       case 'needs_revision':
         return (
           <span className="badge badge-status-revision">
-            <span className="status-dot status-dot-info" /> Реформирование
+            <span className="status-dot status-dot-info" /> Доработка
           </span>
         );
       case 'under_review':
@@ -113,9 +117,9 @@ export const Dashboard: React.FC<DashboardProps> = ({
     }
   };
 
-  const formatDecreeNumber = (id: string) => {
-    const numericId = id.replace(/\D/g, '').slice(-4) || '0042';
-    return `АКТ № SA-${numericId}`;
+  // Zero-indexed decree numbering (№ SA-000, № SA-001, ...)
+  const formatDecreeNumber = (billIndex: number) => {
+    return `№ SA-${String(billIndex).padStart(3, '0')}`;
   };
 
   return (
@@ -132,17 +136,6 @@ export const Dashboard: React.FC<DashboardProps> = ({
         position: 'relative',
         overflow: 'hidden'
       }}>
-        {/* Glow & grid overlay */}
-        <div style={{
-          position: 'absolute',
-          top: '-40px', right: '-40px',
-          width: '220px', height: '220px',
-          background: 'rgba(56, 189, 248, 0.12)',
-          borderRadius: '50%',
-          filter: 'blur(60px)',
-          pointerEvents: 'none'
-        }} />
-
         <div style={{ position: 'relative', zIndex: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '20px' }}>
           <div>
             <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '4px 12px', borderRadius: 'var(--radius-pill)', background: 'rgba(56, 189, 248, 0.08)', border: '1px solid rgba(56, 189, 248, 0.2)', color: 'var(--text-accent)', fontSize: '0.74rem', fontFamily: 'var(--font-mono)', fontWeight: 600, marginBottom: '12px' }}>
@@ -229,8 +222,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
           {[
             { id: 'my', label: 'Мои проекты', icon: UserIcon },
             { id: 'active', label: 'Актуальная реформа', icon: Clock },
-            { id: 'all', label: 'Весь реестр', icon: FileText },
-            { id: 'archive', label: 'Архив указов', icon: Archive },
+            { id: 'all', label: 'Весь реестр', icon: FileText }
           ].map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
@@ -243,7 +235,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                   background: isActive ? 'var(--primary-gradient)' : 'transparent',
                   color: isActive ? '#ffffff' : 'var(--text-secondary)',
                   border: 'none',
-                  padding: '7px 18px',
+                  padding: '7px 20px',
                   fontSize: '0.82rem',
                   fontWeight: 600,
                   boxShadow: isActive ? '0 4px 14px var(--primary-glow)' : 'none'
@@ -283,73 +275,87 @@ export const Dashboard: React.FC<DashboardProps> = ({
           <div className="card" style={{ textAlign: 'center', padding: '64px 20px', color: 'var(--text-muted)' }}>
             <FileText size={44} style={{ opacity: 0.3, margin: '0 auto 16px', color: 'var(--text-accent)' }} />
             <h3 style={{ fontSize: '1.1rem', margin: '0 0 6px 0', fontWeight: 700, color: 'var(--text-primary)' }}>
-              Нормативные акты не найдены
+              Законопроекты не найдены
             </h3>
             <p style={{ fontSize: '0.86rem', margin: 0, color: 'var(--text-muted)' }}>
-              В выбранном реестре нет документов, соответствующих параметрам поиска.
+              В выбранном разделе нет документов, соответствующих запросу.
             </p>
           </div>
         ) : (
-          filteredBills.map((bill) => (
-            <div 
-              key={bill.id}
-              onClick={() => onSelectBill(bill)}
-              className="card card-hover"
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                padding: '22px 28px'
-              }}
-            >
-              <div style={{ flex: 1, paddingRight: '24px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '10px', flexWrap: 'wrap' }}>
-                  <span className="decree-stamp">
-                    {formatDecreeNumber(bill.id)}
-                  </span>
-                  {getStatusBadge(bill.status)}
-                  <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
-                    {bill.authorRole || 'Официальная инициатива'}
-                  </span>
-                </div>
+          filteredBills.map((bill, index) => {
+            // Compute 0-indexed number based on list index starting from 0
+            const decreeStamp = formatDecreeNumber(index);
 
-                <h3 style={{ margin: '0 0 8px 0', fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-0.01em', lineHeight: 1.3 }}>
-                  {bill.targetLaw || bill.title || 'Внесение изменений в закон'}
-                </h3>
+            return (
+              <div 
+                key={bill.id}
+                onClick={() => onSelectBill(bill)}
+                className="card card-hover"
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  padding: '22px 28px'
+                }}
+              >
+                <div style={{ flex: 1, paddingRight: '24px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '10px', flexWrap: 'wrap' }}>
+                    <span className="decree-stamp">
+                      {decreeStamp}
+                    </span>
+                    {getStatusBadge(bill.status)}
+                    <span style={{ 
+                      padding: '2px 8px', 
+                      borderRadius: '6px', 
+                      background: 'rgba(255, 255, 255, 0.05)', 
+                      border: '1px solid rgba(255, 255, 255, 0.1)', 
+                      color: '#cbd5e1', 
+                      fontSize: '0.72rem', 
+                      fontWeight: 500, 
+                      fontFamily: 'var(--font-mono)' 
+                    }}>
+                      {bill.authorRole || 'Официальная инициатива'}
+                    </span>
+                  </div>
+
+                  <h3 style={{ margin: '0 0 8px 0', fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-0.01em', lineHeight: 1.3 }}>
+                    {bill.targetLaw || bill.title || 'Внесение изменений в закон'}
+                  </h3>
+                  
+                  {bill.title && bill.targetLaw && (
+                    <p style={{ fontSize: '0.86rem', color: 'var(--text-secondary)', margin: '0 0 14px 0', lineHeight: 1.45 }}>
+                      {bill.title}
+                    </p>
+                  )}
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '22px', fontSize: '0.78rem', color: 'var(--text-muted)', flexWrap: 'wrap', fontFamily: 'var(--font-mono)' }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <UserIcon size={13} color="var(--text-accent)" /> 
+                      <span style={{ color: '#f8fafc', fontWeight: 600 }}>{bill.author}</span>
+                    </span>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <Calendar size={13} color="var(--text-muted)" /> 
+                      <span>{formatDate(bill.updatedAt)}</span>
+                    </span>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <Layers size={13} color="var(--text-muted)" /> 
+                      Статей: <span style={{ color: 'var(--text-accent)', fontWeight: 600 }}>{bill.comparisons.length}</span>
+                    </span>
+                  </div>
+                </div>
                 
-                {bill.title && bill.targetLaw && (
-                  <p style={{ fontSize: '0.86rem', color: 'var(--text-secondary)', margin: '0 0 14px 0', lineHeight: 1.45 }}>
-                    {bill.title}
-                  </p>
-                )}
-
-                <div style={{ display: 'flex', alignItems: 'center', gap: '22px', fontSize: '0.78rem', color: 'var(--text-muted)', flexWrap: 'wrap', fontFamily: 'var(--font-mono)' }}>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <UserIcon size={13} color="var(--text-accent)" /> 
-                    <span style={{ color: 'var(--text-secondary)' }}>{bill.author}</span>
-                  </span>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <Calendar size={13} color="var(--text-muted)" /> 
-                    <span>{formatDate(bill.updatedAt)}</span>
-                  </span>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <Layers size={13} color="var(--text-muted)" /> 
-                    Статей: <span style={{ color: 'var(--text-accent)', fontWeight: 600 }}>{bill.comparisons.length}</span>
-                  </span>
+                <div style={{ 
+                  width: '38px', height: '38px', borderRadius: '50%', 
+                  background: 'var(--bg-input)', border: '1px solid var(--border-subtle)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  flexShrink: 0,
+                  transition: 'all 0.2s ease'
+                }}>
+                  <ChevronRight size={18} color="var(--text-accent)" />
                 </div>
               </div>
-              
-              <div style={{ 
-                width: '38px', height: '38px', borderRadius: '50%', 
-                background: 'var(--bg-input)', border: '1px solid var(--border-subtle)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                flexShrink: 0,
-                transition: 'all 0.2s ease'
-              }}>
-                <ChevronRight size={18} color="var(--text-accent)" />
-              </div>
-            </div>
-          ))
+            );
+          })
         )}
       </div>
 

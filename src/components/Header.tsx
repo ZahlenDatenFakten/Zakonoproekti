@@ -1,7 +1,7 @@
 import React from 'react';
 import type { UserProfile, AppTheme } from '../types/bill';
 import { OFFICIAL_ROLE_LABELS } from '../types/bill';
-import { isOfficialCommitteeMember, isSystemAdmin, isGovernorOrAdmin } from '../services/securityService';
+import { isOfficialCommitteeMember, isSystemAdmin } from '../services/securityService';
 import { 
   Settings,
   Shield,
@@ -36,7 +36,6 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenDbConfig
 }) => {
   const isCommitteeOrAdmin = isOfficialCommitteeMember(user) || isSystemAdmin(user);
-  const isAdmin = isGovernorOrAdmin(user);
 
   return (
     <header style={{ 
@@ -184,12 +183,12 @@ export const Header: React.FC<HeaderProps> = ({
 
           {/* SYSTEM TOOL BUTTONS */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-            {isAdmin && onOpenDbConfig && (
+            {isSystemAdmin(user) && onOpenDbConfig && (
               <button 
                 className="btn btn-ghost" 
                 onClick={onOpenDbConfig} 
                 style={{ padding: '8px', borderRadius: 'var(--radius-pill)' }} 
-                title="Облачная база данных"
+                title="Облачная база данных (Доступно только Админу)"
               >
                 <Database size={16} color="var(--text-accent)" />
               </button>
