@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import type { Bill, ComparisonRow, AccessPermission, UserProfile, BillStatus, VoteDecision, FederalGovernmentVerdict } from '../types/bill';
 import { CommentsSection } from './CommentsSection';
 import { ExpandedArticleModal } from './ExpandedArticleModal';
+import { ForumExportModal } from './ForumExportModal';
 import { isSystemAdmin } from '../services/securityService';
 import { computeWordDiff } from '../services/diffService';
 import { 
@@ -21,7 +22,8 @@ import {
   X,
   Copy,
   UserCheck,
-  Crown
+  Crown,
+  FileText
 } from 'lucide-react';
 
 interface BillEditorProps {
@@ -46,6 +48,7 @@ export const BillEditor: React.FC<BillEditorProps> = ({
   const [bill, setBill] = useState<Bill>(initialBill);
   const [isSavedNotice, setIsSavedNotice] = useState(false);
   const [expandedRow, setExpandedRow] = useState<ComparisonRow | null>(null);
+  const [showForumExport, setShowForumExport] = useState(false);
 
   // Admin verdict form state
   const [adminVerdictReason, setAdminVerdictReason] = useState('');
@@ -313,6 +316,16 @@ export const BillEditor: React.FC<BillEditorProps> = ({
             </span>
           )}
           
+          {bill.status === 'approved' && (
+            <button 
+              onClick={() => setShowForumExport(true)} 
+              className="btn btn-pill" 
+              style={{ padding: '7px 16px', fontSize: '0.82rem', background: 'rgba(56, 189, 248, 0.12)', color: 'var(--text-accent)', border: '1px solid rgba(56, 189, 248, 0.35)' }}
+            >
+              <FileText size={14} /> Текст для Форума
+            </button>
+          )}
+
           <button onClick={() => onShare(bill)} className="btn btn-secondary btn-pill" style={{ padding: '7px 16px', fontSize: '0.82rem' }}>
             <Share2 size={14} /> Ссылка доступа
           </button>
@@ -856,6 +869,15 @@ export const BillEditor: React.FC<BillEditorProps> = ({
             setExpandedRow((prev) => prev ? { ...prev, [field]: val } : null);
           }}
           onClose={() => setExpandedRow(null)}
+        />
+      )}
+
+      {/* FORUM EXPORT MODAL */}
+      {showForumExport && (
+        <ForumExportModal
+          bill={bill}
+          onClose={() => setShowForumExport(false)}
+          onToast={onToast}
         />
       )}
 
