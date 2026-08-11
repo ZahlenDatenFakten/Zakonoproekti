@@ -53,18 +53,18 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
       <div
         onClick={() => setIsOpen(!isOpen)}
         style={{
-          background: '#0f172a',
-          border: '1px solid ' + (isOpen ? 'rgba(99, 102, 241, 0.8)' : 'rgba(255, 255, 255, 0.15)'),
-          borderRadius: '8px',
+          background: 'var(--bg-input)',
+          border: '1px solid ' + (isOpen ? 'var(--border-focus)' : 'var(--border-subtle)'),
+          borderRadius: 'var(--radius-md)',
           padding: '9px 14px',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
           cursor: 'pointer',
           fontSize: '0.86rem',
-          color: selectedOption ? '#f8fafc' : '#94a3b8',
+          color: selectedOption ? 'var(--text-primary)' : 'var(--text-muted)',
           transition: 'all 0.15s ease',
-          boxShadow: isOpen ? '0 0 0 3px rgba(99, 102, 241, 0.2)' : 'none'
+          boxShadow: isOpen ? '0 0 0 3px var(--primary-glow)' : 'none'
         }}
       >
         <span style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 500 }}>
@@ -74,7 +74,7 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
         <ChevronDown 
           size={16} 
           style={{ 
-            color: '#94a3b8', 
+            color: 'var(--text-muted)', 
             transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)',
             transition: 'transform 0.2s ease',
             flexShrink: 0,
@@ -83,7 +83,7 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
         />
       </div>
 
-      {/* Floating Dropdown Menu (100% Solid Opaque Background) */}
+      {/* Floating Dropdown Menu */}
       {isOpen && (
         <div
           style={{
@@ -91,11 +91,11 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
             top: 'calc(100% + 4px)',
             left: 0,
             right: 0,
-            background: '#0f172a', // 100% Solid, Non-Transparent Dark Slate Background
+            background: 'var(--bg-surface-elevated)',
             opacity: 1,
-            border: '1px solid rgba(255, 255, 255, 0.18)',
-            borderRadius: '10px',
-            boxShadow: '0 20px 45px rgba(0, 0, 0, 0.95), 0 0 0 1px rgba(255, 255, 255, 0.05)',
+            border: '1px solid var(--border-medium)',
+            borderRadius: 'var(--radius-md)',
+            boxShadow: 'var(--shadow-lg), 0 0 20px var(--primary-glow)',
             zIndex: 999999,
             overflow: 'hidden',
             maxHeight: '240px',
@@ -112,28 +112,28 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
                   setIsOpen(false);
                 }}
                 style={{
-                  padding: '11px 14px',
-                  fontSize: '0.86rem',
+                  padding: '10px 14px',
+                  fontSize: '0.85rem',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
                   cursor: 'pointer',
-                  background: isSelected ? 'rgba(99, 102, 241, 0.25)' : '#0f172a',
-                  color: isSelected ? '#ffffff' : '#e2e8f0',
-                  borderLeft: isSelected ? '3px solid #6366f1' : '3px solid transparent',
+                  background: isSelected ? 'rgba(56, 189, 248, 0.15)' : 'transparent',
+                  color: isSelected ? 'var(--text-accent)' : 'var(--text-primary)',
+                  borderLeft: isSelected ? '3px solid var(--primary)' : '3px solid transparent',
                   fontWeight: isSelected ? 600 : 400,
                   transition: 'all 0.12s ease'
                 }}
                 onMouseEnter={(e) => {
                   if (!isSelected) {
-                    e.currentTarget.style.background = '#1e293b';
+                    e.currentTarget.style.background = 'var(--bg-hover)';
                     e.currentTarget.style.color = '#ffffff';
                   }
                 }}
                 onMouseLeave={(e) => {
                   if (!isSelected) {
-                    e.currentTarget.style.background = '#0f172a';
-                    e.currentTarget.style.color = '#e2e8f0';
+                    e.currentTarget.style.background = 'transparent';
+                    e.currentTarget.style.color = 'var(--text-primary)';
                   }
                 }}
               >
@@ -141,7 +141,7 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
                   {option.icon}
                   {option.label}
                 </span>
-                {isSelected && <Check size={15} color="#34d399" />}
+                {isSelected && <Check size={14} color="var(--primary)" />}
               </div>
             );
           })}

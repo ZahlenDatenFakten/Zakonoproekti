@@ -62,7 +62,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
           return (
             b.targetLaw.toLowerCase().includes(query) ||
             b.author.toLowerCase().includes(query) ||
-            (b.title && b.title.toLowerCase().includes(query))
+            (b.title && b.title.toLowerCase().includes(query)) ||
+            (b.id && b.id.toLowerCase().includes(query))
           );
         }
 
@@ -79,68 +80,93 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const getStatusBadge = (status: BillStatus) => {
     switch (status) {
       case 'approved':
-        return <span className="badge badge-status-approved"><CheckCircle2 size={12} /> Одобрен</span>;
+        return (
+          <span className="badge badge-status-approved">
+            <span className="status-dot status-dot-active" /> Вступил в силу
+          </span>
+        );
       case 'rejected':
-        return <span className="badge badge-status-rejected">Отклонен</span>;
+        return (
+          <span className="badge badge-status-rejected">
+            <span className="status-dot status-dot-danger" /> Отклонен
+          </span>
+        );
       case 'needs_revision':
-        return <span className="badge badge-status-revision"><Clock size={12} /> На доработке</span>;
+        return (
+          <span className="badge badge-status-revision">
+            <span className="status-dot status-dot-info" /> Реформирование
+          </span>
+        );
       case 'under_review':
-        return <span className="badge badge-status-review"><Clock size={12} /> На рассмотрении</span>;
+        return (
+          <span className="badge badge-status-review">
+            <span className="status-dot status-dot-review" /> На рассмотрении
+          </span>
+        );
       case 'draft':
       default:
-        return <span className="badge badge-status-draft">Черновик</span>;
+        return (
+          <span className="badge badge-status-draft">
+            <span className="status-dot status-dot-draft" /> Черновик
+          </span>
+        );
     }
   };
 
+  const formatDecreeNumber = (id: string) => {
+    const numericId = id.replace(/\D/g, '').slice(-4) || '0042';
+    return `АКТ № SA-${numericId}`;
+  };
+
   return (
-    <div className="animate-fade-in" style={{ maxWidth: '1180px', margin: '28px auto 60px', padding: '0 24px' }}>
+    <div className="animate-fade-in" style={{ maxWidth: '1240px', margin: '28px auto 60px', padding: '0 24px' }}>
       
-      {/* HERO BANNER SECTION */}
+      {/* COMMAND CENTER HERO HEADER */}
       <div style={{
-        background: 'linear-gradient(135deg, var(--bg-surface) 0%, var(--bg-surface-elevated) 100%)',
+        background: 'linear-gradient(135deg, rgba(18, 21, 30, 0.95) 0%, rgba(22, 26, 36, 0.95) 100%)',
         border: '1px solid var(--border-medium)',
         borderRadius: 'var(--radius-lg)',
         padding: '32px 36px',
         marginBottom: '28px',
-        boxShadow: 'var(--shadow-sm)',
+        boxShadow: '0 8px 32px rgba(0, 0, 0, 0.5)',
         position: 'relative',
         overflow: 'hidden'
       }}>
-        {/* Glow decoration */}
+        {/* Glow & grid overlay */}
         <div style={{
           position: 'absolute',
           top: '-40px', right: '-40px',
-          width: '180px', height: '180px',
-          background: 'var(--primary-glow)',
+          width: '220px', height: '220px',
+          background: 'rgba(56, 189, 248, 0.12)',
           borderRadius: '50%',
-          filter: 'blur(50px)',
+          filter: 'blur(60px)',
           pointerEvents: 'none'
         }} />
 
         <div style={{ position: 'relative', zIndex: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '20px' }}>
           <div>
-            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '4px 12px', borderRadius: 'var(--radius-pill)', background: 'var(--primary-glow)', color: 'var(--text-accent)', fontSize: '0.78rem', fontWeight: 600, marginBottom: '10px' }}>
-              <ShieldCheck size={14} /> Официальный реестр Штата San Andreas
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '4px 12px', borderRadius: 'var(--radius-pill)', background: 'rgba(56, 189, 248, 0.08)', border: '1px solid rgba(56, 189, 248, 0.2)', color: 'var(--text-accent)', fontSize: '0.74rem', fontFamily: 'var(--font-mono)', fontWeight: 600, marginBottom: '12px' }}>
+              <ShieldCheck size={14} /> ОФИЦИАЛЬНЫЙ РЕЕСТР SA GOV TECH
             </div>
-            <h2 style={{ fontSize: '1.65rem', fontWeight: 800, margin: '0 0 6px 0', letterSpacing: '-0.02em', color: 'var(--text-primary)' }}>
-              Законотворческая платформа
+            <h2 style={{ fontSize: '1.75rem', fontWeight: 800, margin: '0 0 6px 0', letterSpacing: '-0.02em', color: 'var(--text-primary)' }}>
+              Законотворческий Портал Реформ
             </h2>
-            <p style={{ margin: 0, fontSize: '0.92rem', color: 'var(--text-muted)', maxWidth: '640px' }}>
-              Создание, экспертиза, обсуждение и публикация поправок в законодательную базу штата в едином цифровом интерфейсе.
+            <p style={{ margin: 0, fontSize: '0.92rem', color: 'var(--text-secondary)', maxWidth: '680px' }}>
+              Строгий цифровой реестр законопроектов, правовой экспертизы, голосования Комиссии и регистрации нормативных актов Штата.
             </p>
           </div>
 
-          <button onClick={onNewBill} className="btn btn-primary btn-pill" style={{ padding: '12px 26px', fontSize: '0.92rem' }}>
-            <Plus size={18} /> Создать проект
+          <button onClick={onNewBill} className="btn btn-primary btn-pill" style={{ padding: '12px 26px', fontSize: '0.9rem' }}>
+            <Plus size={18} /> Внести законопроект
           </button>
         </div>
 
-        {/* QUICK STATS CHIPS */}
+        {/* BENTO QUICK STATS WIDGETS */}
         <div style={{ 
           display: 'grid', 
-          gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', 
+          gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', 
           gap: '14px', 
-          marginTop: '24px', 
+          marginTop: '28px', 
           paddingTop: '20px', 
           borderTop: '1px solid var(--border-subtle)' 
         }}>
@@ -149,18 +175,18 @@ export const Dashboard: React.FC<DashboardProps> = ({
               <FileCode2 size={20} />
             </div>
             <div>
-              <div style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1.1 }}>{stats.total}</div>
-              <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)', fontWeight: 500 }}>Всего проектов</div>
+              <div style={{ fontSize: '1.3rem', fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)', lineHeight: 1.1 }}>{stats.total}</div>
+              <div className="tech-label" style={{ marginTop: '2px' }}>Всего актов</div>
             </div>
           </div>
 
           <div className="stat-card">
-            <div className="stat-icon-wrapper" style={{ background: 'var(--info-bg)', color: 'var(--info-text)', borderColor: 'var(--info-border)' }}>
+            <div className="stat-icon-wrapper" style={{ background: 'var(--warning-bg)', color: 'var(--warning-text)', borderColor: 'var(--warning-border)' }}>
               <Clock size={20} />
             </div>
             <div>
-              <div style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1.1 }}>{stats.active}</div>
-              <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)', fontWeight: 500 }}>На рассмотрении</div>
+              <div style={{ fontSize: '1.3rem', fontWeight: 800, color: 'var(--warning-text)', fontFamily: 'var(--font-mono)', lineHeight: 1.1 }}>{stats.active}</div>
+              <div className="tech-label" style={{ marginTop: '2px' }}>На рассмотрении</div>
             </div>
           </div>
 
@@ -169,32 +195,32 @@ export const Dashboard: React.FC<DashboardProps> = ({
               <CheckCircle2 size={20} />
             </div>
             <div>
-              <div style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1.1 }}>{stats.approved}</div>
-              <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)', fontWeight: 500 }}>Одобренных законов</div>
+              <div style={{ fontSize: '1.3rem', fontWeight: 800, color: 'var(--success-text)', fontFamily: 'var(--font-mono)', lineHeight: 1.1 }}>{stats.approved}</div>
+              <div className="tech-label" style={{ marginTop: '2px' }}>Вступили в силу</div>
             </div>
           </div>
 
           <div className="stat-card">
-            <div className="stat-icon-wrapper" style={{ background: 'rgba(255,255,255,0.06)', color: 'var(--text-secondary)', borderColor: 'var(--border-subtle)' }}>
+            <div className="stat-icon-wrapper" style={{ background: 'rgba(255,255,255,0.04)', color: 'var(--text-secondary)', borderColor: 'var(--border-subtle)' }}>
               <UserIcon size={20} />
             </div>
             <div>
-              <div style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1.1 }}>{stats.myCount}</div>
-              <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)', fontWeight: 500 }}>Мои инициативы</div>
+              <div style={{ fontSize: '1.3rem', fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)', lineHeight: 1.1 }}>{stats.myCount}</div>
+              <div className="tech-label" style={{ marginTop: '2px' }}>Мои инициативы</div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* FILTER TABS & SEARCH CONTAINER */}
+      {/* FILTER CONTROLS & SEARCH */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
         
-        {/* PILL NAVIGATION TABS */}
+        {/* SEGMENTED CONTROL TABS */}
         <div style={{ 
           display: 'flex', 
-          gap: '6px', 
+          gap: '4px', 
           background: 'var(--bg-surface)', 
-          padding: '6px', 
+          padding: '5px', 
           borderRadius: 'var(--radius-pill)', 
           border: '1px solid var(--border-subtle)',
           boxShadow: 'var(--shadow-sm)',
@@ -202,9 +228,9 @@ export const Dashboard: React.FC<DashboardProps> = ({
         }}>
           {[
             { id: 'my', label: 'Мои проекты', icon: UserIcon },
-            { id: 'active', label: 'Актуальные', icon: Clock },
-            { id: 'all', label: 'Все проекты', icon: FileText },
-            { id: 'archive', label: 'Архив', icon: Archive },
+            { id: 'active', label: 'Актуальная реформа', icon: Clock },
+            { id: 'all', label: 'Весь реестр', icon: FileText },
+            { id: 'archive', label: 'Архив указов', icon: Archive },
           ].map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
@@ -217,8 +243,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
                   background: isActive ? 'var(--primary-gradient)' : 'transparent',
                   color: isActive ? '#ffffff' : 'var(--text-secondary)',
                   border: 'none',
-                  padding: '8px 20px',
-                  fontSize: '0.86rem',
+                  padding: '7px 18px',
+                  fontSize: '0.82rem',
                   fontWeight: 600,
                   boxShadow: isActive ? '0 4px 14px var(--primary-glow)' : 'none'
                 }}
@@ -232,35 +258,35 @@ export const Dashboard: React.FC<DashboardProps> = ({
         {/* SEARCH INPUT */}
         <div style={{ position: 'relative', minWidth: '320px', flex: 1, maxWidth: '480px' }}>
           <Search 
-            size={18} 
+            size={16} 
             color="var(--text-muted)" 
             style={{ position: 'absolute', left: '18px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} 
           />
           <input 
             type="text" 
-            placeholder="Поиск по закону, статьям или автору..." 
+            placeholder="Поиск по законам, автору или номеру акта..." 
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="input-field"
             style={{
-              padding: '12px 20px 12px 48px',
-              fontSize: '0.88rem',
+              padding: '10px 20px 10px 44px',
+              fontSize: '0.85rem',
               borderRadius: 'var(--radius-pill)'
             }}
           />
         </div>
       </div>
 
-      {/* BILLS LIST */}
+      {/* BENTO CARDS REFORM REGISTRY LIST */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
         {filteredBills.length === 0 ? (
           <div className="card" style={{ textAlign: 'center', padding: '64px 20px', color: 'var(--text-muted)' }}>
-            <FileText size={48} style={{ opacity: 0.3, margin: '0 auto 16px', color: 'var(--text-accent)' }} />
+            <FileText size={44} style={{ opacity: 0.3, margin: '0 auto 16px', color: 'var(--text-accent)' }} />
             <h3 style={{ fontSize: '1.1rem', margin: '0 0 6px 0', fontWeight: 700, color: 'var(--text-primary)' }}>
-              Законопроекты не найдены
+              Нормативные акты не найдены
             </h3>
-            <p style={{ fontSize: '0.88rem', margin: 0, color: 'var(--text-muted)' }}>
-              Попробуйте изменить параметры поиска или создайте свой первый законопроект.
+            <p style={{ fontSize: '0.86rem', margin: 0, color: 'var(--text-muted)' }}>
+              В выбранном реестре нет документов, соответствующих параметрам поиска.
             </p>
           </div>
         ) : (
@@ -273,47 +299,54 @@ export const Dashboard: React.FC<DashboardProps> = ({
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
-                padding: '24px 30px'
+                padding: '22px 28px'
               }}
             >
               <div style={{ flex: 1, paddingRight: '24px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '12px', flexWrap: 'wrap' }}>
-                  <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-0.01em' }}>
-                    {bill.targetLaw || bill.title || 'Законопроект без названия'}
-                  </h3>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '10px', flexWrap: 'wrap' }}>
+                  <span className="decree-stamp">
+                    {formatDecreeNumber(bill.id)}
+                  </span>
                   {getStatusBadge(bill.status)}
+                  <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+                    {bill.authorRole || 'Официальная инициатива'}
+                  </span>
                 </div>
+
+                <h3 style={{ margin: '0 0 8px 0', fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-0.01em', lineHeight: 1.3 }}>
+                  {bill.targetLaw || bill.title || 'Внесение изменений в закон'}
+                </h3>
                 
                 {bill.title && bill.targetLaw && (
-                  <p style={{ fontSize: '0.86rem', color: 'var(--text-secondary)', margin: '0 0 12px 0', lineHeight: 1.4 }}>
+                  <p style={{ fontSize: '0.86rem', color: 'var(--text-secondary)', margin: '0 0 14px 0', lineHeight: 1.45 }}>
                     {bill.title}
                   </p>
                 )}
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '22px', fontSize: '0.82rem', color: 'var(--text-muted)', flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '22px', fontSize: '0.78rem', color: 'var(--text-muted)', flexWrap: 'wrap', fontFamily: 'var(--font-mono)' }}>
                   <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <UserIcon size={14} color="var(--text-accent)" /> 
-                    <strong style={{ color: 'var(--text-secondary)', fontWeight: 600 }}>{bill.author}</strong>
+                    <UserIcon size={13} color="var(--text-accent)" /> 
+                    <span style={{ color: 'var(--text-secondary)' }}>{bill.author}</span>
                   </span>
                   <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <Calendar size={14} color="var(--text-muted)" /> 
-                    <strong style={{ color: 'var(--text-muted)', fontWeight: 500 }}>{formatDate(bill.updatedAt)}</strong>
+                    <Calendar size={13} color="var(--text-muted)" /> 
+                    <span>{formatDate(bill.updatedAt)}</span>
                   </span>
                   <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <Layers size={14} color="var(--text-muted)" /> 
-                    Статей: <strong style={{ color: 'var(--text-accent)', fontWeight: 600 }}>{bill.comparisons.length}</strong>
+                    <Layers size={13} color="var(--text-muted)" /> 
+                    Статей: <span style={{ color: 'var(--text-accent)', fontWeight: 600 }}>{bill.comparisons.length}</span>
                   </span>
                 </div>
               </div>
               
               <div style={{ 
-                width: '40px', height: '40px', borderRadius: '50%', 
+                width: '38px', height: '38px', borderRadius: '50%', 
                 background: 'var(--bg-input)', border: '1px solid var(--border-subtle)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 flexShrink: 0,
                 transition: 'all 0.2s ease'
               }}>
-                <ChevronRight size={20} color="var(--text-muted)" />
+                <ChevronRight size={18} color="var(--text-accent)" />
               </div>
             </div>
           ))

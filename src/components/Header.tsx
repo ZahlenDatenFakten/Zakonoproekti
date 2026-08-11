@@ -10,7 +10,8 @@ import {
   ShieldCheck,
   Moon,
   Sun,
-  Database
+  Database,
+  Plus
 } from 'lucide-react';
 
 interface HeaderProps {
@@ -30,6 +31,7 @@ export const Header: React.FC<HeaderProps> = ({
   currentView,
   onNavigate,
   onToggleTheme,
+  onOpenNewBill,
   onOpenSettings,
   onOpenDbConfig
 }) => {
@@ -38,45 +40,53 @@ export const Header: React.FC<HeaderProps> = ({
 
   return (
     <header style={{ 
-      background: 'var(--bg-surface)', 
+      background: 'rgba(18, 21, 30, 0.85)', 
       backdropFilter: 'blur(20px)',
       WebkitBackdropFilter: 'blur(20px)',
       borderBottom: '1px solid var(--border-subtle)',
       position: 'sticky',
       top: 0,
       zIndex: 50,
-      boxShadow: 'var(--shadow-sm)'
+      boxShadow: '0 4px 20px rgba(0, 0, 0, 0.5)'
     }}>
       <div style={{ 
-        maxWidth: '1360px', 
+        maxWidth: '1380px', 
         margin: '0 auto', 
         padding: '12px 24px', 
         display: 'flex', 
         alignItems: 'center', 
-        justifyContent: 'space-between'
+        justifyContent: 'space-between',
+        flexWrap: 'wrap',
+        gap: '14px'
       }}>
         
-        {/* BRAND LOGO */}
+        {/* BRAND / GOVERNMENT TECH SEAL */}
         <div 
           onClick={() => onNavigate('dashboard')} 
           style={{ display: 'flex', alignItems: 'center', gap: '14px', cursor: 'pointer' }}
         >
           <div style={{ 
-            width: '44px', height: '44px', borderRadius: 'var(--radius-md)',
-            background: 'var(--primary-gradient)', 
-            boxShadow: '0 4px 20px var(--primary-glow)',
+            width: '42px', height: '42px', borderRadius: 'var(--radius-md)',
+            background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)', 
+            boxShadow: '0 0 20px rgba(56, 189, 248, 0.35)',
+            border: '1px solid rgba(56, 189, 248, 0.4)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             transition: 'transform 0.25s ease'
           }}>
-            <Shield size={22} color="#ffffff" />
+            <Shield size={20} color="#ffffff" />
           </div>
 
           <div>
-            <h1 style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.01em', lineHeight: 1.2 }}>
-              ГОСУДАРСТВЕННЫЙ РЕЕСТР
-            </h1>
-            <p style={{ fontSize: '0.74rem', color: 'var(--text-accent)', lineHeight: 1.2, marginTop: '2px', fontWeight: 600 }}>
-              Портал законопроектов Штата San Andreas
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <h1 style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '0.04em', lineHeight: 1.2 }}>
+                ГОСУДАРСТВЕННЫЙ РЕЕСТР
+              </h1>
+              <span className="decree-stamp" style={{ padding: '2px 6px', fontSize: '0.65rem' }}>
+                SA GOV TECH
+              </span>
+            </div>
+            <p style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', lineHeight: 1.2, marginTop: '2px', fontFamily: 'var(--font-mono)' }}>
+              Цифровая платформа реформ и законопроектов
             </p>
           </div>
         </div>
@@ -84,27 +94,27 @@ export const Header: React.FC<HeaderProps> = ({
         {/* CENTER NAVIGATION PIPES */}
         <nav style={{ 
           display: 'flex', 
-          gap: '6px', 
+          gap: '4px', 
           background: 'var(--bg-input)', 
-          padding: '5px', 
+          padding: '4px', 
           borderRadius: 'var(--radius-pill)', 
           border: '1px solid var(--border-subtle)',
-          boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.2)'
+          boxShadow: 'inset 0 1px 3px rgba(0, 0, 0, 0.4)'
         }}>
           <button
             onClick={() => onNavigate('dashboard')}
             className="btn btn-pill"
             style={{
-              fontSize: '0.84rem',
+              fontSize: '0.82rem',
               fontWeight: 600,
-              padding: '7px 20px',
+              padding: '7px 18px',
               border: 'none',
               background: currentView === 'dashboard' ? 'var(--primary-gradient)' : 'transparent',
               color: currentView === 'dashboard' ? '#ffffff' : 'var(--text-secondary)',
-              boxShadow: currentView === 'dashboard' ? '0 4px 14px var(--primary-glow)' : 'none'
+              boxShadow: currentView === 'dashboard' ? '0 4px 16px var(--primary-glow)' : 'none'
             }}
           >
-            <LayoutDashboard size={15} /> Реестр
+            <LayoutDashboard size={14} /> Реестр актов
           </button>
 
           {isCommitteeOrAdmin && (
@@ -112,23 +122,31 @@ export const Header: React.FC<HeaderProps> = ({
               onClick={() => onNavigate('admin_workspace')}
               className="btn btn-pill"
               style={{
-                fontSize: '0.84rem',
+                fontSize: '0.82rem',
                 fontWeight: 600,
-                padding: '7px 20px',
+                padding: '7px 18px',
                 border: 'none',
                 background: currentView === 'admin_workspace' ? 'var(--primary-gradient)' : 'transparent',
                 color: currentView === 'admin_workspace' ? '#ffffff' : 'var(--text-secondary)',
-                boxShadow: currentView === 'admin_workspace' ? '0 4px 14px var(--primary-glow)' : 'none'
+                boxShadow: currentView === 'admin_workspace' ? '0 4px 16px var(--primary-glow)' : 'none'
               }}
             >
-              <ShieldCheck size={15} /> Администрация
+              <ShieldCheck size={14} /> Администрация
             </button>
           )}
         </nav>
 
-        {/* RIGHT: CONTROLS & PROFILE */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+        {/* RIGHT: CONTROLS, NEW BILL & USER PROFILE */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           
+          <button 
+            onClick={onOpenNewBill}
+            className="btn btn-primary btn-pill"
+            style={{ padding: '8px 16px', fontSize: '0.82rem' }}
+          >
+            <Plus size={15} /> Внести проект
+          </button>
+
           {/* PROFILE BADGE */}
           <div 
             onClick={onOpenSettings}
@@ -136,7 +154,7 @@ export const Header: React.FC<HeaderProps> = ({
               display: 'flex', 
               alignItems: 'center', 
               gap: '10px', 
-              padding: '6px 14px', 
+              padding: '5px 12px 5px 6px', 
               borderRadius: 'var(--radius-pill)', 
               background: 'var(--bg-surface-elevated)', 
               border: '1px solid var(--border-subtle)',
@@ -145,54 +163,54 @@ export const Header: React.FC<HeaderProps> = ({
             }}
           >
             <div style={{
-              width: '32px', height: '32px', borderRadius: '50%',
+              width: '30px', height: '30px', borderRadius: '50%',
               background: 'var(--primary-gradient)', 
-              boxShadow: '0 2px 8px var(--primary-glow)',
+              boxShadow: '0 0 12px var(--primary-glow)',
               display: 'flex', alignItems: 'center', justifyContent: 'center'
             }}>
-              <User size={16} color="#ffffff" />
+              <User size={15} color="#ffffff" />
             </div>
             <div>
-              <div style={{ fontSize: '0.84rem', fontWeight: 600, color: 'var(--text-primary)', lineHeight: 1.2 }}>
+              <div style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-primary)', lineHeight: 1.2 }}>
                 {user.firstName} {user.lastName}
               </div>
-              <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', lineHeight: 1.2, fontWeight: 500 }}>
+              <div style={{ fontSize: '0.66rem', color: 'var(--text-accent)', lineHeight: 1.2, fontFamily: 'var(--font-mono)', fontWeight: 500 }}>
                 {OFFICIAL_ROLE_LABELS[user.officialRole] || 'Гражданин'}
               </div>
             </div>
           </div>
 
-          <div style={{ width: '1px', height: '24px', background: 'var(--border-subtle)' }} />
+          <div style={{ width: '1px', height: '22px', background: 'var(--border-subtle)' }} />
 
-          {/* ACTION BUTTONS */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          {/* SYSTEM TOOL BUTTONS */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
             {isAdmin && onOpenDbConfig && (
               <button 
                 className="btn btn-ghost" 
                 onClick={onOpenDbConfig} 
-                style={{ padding: '9px', borderRadius: 'var(--radius-pill)' }} 
+                style={{ padding: '8px', borderRadius: 'var(--radius-pill)' }} 
                 title="Облачная база данных"
               >
-                <Database size={18} color="var(--text-accent)" />
+                <Database size={16} color="var(--text-accent)" />
               </button>
             )}
 
             <button 
               onClick={onToggleTheme} 
               className="btn btn-ghost" 
-              style={{ padding: '9px', borderRadius: 'var(--radius-pill)' }} 
-              title="Тема оформления"
+              style={{ padding: '8px', borderRadius: 'var(--radius-pill)' }} 
+              title="Переключить тему"
             >
-              {theme === 'dark' ? <Moon size={18} color="var(--text-accent)" /> : <Sun size={18} color="var(--primary)" />}
+              {theme === 'dark' ? <Moon size={16} color="var(--text-accent)" /> : <Sun size={16} color="var(--primary)" />}
             </button>
 
             <button 
               className="btn btn-ghost" 
               onClick={onOpenSettings} 
-              style={{ padding: '9px', borderRadius: 'var(--radius-pill)' }} 
+              style={{ padding: '8px', borderRadius: 'var(--radius-pill)' }} 
               title="Настройки профиля"
             >
-              <Settings size={18} color="var(--text-secondary)" />
+              <Settings size={16} color="var(--text-secondary)" />
             </button>
           </div>
 

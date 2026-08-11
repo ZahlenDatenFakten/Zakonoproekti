@@ -36,126 +36,127 @@ export const ExpandedArticleModal: React.FC<ExpandedArticleModalProps> = ({
         className="modal-content" 
         onClick={(e) => e.stopPropagation()} 
         style={{ 
-          maxWidth: '1140px', 
+          maxWidth: '1180px', 
           width: '95vw', 
           maxHeight: '92vh', 
           display: 'flex', 
-          flexDirection: 'column',
-          padding: '24px' 
+          flexDirection: 'column'
         }}
       >
         {/* Header */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '14px' }}>
+        <div className="modal-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <Maximize2 size={20} color="var(--text-primary)" />
-            <h3 style={{ fontSize: '1.15rem', fontWeight: 600, color: 'var(--text-primary)' }}>
-              {row.articleTitle || 'Полноэкранный режим чтения и форматирования статьи'}
+            <Maximize2 size={18} color="var(--text-accent)" />
+            <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+              {row.articleTitle || 'Полноэкранный режим чтения и правовой экспертизы статьи'}
             </h3>
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <button
               onClick={() => setShowDiff(!showDiff)}
-              className="btn btn-secondary"
+              className="btn btn-secondary btn-pill"
               style={{
                 fontSize: '0.78rem',
                 padding: '5px 12px',
-                background: showDiff ? 'rgba(52, 211, 153, 0.15)' : 'transparent',
-                borderColor: showDiff ? 'rgba(52, 211, 153, 0.4)' : 'var(--border-subtle)',
-                color: showDiff ? '#34d399' : 'var(--text-secondary)'
+                fontFamily: 'var(--font-mono)',
+                borderColor: showDiff ? 'var(--success-border)' : 'var(--border-subtle)',
+                color: showDiff ? 'var(--success-text)' : 'var(--text-secondary)'
               }}
             >
-              <FileCode size={13} /> {showDiff ? '✨ Подсветка правки (Зачеркивание / Зеленый цвет)' : 'Обычный текст'}
+              <FileCode size={13} /> {showDiff ? '✨ Подсветка правок (Diff Highlight)' : 'Обычный монолитный текст'}
             </button>
 
-            <button onClick={onClose} className="btn btn-secondary" style={{ padding: '6px' }}>
-              <X size={18} />
+            <button onClick={onClose} className="btn btn-ghost" style={{ padding: '6px' }}>
+              <X size={16} />
             </button>
           </div>
         </div>
 
-        {/* Article Title Input if editing */}
-        {canEdit && (
-          <div style={{ marginBottom: '16px' }}>
-            <label style={{ fontSize: '0.82rem', color: 'var(--text-tertiary)', display: 'block', marginBottom: '4px' }}>
-              Наименование статьи / раздела:
-            </label>
-            <input
-              type="text"
-              className="input-field"
-              value={row.articleTitle}
-              onChange={(e) => onUpdateRow(row.id, 'articleTitle', e.target.value)}
-              placeholder="Статья..."
-              style={{ fontWeight: 600 }}
-            />
-          </div>
-        )}
+        <div className="modal-body" style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '16px', overflowY: 'auto' }}>
+          {/* Article Title Input if editing */}
+          {canEdit && (
+            <div>
+              <label className="input-label">
+                Наименование статьи / правовой нормы:
+              </label>
+              <input
+                type="text"
+                className="input-field"
+                value={row.articleTitle}
+                onChange={(e) => onUpdateRow(row.id, 'articleTitle', e.target.value)}
+                placeholder="Статья 1. Наименование статьи..."
+                style={{ fontWeight: 700 }}
+              />
+            </div>
+          )}
 
-        {/* Side-by-Side Large Comparison Workspace */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', flex: 1, minHeight: '380px' }}>
-          
-          {/* WAS Column */}
-          <div style={{ display: 'flex', flexDirection: 'column', background: 'var(--was-bg)', border: '1px solid var(--border-subtle)', borderRadius: '12px', padding: '16px' }}>
-            <h4 style={{ fontSize: '0.85rem', fontWeight: 600, color: '#fca5a5', textTransform: 'uppercase', marginBottom: '10px', letterSpacing: '0.05em' }}>
-              БЫЛО (Старая редакция / Удаляемый текст)
-            </h4>
-            {canEdit ? (
-              <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
-                <textarea
-                  className="textarea-field"
-                  value={row.wasContent}
-                  onChange={(e) => onUpdateRow(row.id, 'wasContent', e.target.value)}
-                  placeholder="Полный текст действующей редакции статьи..."
-                  style={{ flex: 1, fontSize: '0.92rem', lineHeight: 1.6, minHeight: '200px', marginBottom: '10px' }}
-                />
+          {/* Side-by-Side Large Comparison Workspace */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', flex: 1, minHeight: '380px' }}>
+            
+            {/* WAS Column */}
+            <div style={{ display: 'flex', flexDirection: 'column', background: 'var(--bg-input)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)', padding: '16px' }}>
+              <h4 className="tech-label" style={{ color: 'var(--danger-text)', marginBottom: '10px' }}>
+                БЫЛО (Оригинальная действующая статья)
+              </h4>
+              {canEdit ? (
+                <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
+                  <textarea
+                    className="textarea-field"
+                    value={row.wasContent}
+                    onChange={(e) => onUpdateRow(row.id, 'wasContent', e.target.value)}
+                    placeholder="Полный текст действующей статьи..."
+                    style={{ flex: 1, fontSize: '0.9rem', lineHeight: 1.6, minHeight: '200px', marginBottom: '10px' }}
+                  />
 
-                {showDiff && (
-                  <div style={{ background: 'var(--bg-card)', padding: '12px', borderRadius: '8px', border: '1px solid var(--border-subtle)', fontSize: '0.88rem', lineHeight: 1.6 }}>
-                    <span style={{ fontSize: '0.72rem', color: 'var(--text-tertiary)', display: 'block', marginBottom: '4px' }}>Предпросмотр вычеркиваний:</span>
-                    {diff.wasFormatted}
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div style={{ flex: 1, overflowY: 'auto', whiteSpace: 'pre-wrap', lineHeight: 1.6, fontSize: '0.94rem' }}>
-                {showDiff ? diff.wasFormatted : row.wasContent || '—'}
-              </div>
-            )}
-          </div>
+                  {showDiff && (
+                    <div style={{ background: 'var(--bg-surface)', padding: '12px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)', fontSize: '0.86rem', lineHeight: 1.6 }}>
+                      <span className="tech-label" style={{ display: 'block', marginBottom: '4px', fontSize: '0.68rem' }}>Вычеркивание правок:</span>
+                      {diff.wasFormatted}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div style={{ flex: 1, overflowY: 'auto', whiteSpace: 'pre-wrap', lineHeight: 1.6, fontSize: '0.9rem' }}>
+                  {showDiff ? diff.wasFormatted : row.wasContent || '—'}
+                </div>
+              )}
+            </div>
 
-          {/* BECAME Column */}
-          <div style={{ display: 'flex', flexDirection: 'column', background: 'var(--became-bg)', border: '1px solid var(--border-subtle)', borderRadius: '12px', padding: '16px' }}>
-            <h4 style={{ fontSize: '0.85rem', fontWeight: 600, color: '#6ee7b7', textTransform: 'uppercase', marginBottom: '10px', letterSpacing: '0.05em' }}>
-              СТАЛО (Новая редакция / Зеленое выделение правок)
-            </h4>
-            {canEdit ? (
-              <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
-                <textarea
-                  className="textarea-field"
-                  value={row.becameContent}
-                  onChange={(e) => onUpdateRow(row.id, 'becameContent', e.target.value)}
-                  placeholder="Полный текст новой редакции со всеми изменениями..."
-                  style={{ flex: 1, fontSize: '0.92rem', lineHeight: 1.6, minHeight: '200px', marginBottom: '10px' }}
-                />
+            {/* BECAME Column */}
+            <div style={{ display: 'flex', flexDirection: 'column', background: 'var(--bg-input)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)', padding: '16px' }}>
+              <h4 className="tech-label" style={{ color: 'var(--success-text)', marginBottom: '10px' }}>
+                СТАЛО (Предлагаемая новая редакция)
+              </h4>
+              {canEdit ? (
+                <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
+                  <textarea
+                    className="textarea-field"
+                    value={row.becameContent}
+                    onChange={(e) => onUpdateRow(row.id, 'becameContent', e.target.value)}
+                    placeholder="Полный текст проектируемой статьи..."
+                    style={{ flex: 1, fontSize: '0.9rem', lineHeight: 1.6, minHeight: '200px', marginBottom: '10px' }}
+                  />
 
-                {showDiff && (
-                  <div style={{ background: 'var(--bg-card)', padding: '12px', borderRadius: '8px', border: '1px solid var(--border-subtle)', fontSize: '0.88rem', lineHeight: 1.6 }}>
-                    <span style={{ fontSize: '0.72rem', color: 'var(--text-tertiary)', display: 'block', marginBottom: '4px' }}>Предпросмотр добавлений (Зеленый цвет):</span>
-                    {diff.becameFormatted}
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div style={{ flex: 1, overflowY: 'auto', whiteSpace: 'pre-wrap', lineHeight: 1.6, fontSize: '0.94rem' }}>
-                {showDiff ? diff.becameFormatted : row.becameContent || '—'}
-              </div>
-            )}
+                  {showDiff && (
+                    <div style={{ background: 'var(--bg-surface)', padding: '12px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)', fontSize: '0.86rem', lineHeight: 1.6 }}>
+                      <span className="tech-label" style={{ display: 'block', marginBottom: '4px', fontSize: '0.68rem' }}>Добавление правок (Зеленый шрифт):</span>
+                      {diff.becameFormatted}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div style={{ flex: 1, overflowY: 'auto', whiteSpace: 'pre-wrap', lineHeight: 1.6, fontSize: '0.9rem' }}>
+                  {showDiff ? diff.becameFormatted : row.becameContent || '—'}
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
         {/* Footer */}
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '16px', paddingTop: '12px', borderTop: '1px solid var(--border-subtle)' }}>
-          <button onClick={onClose} className="btn btn-primary">
+        <div className="modal-footer">
+          <button onClick={onClose} className="btn btn-primary btn-pill" style={{ fontSize: '0.84rem' }}>
             Готово
           </button>
         </div>

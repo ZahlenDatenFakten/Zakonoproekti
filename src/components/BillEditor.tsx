@@ -11,7 +11,6 @@ import {
   Trash2, 
   CheckCircle2, 
   XCircle, 
-  Clock, 
   RotateCcw,
   Maximize2,
   Send,
@@ -118,34 +117,33 @@ export const BillEditor: React.FC<BillEditorProps> = ({
     if (!canEdit) return;
     const updated = bill.comparisons.filter((row) => row.id !== id);
     handleFieldChange('comparisons', updated);
-    onToast('info', 'Статья удалена');
+    onToast('info', 'Статья удалена из реестра проекта');
   };
 
   const handleLocalSave = async () => {
     await onSave(bill);
     setIsSavedNotice(true);
     setTimeout(() => setIsSavedNotice(false), 3000);
-    onToast('success', 'Законопроект сохранен');
+    onToast('success', 'Законопроект сохранен в реестре');
   };
 
   const handlePublish = async () => {
     const updated = { ...bill, status: 'under_review' as BillStatus };
     setBill(updated);
     await onSave(updated);
-    onToast('success', 'Законопроект отправлен на первый этап — Голосование Комиссии');
+    onToast('success', 'Законопроект отправлен на 1-й этап: Голосование Законодательной Комиссии');
   };
 
   const votes = bill.votes || {};
   const approvedVotesCount = [votes.prosecutor, votes.judge, votes.governor].filter((v) => v === 'approved').length;
   const rejectedVotesCount = [votes.prosecutor, votes.judge, votes.governor].filter((v) => v === 'rejected').length;
 
-  // Rule: 2/1 or 3/3 wins Stage 1!
   const isStage1Passed = approvedVotesCount >= 2;
   const isStage1Rejected = rejectedVotesCount >= 2;
 
   const handleCastVote = async (decision: VoteDecision) => {
     if (!isOfficial) {
-      onToast('error', 'Голосование доступно только верифицированным членам Комиссии.');
+      onToast('error', 'Голосование доступно только верифицированным членам Законодательной Комиссии.');
       return;
     }
 
@@ -184,7 +182,7 @@ export const BillEditor: React.FC<BillEditorProps> = ({
 
     setBill(updatedBill);
     await onSave(updatedBill);
-    onToast('success', `Ваш голос (${decision === 'approved' ? 'За' : decision === 'rejected' ? 'Против' : 'На доработку'}) записан!`);
+    onToast('success', `Ваш голос (${decision === 'approved' ? 'За' : decision === 'rejected' ? 'Против' : 'На доработку'}) записан в реестр!`);
   };
 
   // --- STAGE 2: ADMIN VERDICT LOGIC ---
@@ -210,7 +208,7 @@ export const BillEditor: React.FC<BillEditorProps> = ({
 
     let officialStatusReason = '';
     if (decision === 'approved') {
-      officialStatusReason = 'Официально утвержден Федеральным Правительством.';
+      officialStatusReason = 'Официально утвержден Федеральным Правительством и вступил в силу.';
     } else if (decision === 'rejected') {
       officialStatusReason = 'Отклонен Федеральным Правительством на 2-м этапе.';
     } else {
@@ -227,25 +225,48 @@ export const BillEditor: React.FC<BillEditorProps> = ({
     setBill(updated);
     await onSave(updated);
     setAdminVerdictReason('');
-    onToast('success', `Финальный вердикт вынесен: ${decision === 'approved' ? 'ОДОБРЕНО' : decision === 'rejected' ? 'ОТКЛОНЕНО' : 'НА ДОРАБОТКУ'}`);
+    onToast('success', `Финальный вердикт вынесен: ${decision === 'approved' ? 'УТВЕРЖДЕНО' : decision === 'rejected' ? 'ОТКЛОНЕНО' : 'НА ДОРАБОТКУ'}`);
   };
 
   const getStatusBadge = (status: BillStatus) => {
-    const map: Record<BillStatus, { label: string; cls: string; icon: any }> = {
-      draft: { label: 'Черновик', cls: 'badge-status-draft', icon: Clock },
-      under_review: { label: isStage1Passed ? '2-й Этап (Администрация)' : '1-й Этап (Комиссия)', cls: 'badge-status-review', icon: Clock },
-      needs_revision: { label: 'На доработке', cls: 'badge-status-revision', icon: RotateCcw },
-      approved: { label: 'Закон Одобрен', cls: 'badge-status-approved', icon: CheckCircle2 },
-      rejected: { label: 'Отклонен', cls: 'badge-status-rejected', icon: XCircle }
-    };
-    const mapped = map[status] || map.draft;
-    const Icon = mapped.icon;
-    
-    return (
-      <div className={`badge ${mapped.cls}`}>
-        <Icon size={14} /> {mapped.label}
-      </div>
-    );
+    switch (status) {
+      case 'approved':
+        return (
+          <span className="badge badge-status-approved">
+            <span className="status-dot status-dot-active" /> Вступил в силу
+          </span>
+        );
+      case 'rejected':
+        return (
+          <span className="badge badge-status-rejected">
+            <span className="status-dot status-dot-danger" /> Отклонен
+          </span>
+        );
+      case 'needs_revision':
+        return (
+          <span className="badge badge-status-revision">
+            <span className="status-dot status-dot-info" /> Реформирование
+          </span>
+        );
+      case 'under_review':
+        return (
+          <span className="badge badge-status-review">
+            <span className="status-dot status-dot-review" /> {isStage1Passed ? '2-й Этап (Администрация)' : '1-й Этап (Комиссия)'}
+          </span>
+        );
+      case 'draft':
+      default:
+        return (
+          <span className="badge badge-status-draft">
+            <span className="status-dot status-dot-draft" /> Черновик
+          </span>
+        );
+    }
+  };
+
+  const formatDecreeNumber = (id: string) => {
+    const numericId = id.replace(/\D/g, '').slice(-4) || '0042';
+    return `АКТ № SA-${numericId}`;
   };
 
   const isReadOnly = bill.status === 'approved' || bill.status === 'rejected';
@@ -253,10 +274,10 @@ export const BillEditor: React.FC<BillEditorProps> = ({
   return (
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', background: 'var(--bg-base)' }}>
       
-      {/* EXECUTIVE TOP TOOLBAR */}
+      {/* HIGH-TECH TOP TOOLBAR */}
       <div style={{ 
         height: '64px', 
-        background: 'var(--bg-surface)', 
+        background: 'rgba(18, 21, 30, 0.9)', 
         backdropFilter: 'blur(20px)',
         borderBottom: '1px solid var(--border-subtle)',
         display: 'flex',
@@ -266,16 +287,19 @@ export const BillEditor: React.FC<BillEditorProps> = ({
         position: 'sticky',
         top: 0,
         zIndex: 100,
-        boxShadow: 'var(--shadow-sm)'
+        boxShadow: '0 4px 20px rgba(0, 0, 0, 0.4)'
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '18px' }}>
-          <button onClick={onBack} className="btn btn-secondary btn-pill" style={{ padding: '8px 16px', fontSize: '0.84rem' }}>
-            <ArrowLeft size={16} /> На главную
+          <button onClick={onBack} className="btn btn-secondary btn-pill" style={{ padding: '7px 16px', fontSize: '0.82rem' }}>
+            <ArrowLeft size={15} /> В реестр
           </button>
           
           <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-            <h2 style={{ fontSize: '1.15rem', margin: 0, color: 'var(--text-primary)', fontWeight: 800, letterSpacing: '-0.01em' }}>
-              {bill.targetLaw || 'Редактор законопроекта'}
+            <span className="decree-stamp">
+              {formatDecreeNumber(bill.id)}
+            </span>
+            <h2 style={{ fontSize: '1.1rem', margin: 0, color: 'var(--text-primary)', fontWeight: 800, letterSpacing: '-0.01em' }}>
+              {bill.targetLaw || 'Редактор нормативного акта'}
             </h2>
             {getStatusBadge(bill.status)}
           </div>
@@ -283,100 +307,102 @@ export const BillEditor: React.FC<BillEditorProps> = ({
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           {isSavedNotice && (
-            <span style={{ fontSize: '0.85rem', color: 'var(--success-text)', display: 'flex', alignItems: 'center', gap: '6px', marginRight: '8px', fontWeight: 600 }}>
-              <CheckCircle2 size={16} /> Сохранено
+            <span style={{ fontSize: '0.82rem', color: 'var(--success-text)', display: 'flex', alignItems: 'center', gap: '6px', marginRight: '8px', fontFamily: 'var(--font-mono)', fontWeight: 600 }}>
+              <CheckCircle2 size={15} /> Синхронизировано
             </span>
           )}
           
-          <button onClick={() => onShare(bill)} className="btn btn-secondary btn-pill" style={{ padding: '8px 18px', fontSize: '0.84rem' }}>
-            <Share2 size={15} /> Поделиться
+          <button onClick={() => onShare(bill)} className="btn btn-secondary btn-pill" style={{ padding: '7px 16px', fontSize: '0.82rem' }}>
+            <Share2 size={14} /> Ссылка доступа
           </button>
 
           {canEdit && !isReadOnly && (
-            <button onClick={handleLocalSave} className="btn btn-primary btn-pill" style={{ padding: '8px 22px', fontSize: '0.86rem' }}>
-              <Save size={16} /> Сохранить
+            <button onClick={handleLocalSave} className="btn btn-primary btn-pill" style={{ padding: '7px 20px', fontSize: '0.84rem' }}>
+              <Save size={15} /> Сохранить
             </button>
           )}
         </div>
       </div>
 
       {/* MAIN WORKSPACE GRID LAYOUT */}
-      <div style={{ flex: 1, maxWidth: '1360px', width: '100%', margin: '0 auto', padding: '32px 32px 60px', display: 'flex', gap: '28px', flexWrap: 'wrap' }}>
+      <div style={{ flex: 1, maxWidth: '1380px', width: '100%', margin: '0 auto', padding: '32px 32px 60px', display: 'flex', gap: '28px', flexWrap: 'wrap' }}>
         
-        {/* LEFT PRIMARY COLUMN (68%) */}
-        <div style={{ flex: '1 1 650px', minWidth: 0, display: 'flex', flexDirection: 'column', gap: '28px' }}>
+        {/* LEFT PRIMARY DOCUMENT COLUMN */}
+        <div style={{ flex: '1 1 680px', minWidth: 0, display: 'flex', flexDirection: 'column', gap: '28px' }}>
           
           {/* LAW METADATA CARD */}
           <div className="card" style={{ padding: '28px' }}>
             <div style={{ marginBottom: '20px' }}>
-              <label className="input-label">Изменяемый Закон / Нормативно-Правовой Акт</label>
+              <label className="input-label">Наименование целевого Закона / Нормативного Акта</label>
               <input 
                 type="text" 
                 value={bill.targetLaw}
                 onChange={(e) => handleFieldChange('targetLaw', e.target.value)}
                 disabled={!canEdit || isReadOnly}
                 className="input-field"
-                style={{ width: '100%', fontSize: '1.1rem', fontWeight: 700 }}
-                placeholder="Например: Уголовный кодекс Штата (УК)"
+                style={{ width: '100%', fontSize: '1.1rem', fontWeight: 700, fontFamily: 'var(--font-sans)' }}
+                placeholder="Например: Уголовный кодекс Штата SA (УК)"
               />
             </div>
 
             <div>
-              <label className="input-label">Пояснительная записка (Обоснование и цели поправок)</label>
+              <label className="input-label">Пояснительная записка к законопроекту</label>
               <textarea 
                 value={bill.explanatoryNote}
                 onChange={(e) => handleFieldChange('explanatoryNote', e.target.value)}
                 disabled={!canEdit || isReadOnly}
                 className="input-field"
                 style={{ width: '100%', minHeight: '95px', resize: 'vertical', lineHeight: 1.6 }}
-                placeholder="Опишите цели, необходимость и практический смысл вносимых поправок..."
+                placeholder="Официальное обоснование необходимости и правовых последствий поправок..."
               />
             </div>
           </div>
 
-          {/* ARTICLES HEADER */}
+          {/* ARTICLES HEADER BAR */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div>
-              <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-                Статьи к изменению ({bill.comparisons.length})
+              <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                Реестр статей к изменению ({bill.comparisons.length})
               </h3>
-              <p style={{ margin: '3px 0 0 0', fontSize: '0.84rem', color: 'var(--text-muted)' }}>
-                Укажите текущую редакцию слева и предлагаемую формулировку справа
+              <p style={{ margin: '2px 0 0 0', fontSize: '0.82rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+                Параллельное сопоставление действующих и проектируемых норм
               </p>
             </div>
 
             {canEdit && !isReadOnly && (
-              <button onClick={addComparisonRow} className="btn btn-primary btn-pill" style={{ fontSize: '0.86rem', padding: '9px 22px' }}>
-                <Plus size={16} /> Добавить статью
+              <button onClick={addComparisonRow} className="btn btn-primary btn-pill" style={{ fontSize: '0.84rem', padding: '8px 20px' }}>
+                <Plus size={15} /> Добавить статью
               </button>
             )}
           </div>
 
           {/* COMPARISON CARDS LIST */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '22px' }}>
             {bill.comparisons.map((row, index) => (
               <div key={row.id} className="card" style={{ padding: '0', overflow: 'hidden', border: '1px solid var(--border-medium)' }}>
                 
-                {/* CARD HEADER BAR */}
+                {/* ARTICLE HEADER CONTROL BAR */}
                 <div style={{ 
                   background: 'var(--bg-surface-elevated)', 
-                  padding: '14px 24px', 
+                  padding: '12px 24px', 
                   borderBottom: '1px solid var(--border-subtle)', 
                   display: 'flex', 
                   alignItems: 'center', 
                   justifyContent: 'space-between',
                   gap: '16px'
                 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flex: 1 }}>
-                    <span style={{ fontSize: '0.9rem', color: 'var(--text-accent)', fontWeight: 800 }}>#{index + 1}</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1 }}>
+                    <span style={{ fontSize: '0.85rem', color: 'var(--text-accent)', fontWeight: 800, fontFamily: 'var(--font-mono)' }}>
+                      §{index + 1}
+                    </span>
                     <input 
                       type="text" 
                       value={row.articleTitle}
                       onChange={(e) => updateComparisonRow(row.id, 'articleTitle', e.target.value)}
                       disabled={!canEdit || isReadOnly}
                       className="input-field"
-                      style={{ width: '360px', padding: '8px 16px', fontWeight: 600, fontSize: '0.92rem' }}
-                      placeholder="Например: Статья 1. Общие положения"
+                      style={{ width: '380px', padding: '7px 14px', fontWeight: 600, fontSize: '0.9rem' }}
+                      placeholder="Статья 1. Наименование статьи..."
                     />
                   </div>
                   
@@ -385,20 +411,20 @@ export const BillEditor: React.FC<BillEditorProps> = ({
                       <button 
                         onClick={() => copyWasToBecame(row.id)}
                         className="btn btn-secondary"
-                        style={{ padding: '6px 12px', fontSize: '0.78rem' }}
-                        title="Скопировать текст оригинала в редактируемое поле"
+                        style={{ padding: '6px 12px', fontSize: '0.76rem', fontFamily: 'var(--font-mono)' }}
+                        title="Скопировать оригинальный текст в проектируемый"
                       >
-                        <Copy size={13} /> Скопировать оригинал
+                        <Copy size={13} /> Копировать оригинал
                       </button>
                     )}
 
                     <button 
                       onClick={() => setExpandedRow(row)}
                       className="btn btn-secondary"
-                      style={{ padding: '6px 12px', fontSize: '0.78rem' }}
-                      title="Развернуть на весь экран"
+                      style={{ padding: '6px 12px', fontSize: '0.76rem', fontFamily: 'var(--font-mono)' }}
+                      title="Развернуть в полноэкранный режим"
                     >
-                      <Maximize2 size={13} /> На весь экран
+                      <Maximize2 size={13} /> Просмотр
                     </button>
 
                     {canEdit && !isReadOnly && bill.comparisons.length > 1 && (
@@ -408,28 +434,29 @@ export const BillEditor: React.FC<BillEditorProps> = ({
                         style={{ padding: '6px', color: 'var(--danger-text)' }}
                         title="Удалить статью"
                       >
-                        <Trash2 size={16} />
+                        <Trash2 size={15} />
                       </button>
                     )}
                   </div>
                 </div>
 
-                {/* SIDE-BY-SIDE EDITOR COLUMNS */}
+                {/* SIDE-BY-SIDE DIFF COLUMNS */}
                 <div style={{ display: 'flex', width: '100%', minHeight: '220px', flexWrap: 'wrap' }}>
                   
                   {/* LEFT: ORIGINAL TEXT */}
                   <div style={{ flex: '1 1 300px', borderRight: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column' }}>
                     <div style={{ 
-                      padding: '9px 24px', 
-                      background: 'rgba(239, 68, 68, 0.08)', 
+                      padding: '8px 24px', 
+                      background: 'rgba(248, 81, 73, 0.08)', 
                       color: 'var(--danger-text)', 
-                      fontSize: '0.74rem', 
+                      fontSize: '0.7rem', 
                       fontWeight: 700, 
                       textTransform: 'uppercase', 
-                      letterSpacing: '0.05em', 
+                      letterSpacing: '0.08em', 
+                      fontFamily: 'var(--font-mono)',
                       borderBottom: '1px solid var(--border-subtle)' 
                     }}>
-                      Действующая редакция (Оригинал / Было)
+                      Действующая редакция (Оригинал)
                     </div>
                     <textarea 
                       value={row.wasContent}
@@ -440,30 +467,31 @@ export const BillEditor: React.FC<BillEditorProps> = ({
                         border: 'none', 
                         background: 'transparent', 
                         color: 'var(--text-primary)', 
-                        padding: '18px 24px', 
+                        padding: '16px 24px', 
                         resize: 'vertical', 
                         outline: 'none', 
                         fontFamily: 'var(--font-sans)', 
-                        fontSize: '0.92rem', 
+                        fontSize: '0.9rem', 
                         lineHeight: 1.6 
                       }}
-                      placeholder="Вставьте текущую редакцию статьи..."
+                      placeholder="Текст действующей статьи..."
                     />
                   </div>
 
-                  {/* RIGHT: PROPOSED NEW TEXT */}
+                  {/* RIGHT: PROPOSED REFORM TEXT */}
                   <div style={{ flex: '1 1 300px', display: 'flex', flexDirection: 'column' }}>
                     <div style={{ 
-                      padding: '9px 24px', 
-                      background: 'rgba(16, 185, 129, 0.08)', 
+                      padding: '8px 24px', 
+                      background: 'rgba(63, 185, 80, 0.08)', 
                       color: 'var(--success-text)', 
-                      fontSize: '0.74rem', 
+                      fontSize: '0.7rem', 
                       fontWeight: 700, 
                       textTransform: 'uppercase', 
-                      letterSpacing: '0.05em', 
+                      letterSpacing: '0.08em', 
+                      fontFamily: 'var(--font-mono)',
                       borderBottom: '1px solid var(--border-subtle)' 
                     }}>
-                      Проектируемая редакция (Поправки / Стало)
+                      Проектируемая редакция (Поправки)
                     </div>
                     <textarea 
                       value={row.becameContent}
@@ -474,14 +502,14 @@ export const BillEditor: React.FC<BillEditorProps> = ({
                         border: 'none', 
                         background: 'transparent', 
                         color: 'var(--text-primary)', 
-                        padding: '18px 24px', 
+                        padding: '16px 24px', 
                         resize: 'vertical', 
                         outline: 'none', 
                         fontFamily: 'var(--font-sans)', 
-                        fontSize: '0.92rem', 
+                        fontSize: '0.9rem', 
                         lineHeight: 1.6 
                       }}
-                      placeholder="Внесите предлагаемые поправки..."
+                      placeholder="Предлагаемая формулировка статьи..."
                     />
                   </div>
 
@@ -492,25 +520,25 @@ export const BillEditor: React.FC<BillEditorProps> = ({
 
         </div>
 
-        {/* RIGHT SIDEBAR COLUMN (32%) */}
+        {/* RIGHT SIDEBAR COLUMN */}
         <div style={{ flex: '0 0 360px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
           
-          {/* AUTHOR CARD */}
+          {/* INITIATOR / AUTHOR CARD */}
           <div className="card" style={{ padding: '20px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '14px' }}>
               <div style={{
                 width: '40px', height: '40px', borderRadius: '50%',
                 background: 'var(--primary-gradient)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                boxShadow: '0 2px 10px var(--primary-glow)'
+                boxShadow: '0 0 16px var(--primary-glow)'
               }}>
-                <UserCheck size={20} color="#ffffff" />
+                <UserCheck size={18} color="#ffffff" />
               </div>
               <div>
-                <div style={{ fontSize: '0.95rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                <div style={{ fontSize: '0.92rem', fontWeight: 800, color: 'var(--text-primary)' }}>
                   {bill.author}
                 </div>
-                <div style={{ fontSize: '0.76rem', color: 'var(--text-accent)', fontWeight: 600 }}>
+                <div style={{ fontSize: '0.74rem', color: 'var(--text-accent)', fontFamily: 'var(--font-mono)', fontWeight: 600 }}>
                   {bill.authorRole}
                 </div>
               </div>
@@ -520,123 +548,123 @@ export const BillEditor: React.FC<BillEditorProps> = ({
               <button 
                 onClick={handlePublish}
                 className="btn btn-primary btn-pill" 
-                style={{ width: '100%', padding: '10px', fontSize: '0.88rem', marginTop: '6px' }}
+                style={{ width: '100%', padding: '10px', fontSize: '0.86rem', marginTop: '4px' }}
               >
-                <Send size={16} /> Опубликовать проект
+                <Send size={15} /> Опубликовать на рассмотрение
               </button>
             )}
           </div>
 
-          {/* STAGE 1: LEGISLATIVE COMMITTEE VOTING WIDGET */}
+          {/* STAGE 1: LEGISLATIVE COMMISSION VOTING WIDGET */}
           <div className="card" style={{ padding: '20px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '14px', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '10px' }}>
-              <ShieldCheck size={20} color="var(--text-accent)" />
+              <ShieldCheck size={18} color="var(--text-accent)" />
               <div>
-                <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-                  1-й Этап: Законодательная Комиссия
+                <h4 style={{ margin: 0, fontSize: '0.92rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                  1-й Этап: Комиссия Штата
                 </h4>
-                <p style={{ margin: 0, fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                  Победа определяется большинством (2/1 или 3/3)
+                <p style={{ margin: 0, fontSize: '0.7rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+                  Голосование руководства (кворум 2/3)
                 </p>
               </div>
             </div>
 
-            {/* COMMITTEE MEMBERS VOTES SUMMARY */}
+            {/* COMMITTEE VOTES LIST */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '16px' }}>
               {[
-                { roleKey: 'prosecutor', title: 'Генеральный прокурор', vote: votes.prosecutor },
-                { roleKey: 'judge', title: 'Председатель Верх. Суда', vote: votes.judge },
+                { roleKey: 'prosecutor', title: 'Ген. Прокурор', vote: votes.prosecutor },
+                { roleKey: 'judge', title: 'Пред. Верх. Суда', vote: votes.judge },
                 { roleKey: 'governor', title: 'Губернатор Штата', vote: votes.governor }
               ].map((item) => (
                 <div key={item.roleKey} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: 'var(--bg-input)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)' }}>
-                  <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                  <span style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
                     {item.title}
                   </span>
                   {item.vote === 'approved' ? (
-                    <span style={{ fontSize: '0.74rem', color: 'var(--success-text)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <span style={{ fontSize: '0.72rem', color: 'var(--success-text)', fontFamily: 'var(--font-mono)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
                       <Check size={12} /> За
                     </span>
                   ) : item.vote === 'rejected' ? (
-                    <span style={{ fontSize: '0.74rem', color: 'var(--danger-text)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <span style={{ fontSize: '0.72rem', color: 'var(--danger-text)', fontFamily: 'var(--font-mono)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
                       <X size={12} /> Против
                     </span>
                   ) : item.vote === 'needs_revision' ? (
-                    <span style={{ fontSize: '0.74rem', color: 'var(--warning-text)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <span style={{ fontSize: '0.72rem', color: 'var(--warning-text)', fontFamily: 'var(--font-mono)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
                       <RotateCcw size={12} /> Доработка
                     </span>
                   ) : (
-                    <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>Ожидает</span>
+                    <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>Ожидает</span>
                   )}
                 </div>
               ))}
             </div>
 
-            {/* VOTING COUNT BAR */}
+            {/* VOTING SUMMARY CHIP */}
             <div style={{ background: 'var(--bg-input)', padding: '10px 14px', borderRadius: 'var(--radius-sm)', marginBottom: '16px', border: '1px solid var(--border-subtle)', textAlign: 'center' }}>
-              <div style={{ fontSize: '0.82rem', fontWeight: 700, color: isStage1Passed ? 'var(--success-text)' : isStage1Rejected ? 'var(--danger-text)' : 'var(--text-primary)' }}>
+              <div style={{ fontSize: '0.78rem', fontFamily: 'var(--font-mono)', fontWeight: 700, color: isStage1Passed ? 'var(--success-text)' : isStage1Rejected ? 'var(--danger-text)' : 'var(--text-primary)' }}>
                 {isStage1Passed 
-                  ? `ОДОБРЕНО КОМИССИЕЙ (${approvedVotesCount}/3) — Перешел на 2-й этап!` 
+                  ? `ОДОБРЕНО КОМИССИЕЙ (${approvedVotesCount}/3) — 2-й этап!` 
                   : isStage1Rejected 
                   ? `ОТКЛОНЕНО КОМИССИЕЙ (${rejectedVotesCount}/3)`
-                  : `Итог голосования: ${approvedVotesCount} За / ${rejectedVotesCount} Против`}
+                  : `Итог: ${approvedVotesCount} За / ${rejectedVotesCount} Против`}
               </div>
             </div>
 
-            {/* VOTING BUTTONS FOR COMMITTEE MEMBERS */}
+            {/* VOTING BUTTONS FOR OFFICIALS */}
             {bill.status === 'under_review' && !isStage1Passed && !isStage1Rejected && (
               <div>
                 <label className="input-label" style={{ marginBottom: '8px' }}>Ваше решение Комиссии:</label>
-                <div style={{ display: 'flex', gap: '8px' }}>
+                <div style={{ display: 'flex', gap: '6px' }}>
                   <button 
                     onClick={() => handleCastVote('approved')}
                     className="btn btn-pill" 
-                    style={{ flex: 1, padding: '7px 8px', fontSize: '0.78rem', background: 'var(--success-bg)', color: 'var(--success-text)', borderColor: 'var(--success-border)' }}
+                    style={{ flex: 1, padding: '7px 6px', fontSize: '0.76rem', background: 'var(--success-bg)', color: 'var(--success-text)', borderColor: 'var(--success-border)' }}
                   >
-                    <Check size={14} /> Одобрить
+                    <Check size={13} /> За
                   </button>
                   <button 
                     onClick={() => handleCastVote('needs_revision')}
                     className="btn btn-pill" 
-                    style={{ flex: 1, padding: '7px 8px', fontSize: '0.78rem', background: 'var(--warning-bg)', color: 'var(--warning-text)', borderColor: 'var(--warning-border)' }}
+                    style={{ flex: 1, padding: '7px 6px', fontSize: '0.76rem', background: 'var(--warning-bg)', color: 'var(--warning-text)', borderColor: 'var(--warning-border)' }}
                   >
-                    <RotateCcw size={14} /> Доработка
+                    <RotateCcw size={13} /> Правки
                   </button>
                   <button 
                     onClick={() => handleCastVote('rejected')}
                     className="btn btn-pill" 
-                    style={{ flex: 1, padding: '7px 8px', fontSize: '0.78rem', background: 'var(--danger-bg)', color: 'var(--danger-text)', borderColor: 'var(--danger-border)' }}
+                    style={{ flex: 1, padding: '7px 6px', fontSize: '0.76rem', background: 'var(--danger-bg)', color: 'var(--danger-text)', borderColor: 'var(--danger-border)' }}
                   >
-                    <X size={14} /> Отклонить
+                    <X size={13} /> Против
                   </button>
                 </div>
               </div>
             )}
           </div>
 
-          {/* STAGE 2: FEDERAL GOVERNMENT ADMIN VERDICT WIDGET */}
+          {/* STAGE 2: ADMIN VERDICT WIDGET */}
           <div className="card" style={{ padding: '20px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '14px', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '10px' }}>
-              <Crown size={20} color="var(--primary-hover)" />
+              <Crown size={18} color="var(--primary)" />
               <div>
-                <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-                  2-й Этап: Администрация Штата
+                <h4 style={{ margin: 0, fontSize: '0.92rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                  2-й Этап: Вердикт Администрации
                 </h4>
-                <p style={{ margin: 0, fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                  Финальный вердикт Федерального Правительства
+                <p style={{ margin: 0, fontSize: '0.7rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+                  Утверждение Федеральным Правительством
                 </p>
               </div>
             </div>
 
             {bill.federalVerdict ? (
               <div style={{ padding: '14px', background: 'var(--bg-input)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)' }}>
-                <div style={{ fontSize: '0.84rem', fontWeight: 800, color: bill.federalVerdict.status === 'approved' ? 'var(--success-text)' : 'var(--danger-text)', marginBottom: '4px' }}>
+                <div style={{ fontSize: '0.82rem', fontFamily: 'var(--font-mono)', fontWeight: 800, color: bill.federalVerdict.status === 'approved' ? 'var(--success-text)' : 'var(--danger-text)', marginBottom: '4px' }}>
                   {bill.federalVerdict.status === 'approved' ? 'ОФИЦИАЛЬНО УТВЕРЖДЕНО' : 'ОТКЛОНЕНО АДМИНИСТРАЦИЕЙ'}
                 </div>
-                <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: 1.4 }}>
+                <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: 1.45 }}>
                   {bill.federalVerdict.reason}
                 </div>
-                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '8px' }}>
-                  Вынес: {bill.federalVerdict.adminName}
+                <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: '8px', fontFamily: 'var(--font-mono)' }}>
+                  Администратор: {bill.federalVerdict.adminName}
                 </div>
               </div>
             ) : isAdmin && (isStage1Passed || bill.status === 'under_review') ? (
@@ -646,49 +674,49 @@ export const BillEditor: React.FC<BillEditorProps> = ({
                   value={adminVerdictReason}
                   onChange={(e) => setAdminVerdictReason(e.target.value)}
                   className="input-field"
-                  style={{ width: '100%', minHeight: '80px', fontSize: '0.84rem', resize: 'vertical' }}
-                  placeholder="Введите решение и примечания Федерального Правительства..."
+                  style={{ width: '100%', minHeight: '80px', fontSize: '0.82rem', resize: 'vertical' }}
+                  placeholder="Официальное заключение Администрации..."
                 />
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   <button 
                     onClick={() => handleExecuteAdminVerdict('approved')}
                     className="btn btn-primary btn-pill"
-                    style={{ width: '100%', padding: '9px', fontSize: '0.84rem' }}
+                    style={{ width: '100%', padding: '9px', fontSize: '0.82rem' }}
                   >
-                    <CheckCircle2 size={16} /> Окончательно утвердить закон
+                    <CheckCircle2 size={15} /> Утвердить законом
                   </button>
-                  <div style={{ display: 'flex', gap: '8px' }}>
+                  <div style={{ display: 'flex', gap: '6px' }}>
                     <button 
                       onClick={() => handleExecuteAdminVerdict('needs_revision')}
                       className="btn btn-secondary btn-pill"
-                      style={{ flex: 1, padding: '8px', fontSize: '0.78rem' }}
+                      style={{ flex: 1, padding: '7px', fontSize: '0.76rem' }}
                     >
-                      <RotateCcw size={14} /> На доработку
+                      <RotateCcw size={13} /> Правки
                     </button>
                     <button 
                       onClick={() => handleExecuteAdminVerdict('rejected')}
                       className="btn btn-danger btn-pill"
-                      style={{ flex: 1, padding: '8px', fontSize: '0.78rem' }}
+                      style={{ flex: 1, padding: '7px', fontSize: '0.76rem' }}
                     >
-                      <XCircle size={14} /> Отклонить
+                      <XCircle size={13} /> Отклонить
                     </button>
                   </div>
                 </div>
               </div>
             ) : (
-              <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', textAlign: 'center', padding: '12px 0' }}>
-                {isStage1Passed ? 'Ожидает решения Администрации' : 'Доступно после прохождения 1-го этапа Комиссии'}
+              <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', textAlign: 'center', padding: '12px 0', fontFamily: 'var(--font-mono)' }}>
+                {isStage1Passed ? 'Ожидает решения Администрации' : 'Доступно после 1-го этапа'}
               </div>
             )}
           </div>
 
-          {/* COMMENTS & DISCUSSION SECTION */}
+          {/* COMMENTS & EXPERT FEEDBACK */}
           <div className="card" style={{ padding: '20px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '14px', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '10px' }}>
-              <MessageSquare size={18} color="var(--text-accent)" />
-              <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-                Обсуждение ({bill.comments?.length || 0})
+              <MessageSquare size={16} color="var(--text-accent)" />
+              <h4 style={{ margin: 0, fontSize: '0.92rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                Правовое обсуждение ({bill.comments?.length || 0})
               </h4>
             </div>
 
