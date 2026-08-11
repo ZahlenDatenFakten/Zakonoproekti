@@ -19,8 +19,19 @@ export const ExpandedArticleModal: React.FC<ExpandedArticleModalProps> = ({
   const [showDiff, setShowDiff] = useState(true);
   const diff = computeWordDiff(row.wasContent, row.becameContent);
 
+  const backdropMouseDownRef = React.useRef(false);
+
   return (
-    <div className="modal-overlay" onClick={onClose} style={{ zIndex: 6000 }}>
+    <div 
+      className="modal-overlay" 
+      onMouseDown={(e) => { backdropMouseDownRef.current = (e.target === e.currentTarget); }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget && backdropMouseDownRef.current) {
+          onClose();
+        }
+      }} 
+      style={{ zIndex: 6000 }}
+    >
       <div 
         className="modal-content" 
         onClick={(e) => e.stopPropagation()} 

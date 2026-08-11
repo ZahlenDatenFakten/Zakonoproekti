@@ -87,8 +87,19 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     onToast('info', 'Статус сброшен до Инициатора/Гражданина');
   };
 
+  const backdropMouseDownRef = React.useRef(false);
+
   return (
-    <div className="modal-overlay" onClick={onClose} style={{ zIndex: 5000 }}>
+    <div 
+      className="modal-overlay" 
+      onMouseDown={(e) => { backdropMouseDownRef.current = (e.target === e.currentTarget); }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget && backdropMouseDownRef.current) {
+          onClose();
+        }
+      }} 
+      style={{ zIndex: 5000 }}
+    >
       <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '620px', padding: '24px' }}>
         
         {/* Modal Header */}

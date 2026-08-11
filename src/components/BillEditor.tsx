@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import type { Bill, ComparisonRow, AccessPermission, UserProfile, BillStatus } from '../types/bill';
 import { sanitizeInput, computeDocumentHash } from '../services/securityService';
 import { CommentsSection } from './CommentsSection';
@@ -48,6 +48,21 @@ export const BillEditor: React.FC<BillEditorProps> = ({
   const canEdit = permission === 'edit';
   const currentFullName = `${user.firstName} ${user.lastName}`.trim();
   const isAuthor = bill.author.trim() === currentFullName;
+
+  // Auto-save draft on changes so browser refresh never loses draft state
+  const isInitialMount = useRef(true);
+  useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
+    if (canEdit) {
+      const timer = setTimeout(() => {
+        onSave(bill);
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [bill, canEdit]);
 
   const handleFieldChange = (field: keyof Bill, value: any) => {
     if (!canEdit) return;

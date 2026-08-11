@@ -88,6 +88,19 @@ export const App: React.FC = () => {
         setSelectedBill(targetBill);
         setCurrentPermission(perm || 'read');
         setCurrentView('editor');
+        return;
+      }
+    }
+
+    // Restore active bill session from localStorage if user refreshed page while editing
+    const savedView = localStorage.getItem('legaldraft_current_view');
+    const savedBillId = localStorage.getItem('legaldraft_active_bill_id');
+    if (savedView === 'editor' && savedBillId) {
+      const activeBill = loadedBills.find((b) => b.id === savedBillId);
+      if (activeBill) {
+        setSelectedBill(activeBill);
+        setCurrentPermission('edit');
+        setCurrentView('editor');
       }
     }
   };
@@ -139,12 +152,24 @@ export const App: React.FC = () => {
     setSelectedBill(saved);
     setCurrentPermission('edit');
     setCurrentView('editor');
+    localStorage.setItem('legaldraft_active_bill_id', saved.id);
+    localStorage.setItem('legaldraft_current_view', 'editor');
   };
 
   const handleOpenBill = (bill: Bill) => {
     setSelectedBill(bill);
     setCurrentPermission('edit');
     setCurrentView('editor');
+    localStorage.setItem('legaldraft_active_bill_id', bill.id);
+    localStorage.setItem('legaldraft_current_view', 'editor');
+  };
+
+  const handleNavigateView = (view: 'dashboard' | 'admin_workspace' | 'editor') => {
+    setCurrentView(view);
+    localStorage.setItem('legaldraft_current_view', view);
+    if (view !== 'editor') {
+      localStorage.removeItem('legaldraft_active_bill_id');
+    }
   };
 
   const handleSaveBill = async (updatedBill: Bill) => {
@@ -158,7 +183,7 @@ export const App: React.FC = () => {
     setConfirmDeleteId(null);
     if (selectedBill?.id === billId) {
       setSelectedBill(null);
-      setCurrentView('dashboard');
+      handleNavigateView('dashboard');
     }
     await loadData();
     addToast('info', 'Законопроект удален');
@@ -172,7 +197,7 @@ export const App: React.FC = () => {
         user={user}
         theme={theme}
         currentView={currentView}
-        onNavigate={(view) => setCurrentView(view)}
+        onNavigate={handleNavigateView}
         onToggleTheme={toggleTheme}
         onOpenNewBill={handleCreateNewBill}
         onOpenSettings={() => setShowSettingsModal(true)}
@@ -202,7 +227,7 @@ export const App: React.FC = () => {
             user={user}
             permission={currentPermission}
             onSave={handleSaveBill}
-            onBack={() => setCurrentView('dashboard')}
+            onBack={() => handleNavigateView('dashboard')}
             onShare={(b) => {
               setSelectedBill(b);
               setShowShareModal(true);

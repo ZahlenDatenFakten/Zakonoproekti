@@ -50,8 +50,19 @@ export const DbConfigModal: React.FC<DbConfigModalProps> = ({ config, onUpdateCo
     onClose();
   };
 
+  const backdropMouseDownRef = React.useRef(false);
+
   return (
-    <div className="modal-overlay" onClick={onClose} style={{ zIndex: 7000 }}>
+    <div 
+      className="modal-overlay" 
+      onMouseDown={(e) => { backdropMouseDownRef.current = (e.target === e.currentTarget); }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget && backdropMouseDownRef.current) {
+          onClose();
+        }
+      }} 
+      style={{ zIndex: 7000 }}
+    >
       <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '680px', padding: '24px' }}>
         
         {/* Header */}

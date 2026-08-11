@@ -6,10 +6,23 @@ interface AboutSystemModalProps {
 }
 
 export const AboutSystemModal: React.FC<AboutSystemModalProps> = ({ onClose }) => {
+  const backdropMouseDownRef = React.useRef(false);
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+    <div 
+      className="modal-overlay" 
+      onMouseDown={(e) => { backdropMouseDownRef.current = (e.target === e.currentTarget); }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget && backdropMouseDownRef.current) {
+          onClose();
+        }
+      }}
+      style={{ zIndex: 5000 }}
+    >
       <div 
-        className="bg-card border border-border/50 rounded-lg shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200"
+        className="modal-content" 
+        onClick={(e) => e.stopPropagation()}
+        style={{ maxWidth: '880px', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}
       >
         <div className="flex items-center justify-between p-6 border-b border-border/50 bg-secondary/30">
           <div className="flex items-center gap-3">

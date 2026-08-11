@@ -46,8 +46,19 @@ export const AccessModal: React.FC<AccessModalProps> = ({ bill, onUpdateBill, on
     setTimeout(() => setCopiedToken(null), 2500);
   };
 
+  const backdropMouseDownRef = React.useRef(false);
+
   return (
-    <div className="modal-overlay" onClick={onClose} style={{ zIndex: 6000 }}>
+    <div 
+      className="modal-overlay" 
+      onMouseDown={(e) => { backdropMouseDownRef.current = (e.target === e.currentTarget); }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget && backdropMouseDownRef.current) {
+          onClose();
+        }
+      }} 
+      style={{ zIndex: 6000 }}
+    >
       <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '640px', width: '100%', overflow: 'hidden' }}>
         
         {/* Header */}

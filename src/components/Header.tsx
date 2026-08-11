@@ -78,7 +78,7 @@ export const Header: React.FC<HeaderProps> = ({
             <h1 style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.01em', lineHeight: 1.2 }}>
               ГОСУДАРСТВЕННЫЙ РЕЕСТР
             </h1>
-            <p style={{ fontSize: '0.74rem', color: 'var(--text-amber)', lineHeight: 1.2, marginTop: '2px', fontWeight: 600 }}>
+            <p style={{ fontSize: '0.74rem', color: 'var(--text-accent)', lineHeight: 1.2, marginTop: '2px', fontWeight: 600 }}>
               Портал законопроектов Штата San Andreas
             </p>
           </div>
@@ -149,8 +149,8 @@ export const Header: React.FC<HeaderProps> = ({
           >
             <div style={{
               width: '32px', height: '32px', borderRadius: '50%',
-              background: 'var(--secondary-gradient)', 
-              boxShadow: '0 2px 8px var(--secondary-accent-glow)',
+              background: 'var(--primary-gradient)', 
+              boxShadow: '0 2px 8px var(--primary-glow)',
               display: 'flex', alignItems: 'center', justifyContent: 'center'
             }}>
               <User size={16} color="#ffffff" />
@@ -176,7 +176,7 @@ export const Header: React.FC<HeaderProps> = ({
                 style={{ padding: '9px', borderRadius: 'var(--radius-pill)' }} 
                 title="Облачная база данных"
               >
-                <Database size={18} color="var(--text-amber)" />
+                <Database size={18} color="var(--text-accent)" />
               </button>
             )}
 
@@ -186,7 +186,7 @@ export const Header: React.FC<HeaderProps> = ({
               style={{ padding: '9px', borderRadius: 'var(--radius-pill)' }} 
               title="Тема оформления"
             >
-              {theme === 'dark' ? <Moon size={18} color="var(--text-amber)" /> : <Sun size={18} color="var(--primary)" />}
+              {theme === 'dark' ? <Moon size={18} color="var(--text-accent)" /> : <Sun size={18} color="var(--primary)" />}
             </button>
 
             <button 

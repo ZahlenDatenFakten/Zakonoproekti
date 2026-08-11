@@ -8,7 +8,7 @@ import {
   Calendar,
   User as UserIcon,
   Layers,
-  Sparkles,
+  ShieldCheck,
   CheckCircle2,
   Clock,
   Archive,
@@ -98,7 +98,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
       {/* HERO BANNER SECTION */}
       <div style={{
         background: 'linear-gradient(135deg, var(--bg-surface) 0%, var(--bg-surface-elevated) 100%)',
-        border: '1px solid var(--border-subtle)',
+        border: '1px solid var(--border-medium)',
         borderRadius: 'var(--radius-lg)',
         padding: '32px 36px',
         marginBottom: '28px',
@@ -119,8 +119,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
         <div style={{ position: 'relative', zIndex: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '20px' }}>
           <div>
-            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '4px 12px', borderRadius: 'var(--radius-pill)', background: 'var(--primary-glow)', color: 'var(--text-amber)', fontSize: '0.78rem', fontWeight: 600, marginBottom: '10px' }}>
-              <Sparkles size={14} /> Официальный реестр Штата San Andreas
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '4px 12px', borderRadius: 'var(--radius-pill)', background: 'var(--primary-glow)', color: 'var(--text-accent)', fontSize: '0.78rem', fontWeight: 600, marginBottom: '10px' }}>
+              <ShieldCheck size={14} /> Официальный реестр Штата San Andreas
             </div>
             <h2 style={{ fontSize: '1.65rem', fontWeight: 800, margin: '0 0 6px 0', letterSpacing: '-0.02em', color: 'var(--text-primary)' }}>
               Законотворческая платформа
@@ -255,7 +255,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
       <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
         {filteredBills.length === 0 ? (
           <div className="card" style={{ textAlign: 'center', padding: '64px 20px', color: 'var(--text-muted)' }}>
-            <FileText size={48} style={{ opacity: 0.3, margin: '0 auto 16px', color: 'var(--text-amber)' }} />
+            <FileText size={48} style={{ opacity: 0.3, margin: '0 auto 16px', color: 'var(--text-accent)' }} />
             <h3 style={{ fontSize: '1.1rem', margin: '0 0 6px 0', fontWeight: 700, color: 'var(--text-primary)' }}>
               Законопроекты не найдены
             </h3>
@@ -292,7 +292,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: '22px', fontSize: '0.82rem', color: 'var(--text-muted)', flexWrap: 'wrap' }}>
                   <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <UserIcon size={14} color="var(--text-amber)" /> 
+                    <UserIcon size={14} color="var(--text-accent)" /> 
                     <strong style={{ color: 'var(--text-secondary)', fontWeight: 600 }}>{bill.author}</strong>
                   </span>
                   <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -301,7 +301,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                   </span>
                   <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                     <Layers size={14} color="var(--text-muted)" /> 
-                    Статей: <strong style={{ color: 'var(--text-amber)', fontWeight: 600 }}>{bill.comparisons.length}</strong>
+                    Статей: <strong style={{ color: 'var(--text-accent)', fontWeight: 600 }}>{bill.comparisons.length}</strong>
                   </span>
                 </div>
               </div>
