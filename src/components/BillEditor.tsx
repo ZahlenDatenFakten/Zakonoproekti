@@ -691,34 +691,65 @@ export const BillEditor: React.FC<BillEditorProps> = ({
             </div>
 
             {/* VOTING BUTTONS FOR OFFICIALS */}
-            {bill.status === 'under_review' && !isStage1Passed && !isStage1Rejected && (
-              <div>
-                <label className="input-label" style={{ marginBottom: '8px' }}>Ваше решение Комиссии:</label>
-                <div style={{ display: 'flex', gap: '6px' }}>
-                  <button 
-                    onClick={() => handleCastVote('approved')}
-                    className="btn btn-pill" 
-                    style={{ flex: 1, padding: '7px 6px', fontSize: '0.76rem', background: 'var(--success-bg)', color: 'var(--success-text)', borderColor: 'var(--success-border)' }}
-                  >
-                    <Check size={13} /> За
-                  </button>
-                  <button 
-                    onClick={() => handleCastVote('needs_revision')}
-                    className="btn btn-pill" 
-                    style={{ flex: 1, padding: '7px 6px', fontSize: '0.76rem', background: 'var(--warning-bg)', color: 'var(--warning-text)', borderColor: 'var(--warning-border)' }}
-                  >
-                    <RotateCcw size={13} /> Правки
-                  </button>
-                  <button 
-                    onClick={() => handleCastVote('rejected')}
-                    className="btn btn-pill" 
-                    style={{ flex: 1, padding: '7px 6px', fontSize: '0.76rem', background: 'var(--danger-bg)', color: 'var(--danger-text)', borderColor: 'var(--danger-border)' }}
-                  >
-                    <X size={13} /> Против
-                  </button>
+            {bill.status === 'under_review' && !isStage1Passed && !isStage1Rejected && (() => {
+              const myCurrentVote = (user.officialRole === 'prosecutor' ? votes.prosecutor : user.officialRole === 'judge' ? votes.judge : votes.governor);
+
+              return (
+                <div>
+                  <label className="input-label" style={{ marginBottom: '8px' }}>Ваше решение Комиссии:</label>
+                  <div style={{ display: 'flex', gap: '6px' }}>
+                    <button 
+                      onClick={() => handleCastVote('approved')}
+                      className="btn btn-pill vote-btn-approved" 
+                      style={{ 
+                        flex: 1, 
+                        padding: '7px 6px', 
+                        fontSize: '0.76rem', 
+                        background: myCurrentVote === 'approved' ? 'var(--success-bg)' : 'var(--bg-input)', 
+                        color: myCurrentVote === 'approved' ? 'var(--success-text)' : 'var(--text-secondary)', 
+                        border: `1px solid ${myCurrentVote === 'approved' ? 'var(--success-border)' : 'rgba(255, 255, 255, 0.1)'}`,
+                        boxShadow: myCurrentVote === 'approved' ? '0 0 12px var(--success-glow)' : 'none',
+                        fontWeight: myCurrentVote === 'approved' ? 700 : 500
+                      }}
+                    >
+                      <Check size={13} /> За
+                    </button>
+                    <button 
+                      onClick={() => handleCastVote('needs_revision')}
+                      className="btn btn-pill vote-btn-revision" 
+                      style={{ 
+                        flex: 1, 
+                        padding: '7px 6px', 
+                        fontSize: '0.76rem', 
+                        background: myCurrentVote === 'needs_revision' ? 'var(--warning-bg)' : 'var(--bg-input)', 
+                        color: myCurrentVote === 'needs_revision' ? 'var(--warning-text)' : 'var(--text-secondary)', 
+                        border: `1px solid ${myCurrentVote === 'needs_revision' ? 'var(--warning-border)' : 'rgba(255, 255, 255, 0.1)'}`,
+                        boxShadow: myCurrentVote === 'needs_revision' ? '0 0 12px var(--warning-glow)' : 'none',
+                        fontWeight: myCurrentVote === 'needs_revision' ? 700 : 500
+                      }}
+                    >
+                      <RotateCcw size={13} /> Правки
+                    </button>
+                    <button 
+                      onClick={() => handleCastVote('rejected')}
+                      className="btn btn-pill vote-btn-rejected" 
+                      style={{ 
+                        flex: 1, 
+                        padding: '7px 6px', 
+                        fontSize: '0.76rem', 
+                        background: myCurrentVote === 'rejected' ? 'var(--danger-bg)' : 'var(--bg-input)', 
+                        color: myCurrentVote === 'rejected' ? 'var(--danger-text)' : 'var(--text-secondary)', 
+                        border: `1px solid ${myCurrentVote === 'rejected' ? 'var(--danger-border)' : 'rgba(255, 255, 255, 0.1)'}`,
+                        boxShadow: myCurrentVote === 'rejected' ? '0 0 12px var(--danger-glow)' : 'none',
+                        fontWeight: myCurrentVote === 'rejected' ? 700 : 500
+                      }}
+                    >
+                      <X size={13} /> Против
+                    </button>
+                  </div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
           </div>
 
           {/* STAGE 2: ADMIN VERDICT WIDGET */}

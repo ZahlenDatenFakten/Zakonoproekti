@@ -44,9 +44,6 @@ export const Dashboard: React.FC<DashboardProps> = ({
   }, [bills, currentFullName]);
 
   // Tab filtering logic
-  // 'my' -> User's own bills
-  // 'active' -> Under review or needs revision
-  // 'all' -> "Весь реестр" = Reviewed bills (Approved or Rejected)
   const filteredBills = useMemo(() => {
     return bills
       .filter((b) => {
@@ -57,7 +54,6 @@ export const Dashboard: React.FC<DashboardProps> = ({
         } else if (activeTab === 'active') {
           if (b.status === 'approved' || b.status === 'rejected' || b.status === 'draft') return false;
         } else if (activeTab === 'all') {
-          // "Весь реестр" = все уже рассмотренные законопроекты (одобрены / отклонены)
           if (b.status !== 'approved' && b.status !== 'rejected') return false;
         }
 
@@ -117,7 +113,6 @@ export const Dashboard: React.FC<DashboardProps> = ({
     }
   };
 
-  // Zero-indexed decree numbering (№ SA-000, № SA-001, ...)
   const formatDecreeNumber = (billIndex: number) => {
     return `№ SA-${String(billIndex).padStart(3, '0')}`;
   };
@@ -154,10 +149,10 @@ export const Dashboard: React.FC<DashboardProps> = ({
           </button>
         </div>
 
-        {/* BENTO QUICK STATS WIDGETS */}
+        {/* BENTO QUICK STATS WIDGETS WITH ACTIVITY CHIPS */}
         <div style={{ 
           display: 'grid', 
-          gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', 
+          gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', 
           gap: '14px', 
           marginTop: '28px', 
           paddingTop: '20px', 
@@ -167,9 +162,12 @@ export const Dashboard: React.FC<DashboardProps> = ({
             <div className="stat-icon-wrapper">
               <FileCode2 size={20} />
             </div>
-            <div>
-              <div style={{ fontSize: '1.3rem', fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)', lineHeight: 1.1 }}>{stats.total}</div>
-              <div className="tech-label" style={{ marginTop: '2px' }}>Всего актов</div>
+            <div style={{ flex: 1 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}>
+                <div style={{ fontSize: '1.3rem', fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)', lineHeight: 1.1 }}>{stats.total}</div>
+                <span style={{ fontSize: '0.65rem', padding: '2px 6px', borderRadius: '4px', background: 'rgba(56, 189, 248, 0.1)', color: 'var(--text-accent)', border: '1px solid rgba(56, 189, 248, 0.2)', fontFamily: 'var(--font-mono)', fontWeight: 600 }}>РЕЕСТР</span>
+              </div>
+              <div className="tech-label" style={{ marginTop: '4px' }}>Всего актов</div>
             </div>
           </div>
 
@@ -177,9 +175,12 @@ export const Dashboard: React.FC<DashboardProps> = ({
             <div className="stat-icon-wrapper" style={{ background: 'var(--warning-bg)', color: 'var(--warning-text)', borderColor: 'var(--warning-border)' }}>
               <Clock size={20} />
             </div>
-            <div>
-              <div style={{ fontSize: '1.3rem', fontWeight: 800, color: 'var(--warning-text)', fontFamily: 'var(--font-mono)', lineHeight: 1.1 }}>{stats.active}</div>
-              <div className="tech-label" style={{ marginTop: '2px' }}>На рассмотрении</div>
+            <div style={{ flex: 1 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}>
+                <div style={{ fontSize: '1.3rem', fontWeight: 800, color: 'var(--warning-text)', fontFamily: 'var(--font-mono)', lineHeight: 1.1 }}>{stats.active}</div>
+                <span style={{ fontSize: '0.65rem', padding: '2px 6px', borderRadius: '4px', background: 'var(--warning-bg)', color: 'var(--warning-text)', border: '1px solid var(--warning-border)', fontFamily: 'var(--font-mono)', fontWeight: 600 }}>КВОРУМ 2/3</span>
+              </div>
+              <div className="tech-label" style={{ marginTop: '4px' }}>На рассмотрении</div>
             </div>
           </div>
 
@@ -187,9 +188,12 @@ export const Dashboard: React.FC<DashboardProps> = ({
             <div className="stat-icon-wrapper" style={{ background: 'var(--success-bg)', color: 'var(--success-text)', borderColor: 'var(--success-border)' }}>
               <CheckCircle2 size={20} />
             </div>
-            <div>
-              <div style={{ fontSize: '1.3rem', fontWeight: 800, color: 'var(--success-text)', fontFamily: 'var(--font-mono)', lineHeight: 1.1 }}>{stats.approved}</div>
-              <div className="tech-label" style={{ marginTop: '2px' }}>Вступили в силу</div>
+            <div style={{ flex: 1 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}>
+                <div style={{ fontSize: '1.3rem', fontWeight: 800, color: 'var(--success-text)', fontFamily: 'var(--font-mono)', lineHeight: 1.1 }}>{stats.approved}</div>
+                <span style={{ fontSize: '0.65rem', padding: '2px 6px', borderRadius: '4px', background: 'var(--success-bg)', color: 'var(--success-text)', border: '1px solid var(--success-border)', fontFamily: 'var(--font-mono)', fontWeight: 600 }}>АКТИВНЫ</span>
+              </div>
+              <div className="tech-label" style={{ marginTop: '4px' }}>Вступили в силу</div>
             </div>
           </div>
 
@@ -197,9 +201,12 @@ export const Dashboard: React.FC<DashboardProps> = ({
             <div className="stat-icon-wrapper" style={{ background: 'rgba(255,255,255,0.04)', color: 'var(--text-secondary)', borderColor: 'var(--border-subtle)' }}>
               <UserIcon size={20} />
             </div>
-            <div>
-              <div style={{ fontSize: '1.3rem', fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)', lineHeight: 1.1 }}>{stats.myCount}</div>
-              <div className="tech-label" style={{ marginTop: '2px' }}>Мои инициативы</div>
+            <div style={{ flex: 1 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}>
+                <div style={{ fontSize: '1.3rem', fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)', lineHeight: 1.1 }}>{stats.myCount}</div>
+                <span style={{ fontSize: '0.65rem', padding: '2px 6px', borderRadius: '4px', background: 'rgba(255,255,255,0.05)', color: 'var(--text-secondary)', border: '1px solid var(--border-subtle)', fontFamily: 'var(--font-mono)', fontWeight: 600 }}>ПРИВАТНО</span>
+              </div>
+              <div className="tech-label" style={{ marginTop: '4px' }}>Мои инициативы</div>
             </div>
           </div>
         </div>
@@ -283,7 +290,6 @@ export const Dashboard: React.FC<DashboardProps> = ({
           </div>
         ) : (
           filteredBills.map((bill, index) => {
-            // Compute 0-indexed number based on list index starting from 0
             const decreeStamp = formatDecreeNumber(index);
 
             return (
@@ -328,18 +334,21 @@ export const Dashboard: React.FC<DashboardProps> = ({
                     </p>
                   )}
 
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '22px', fontSize: '0.78rem', color: 'var(--text-muted)', flexWrap: 'wrap', fontFamily: 'var(--font-mono)' }}>
+                  {/* SINGLE-LINE MONOSPACED FOOTER METADATA */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.78rem', color: 'var(--text-muted)', flexWrap: 'wrap', fontFamily: 'var(--font-mono)' }}>
                     <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                       <UserIcon size={13} color="var(--text-accent)" /> 
                       <span style={{ color: '#f8fafc', fontWeight: 600 }}>{bill.author}</span>
                     </span>
+                    <span style={{ opacity: 0.35 }}>•</span>
                     <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                       <Calendar size={13} color="var(--text-muted)" /> 
                       <span>{formatDate(bill.updatedAt)}</span>
                     </span>
+                    <span style={{ opacity: 0.35 }}>•</span>
                     <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                       <Layers size={13} color="var(--text-muted)" /> 
-                      Статей: <span style={{ color: 'var(--text-accent)', fontWeight: 600 }}>{bill.comparisons.length}</span>
+                      <span>Статей: <strong style={{ color: 'var(--text-accent)' }}>{bill.comparisons.length}</strong></span>
                     </span>
                   </div>
                 </div>

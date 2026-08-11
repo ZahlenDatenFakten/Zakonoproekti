@@ -51,12 +51,11 @@ export const ExpandedArticleModal: React.FC<ExpandedArticleModalProps> = ({
             </div>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-                  {row.articleTitle || 'Полноэкранный режим правовой экспертизы'}
-                </h3>
-                <span className="decree-stamp">100% ACCURATE DIFF</span>
+                <span className="decree-stamp">
+                  РЕДАКТИРОВАНИЕ НОРМАТИВНОГО АКТА
+                </span>
               </div>
-              <p style={{ fontSize: '0.76rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', margin: '2px 0 0 0' }}>
+              <p style={{ fontSize: '0.76rem', color: 'rgba(255, 255, 255, 0.65)', fontFamily: 'var(--font-mono)', margin: '4px 0 0 0' }}>
                 Параллельный аналитический сравнительный протокол правовой нормы
               </p>
             </div>

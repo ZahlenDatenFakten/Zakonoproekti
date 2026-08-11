@@ -21,8 +21,8 @@
   --border-focus: #38bdf8;
 
   --text-primary: #f8fafc;
-  --text-secondary: #94a3b8;
-  --text-muted: #64748b;
+  --text-secondary: #cbd5e1;
+  --text-muted: #8b949e;
   --text-accent: #38bdf8;
 
   /* --- Accent Colors (Status & Government Acts) --- */
@@ -83,7 +83,7 @@
                   repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.015) 0px, rgba(255, 255, 255, 0.015) 1px, transparent 1px, transparent 24px);
 }
 
-/* Light Theme Override (High-contrast slate for light mode if needed) */
+/* Light Theme Override */
 [data-theme="light"] {
   --bg-base: #0f172a;
   --bg-surface: #1e293b;
@@ -117,7 +117,7 @@ body {
   min-height: 100vh;
 }
 
-/* TYPOGRAPHY UTILITIES */
+/* TYPOGRAPHY UTILITIES & HIGH-CONTRAST SUB-LABELS */
 h1, h2, h3, h4, h5, h6 {
   font-family: var(--font-sans);
   font-weight: 700;
@@ -132,23 +132,23 @@ h1, h2, h3, h4, h5, h6 {
 .tech-label {
   font-family: var(--font-mono);
   font-size: 0.72rem;
-  font-weight: 600;
+  font-weight: 500;
   text-transform: uppercase;
-  letter-spacing: 0.1em;
-  color: var(--text-muted);
+  letter-spacing: 0.08em;
+  color: rgba(255, 255, 255, 0.65);
 }
 
 .decree-stamp {
   font-family: var(--font-mono);
-  font-size: 0.75rem;
-  font-weight: 700;
+  font-size: 0.74rem;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.1em;
   color: var(--text-accent);
   background: rgba(56, 189, 248, 0.08);
   padding: 4px 10px;
   border-radius: var(--radius-sm);
-  border: 1px solid rgba(56, 189, 248, 0.2);
+  border: 1px solid rgba(56, 189, 248, 0.25);
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -176,7 +176,7 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 /* ═════════════════════════════════════════════════════════════════════
-   UNIFIED BUTTON SYSTEM
+   UNIFIED BUTTON SYSTEM (MATTE GITHUB/VERCEL STYLE)
    ═════════════════════════════════════════════════════════════════════ */
 .btn {
   display: inline-flex;
@@ -208,16 +208,19 @@ h1, h2, h3, h4, h5, h6 {
   box-shadow: none !important;
 }
 
+/* Matte Slate-Cyan Primary Button (GitHub / Vercel style) */
 .btn-primary {
-  background: var(--primary-gradient);
-  color: #ffffff;
-  box-shadow: 0 4px 16px var(--primary-glow), inset 0 1px 0 rgba(255, 255, 255, 0.2);
-  border-color: rgba(56, 189, 248, 0.4);
+  background: rgba(56, 189, 248, 0.12);
+  color: #f8fafc;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(56, 189, 248, 0.35);
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: var(--primary-gradient-hover);
-  box-shadow: 0 6px 24px var(--primary-glow-bright), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  background: rgba(56, 189, 248, 0.22);
+  border-color: #38bdf8;
+  box-shadow: 0 6px 20px rgba(56, 189, 248, 0.25);
+  color: #ffffff;
   transform: translateY(-1px);
 }
 
@@ -266,7 +269,7 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 /* ═════════════════════════════════════════════════════════════════════
-   FORM CONTROLS & INPUTS
+   FORM CONTROLS & HIGH-CONTRAST SUB-LABELS
    ═════════════════════════════════════════════════════════════════════ */
 .input-field, .textarea-field, .select-field {
   width: 100%;
@@ -295,12 +298,13 @@ h1, h2, h3, h4, h5, h6 {
   color: var(--text-muted);
 }
 
+/* Sub-labels above inputs: high contrast and readable */
 .input-label {
   display: block;
   font-family: var(--font-mono);
   font-size: 0.74rem;
-  font-weight: 600;
-  color: var(--text-secondary);
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.65);
   margin-bottom: 8px;
   text-transform: uppercase;
   letter-spacing: 0.08em;
@@ -520,7 +524,7 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 /* ═════════════════════════════════════════════════════════════════════
-   DIFF HIGHLIGHTING & COMPARISON TABLES
+   DIFF HIGHLIGHTING & COMPARISON TABLES (HIGH CONTRAST)
    ═════════════════════════════════════════════════════════════════════ */
 .diff-add {
   background-color: rgba(63, 185, 80, 0.18);
@@ -529,6 +533,7 @@ h1, h2, h3, h4, h5, h6 {
   border-radius: 4px;
   border-bottom: 1.5px solid #3fb950;
   font-family: var(--font-sans);
+  font-weight: 600;
 }
 
 .diff-remove {
@@ -539,6 +544,7 @@ h1, h2, h3, h4, h5, h6 {
   border-radius: 4px;
   border-bottom: 1.5px solid #f85149;
   font-family: var(--font-sans);
+  font-weight: 600;
 }
 
 /* ═════════════════════════════════════════════════════════════════════
