@@ -1,13 +1,16 @@
 import React from 'react';
 import type { UserProfile, AppTheme } from '../types/bill';
+import { OFFICIAL_ROLE_LABELS } from '../types/bill';
+import { isOfficialCommitteeMember, isSystemAdmin } from '../services/securityService';
 import { 
   Settings,
   Shield,
-  Bell,
   HelpCircle,
-  LogOut,
   User,
-  ChevronDown
+  LayoutDashboard,
+  ShieldCheck,
+  Moon,
+  Sun
 } from 'lucide-react';
 
 interface HeaderProps {
@@ -23,84 +26,144 @@ interface HeaderProps {
 
 export const Header: React.FC<HeaderProps> = ({
   user,
+  theme,
+  currentView,
   onNavigate,
+  onToggleTheme,
   onOpenSettings,
   onOpenAbout
 }) => {
+  const isCommitteeOrAdmin = isOfficialCommitteeMember(user) || isSystemAdmin(user);
+
   return (
     <header style={{ 
-      background: 'var(--bg-base)', 
+      background: 'rgba(12, 16, 23, 0.85)', 
+      backdropFilter: 'blur(16px)',
       borderBottom: '1px solid var(--border-subtle)',
-      padding: '0'
+      position: 'sticky',
+      top: 0,
+      zIndex: 50
     }}>
       <div style={{ 
         maxWidth: '1440px', 
         margin: '0 auto', 
-        padding: '16px 24px', 
+        padding: '14px 28px', 
         display: 'flex', 
         alignItems: 'center', 
         justifyContent: 'space-between'
       }}>
         
-        {/* LEFT: Brand */}
+        {/* BRAND LOGO */}
         <div 
           onClick={() => onNavigate('dashboard')} 
-          style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer' }}
+          style={{ display: 'flex', alignItems: 'center', gap: '14px', cursor: 'pointer' }}
         >
           <div style={{ 
-            width: '40px', height: '40px', borderRadius: '8px',
-            background: 'var(--primary-subtle)', 
-            border: '1px solid rgba(33, 123, 248, 0.2)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center'
+            width: '42px', height: '42px', borderRadius: '12px',
+            background: 'linear-gradient(135deg, rgba(37, 99, 235, 0.2) 0%, rgba(29, 78, 216, 0.4) 100%)', 
+            border: '1px solid var(--border-medium)',
+            boxShadow: '0 0 16px var(--primary-glow)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            transition: 'transform 0.25s ease'
           }}>
-            <Shield size={20} color="var(--primary)" />
+            <Shield size={22} color="#60a5fa" />
           </div>
 
           <div>
-            <h1 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-primary)', letterSpacing: '0.02em', lineHeight: 1.2 }}>
-              LEGAL DRAFT
+            <h1 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '0.04em', lineHeight: 1.2 }}>
+              ГОСУДАРСТВЕННЫЙ РЕЕСТР
             </h1>
-            <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', lineHeight: 1.2, marginTop: '2px' }}>
-              Кабинет законодателя
+            <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', lineHeight: 1.2, marginTop: '2px', fontWeight: 500 }}>
+              Портал законопроектов Штата San Andreas
             </p>
           </div>
         </div>
 
-        {/* RIGHT: User & Controls */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+        {/* CENTER NAVIGATION PIPES */}
+        <nav style={{ 
+          display: 'flex', 
+          gap: '4px', 
+          background: 'rgba(22, 30, 46, 0.6)', 
+          padding: '4px', 
+          borderRadius: 'var(--radius-pill)', 
+          border: '1px solid var(--border-subtle)' 
+        }}>
+          <button
+            onClick={() => onNavigate('dashboard')}
+            style={{
+              fontSize: '0.8rem',
+              fontWeight: 600,
+              padding: '7px 18px',
+              borderRadius: 'var(--radius-pill)',
+              border: 'none',
+              cursor: 'pointer',
+              display: 'flex', alignItems: 'center', gap: '7px',
+              transition: 'all 0.2s ease',
+              background: currentView === 'dashboard' ? 'var(--primary)' : 'transparent',
+              color: currentView === 'dashboard' ? '#ffffff' : 'var(--text-secondary)',
+              boxShadow: currentView === 'dashboard' ? '0 2px 10px var(--primary-glow)' : 'none'
+            }}
+          >
+            <LayoutDashboard size={14} /> Реестр
+          </button>
+
+          {isCommitteeOrAdmin && (
+            <button
+              onClick={() => onNavigate('admin_workspace')}
+              style={{
+                fontSize: '0.8rem',
+                fontWeight: 600,
+                padding: '7px 18px',
+                borderRadius: 'var(--radius-pill)',
+                border: 'none',
+                cursor: 'pointer',
+                display: 'flex', alignItems: 'center', gap: '7px',
+                transition: 'all 0.2s ease',
+                background: currentView === 'admin_workspace' ? 'var(--primary)' : 'transparent',
+                color: currentView === 'admin_workspace' ? '#ffffff' : 'var(--text-secondary)',
+                boxShadow: currentView === 'admin_workspace' ? '0 2px 10px var(--primary-glow)' : 'none'
+              }}
+            >
+              <ShieldCheck size={14} /> Администрация
+            </button>
+          )}
+        </nav>
+
+        {/* RIGHT: CONTROLS & PROFILE */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
           
-          {/* User Profile */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}>
+          {/* PROFILE BADGE */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '4px 10px', borderRadius: 'var(--radius-sm)', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-subtle)' }}>
             <div style={{
               width: '32px', height: '32px', borderRadius: '50%',
-              background: 'var(--bg-hover)', border: '1px solid var(--border-medium)',
+              background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)', 
+              border: '1px solid var(--border-medium)',
               display: 'flex', alignItems: 'center', justifyContent: 'center'
             }}>
-              <User size={16} color="var(--text-secondary)" />
+              <User size={16} color="#60a5fa" />
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <span style={{ fontSize: '0.85rem', fontWeight: 500, color: 'var(--text-primary)' }}>
+            <div>
+              <div style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-primary)', lineHeight: 1.2 }}>
                 {user.firstName} {user.lastName}
-              </span>
-              <ChevronDown size={14} color="var(--text-muted)" />
+              </div>
+              <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', lineHeight: 1.2 }}>
+                {OFFICIAL_ROLE_LABELS[user.officialRole] || 'Гражданин'}
+              </div>
             </div>
           </div>
 
           <div style={{ width: '1px', height: '24px', background: 'var(--border-subtle)' }} />
 
-          {/* Action Icons */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-            <button className="btn btn-ghost" style={{ padding: '8px' }} title="Уведомления">
-              <Bell size={18} />
+          {/* ACTION BUTTONS */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <button onClick={onToggleTheme} className="btn btn-ghost" style={{ padding: '9px' }} title="Тема оформления">
+              {theme === 'dark' ? <Moon size={18} color="var(--text-secondary)" /> : <Sun size={18} color="var(--text-secondary)" />}
             </button>
-            <button className="btn btn-ghost" onClick={onOpenAbout} style={{ padding: '8px' }} title="Справка">
-              <HelpCircle size={18} />
+            <button className="btn btn-ghost" onClick={onOpenAbout} style={{ padding: '9px' }} title="Справка">
+              <HelpCircle size={18} color="var(--text-secondary)" />
             </button>
-            <button className="btn btn-ghost" onClick={onOpenSettings} style={{ padding: '8px' }} title="Настройки">
-              <Settings size={18} />
-            </button>
-            <button className="btn btn-ghost" style={{ padding: '8px' }} title="Выход">
-              <LogOut size={18} />
+            <button className="btn btn-ghost" onClick={onOpenSettings} style={{ padding: '9px' }} title="Настройки">
+              <Settings size={18} color="var(--text-secondary)" />
             </button>
           </div>
 

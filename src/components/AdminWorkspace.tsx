@@ -99,76 +99,82 @@ export const AdminWorkspace: React.FC<AdminWorkspaceProps> = ({
   if (!isAuthorizedToAccess) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', color: 'var(--text-muted)' }}>
-        <Lock size={64} style={{ marginBottom: '24px', opacity: 0.2 }} />
-        <h2 style={{ fontSize: '1.5rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '8px' }}>Доступ закрыт</h2>
-        <p>Этот раздел предназначен только для Правительства.</p>
+        <Lock size={64} style={{ marginBottom: '24px', opacity: 0.25 }} />
+        <h2 style={{ fontSize: '1.5rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '8px' }}>Доступ ограничен</h2>
+        <p>Раздел доступен исключительно уполномоченным членам Правительства.</p>
       </div>
     );
   }
 
   return (
-    <div style={{ maxWidth: '1240px', margin: '0 auto', padding: '0 24px 60px' }}>
+    <div className="animate-fade-in" style={{ maxWidth: '1180px', margin: '36px auto 60px', padding: '0 24px' }}>
       
-      <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '32px' }}>
-        <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: 'var(--primary-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <ShieldCheck size={24} color="var(--primary)" />
+      <div style={{ display: 'flex', alignItems: 'center', gap: '18px', marginBottom: '32px' }}>
+        <div style={{ 
+          width: '52px', height: '52px', borderRadius: '16px', 
+          background: 'linear-gradient(135deg, rgba(37, 99, 235, 0.2) 0%, rgba(29, 78, 216, 0.4) 100%)', 
+          border: '1px solid var(--border-medium)',
+          boxShadow: '0 0 20px var(--primary-glow)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center' 
+        }}>
+          <ShieldCheck size={28} color="#60a5fa" />
         </div>
         <div>
-          <h2 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 600, color: 'var(--text-primary)' }}>Административная панель</h2>
-          <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '4px' }}>Управление реестром и вердикты Федерального Правительства</p>
+          <h2 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 700, color: 'var(--text-primary)' }}>Панель Правительства</h2>
+          <p style={{ margin: 0, fontSize: '0.88rem', color: 'var(--text-muted)', marginTop: '4px' }}>Рассмотрение законодательных инициатив и вынесение вердиктов</p>
         </div>
       </div>
 
       <div className="card" style={{ padding: '0', overflow: 'hidden' }}>
-        <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--border-subtle)', display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <Layers size={18} color="var(--primary)" />
-          <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 600, color: 'var(--text-primary)' }}>Очередь законопроектов</h3>
+        <div style={{ padding: '20px 28px', borderBottom: '1px solid var(--border-subtle)', display: 'flex', alignItems: 'center', gap: '12px', background: 'rgba(255, 255, 255, 0.01)' }}>
+          <Layers size={20} color="var(--primary-hover)" />
+          <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 600, color: 'var(--text-primary)' }}>Очередь вердиктов</h3>
         </div>
 
         {adminQueueBills.length === 0 ? (
-          <div style={{ padding: '60px 20px', textAlign: 'center', color: 'var(--text-muted)' }}>
-            <p>Нет законопроектов, ожидающих решения.</p>
+          <div style={{ padding: '64px 20px', textAlign: 'center', color: 'var(--text-muted)' }}>
+            <p style={{ margin: 0 }}>Нет законопроектов, ожидающих решения.</p>
           </div>
         ) : (
           <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.88rem' }}>
               <thead>
                 <tr style={{ background: 'var(--bg-input)', color: 'var(--text-secondary)', borderBottom: '1px solid var(--border-medium)' }}>
-                  <th style={{ padding: '16px 24px', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Закон</th>
-                  <th style={{ padding: '16px 24px', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Статус</th>
-                  <th style={{ padding: '16px 24px', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Инициатор</th>
-                  <th style={{ padding: '16px 24px', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'right' }}>Действия (Фед.Прав.)</th>
+                  <th style={{ padding: '18px 28px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', fontSize: '0.75rem' }}>Законопроект</th>
+                  <th style={{ padding: '18px 28px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', fontSize: '0.75rem' }}>Статус</th>
+                  <th style={{ padding: '18px 28px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', fontSize: '0.75rem' }}>Инициатор</th>
+                  <th style={{ padding: '18px 28px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', fontSize: '0.75rem', textAlign: 'right' }}>Действия</th>
                 </tr>
               </thead>
               <tbody>
                 {adminQueueBills.map((bill) => (
-                  <tr key={bill.id} style={{ borderBottom: '1px solid var(--border-subtle)', transition: 'background 0.2s', cursor: 'default' }} className="table-row-hover">
-                    <td style={{ padding: '16px 24px', fontWeight: 500, color: 'var(--text-primary)' }}>
+                  <tr key={bill.id} style={{ borderBottom: '1px solid var(--border-subtle)', transition: 'background 0.2s' }} className="table-row-hover">
+                    <td style={{ padding: '18px 28px', fontWeight: 600, color: 'var(--text-primary)' }}>
                       {bill.targetLaw || bill.title}
                     </td>
-                    <td style={{ padding: '16px 24px' }}>
+                    <td style={{ padding: '18px 28px' }}>
                       <span className={`badge badge-status-${bill.status === 'under_review' ? 'review' : bill.status === 'approved' ? 'approved' : bill.status === 'needs_revision' ? 'revision' : 'rejected'}`}>
-                        {bill.status === 'under_review' ? 'На рассмотрении' : bill.status === 'approved' ? 'Одобрен' : bill.status === 'needs_revision' ? 'Доработка' : 'Отклонен'}
+                        {bill.status === 'under_review' ? 'На рассмотрении' : bill.status === 'approved' ? 'Одобрен' : bill.status === 'needs_revision' ? 'На доработке' : 'Отклонен'}
                       </span>
                     </td>
-                    <td style={{ padding: '16px 24px', color: 'var(--text-secondary)' }}>
+                    <td style={{ padding: '18px 28px', color: 'var(--text-secondary)', fontWeight: 500 }}>
                       {bill.author}
                     </td>
-                    <td style={{ padding: '16px 24px', textAlign: 'right' }}>
+                    <td style={{ padding: '18px 28px', textAlign: 'right' }}>
                       <div style={{ display: 'inline-flex', gap: '8px' }}>
-                        <button onClick={() => onSelectBill(bill)} className="btn btn-secondary" style={{ padding: '6px 10px' }} title="Просмотр">
-                          <Eye size={14} />
+                        <button onClick={() => onSelectBill(bill)} className="btn btn-secondary" style={{ padding: '7px 12px' }} title="Просмотр">
+                          <Eye size={15} />
                         </button>
                         {isAdmin && bill.status === 'under_review' && (
                           <>
-                            <button onClick={() => handleOpenActionModal(bill, 'approved')} className="btn" style={{ background: 'rgba(16, 185, 129, 0.1)', color: 'var(--success)', border: '1px solid rgba(16, 185, 129, 0.2)', padding: '6px 10px' }}>
-                              <CheckCircle2 size={14} /> Утвердить
+                            <button onClick={() => handleOpenActionModal(bill, 'approved')} className="btn" style={{ background: 'rgba(16, 185, 129, 0.12)', color: '#34d399', border: '1px solid rgba(16, 185, 129, 0.3)', padding: '7px 14px' }}>
+                              <CheckCircle2 size={15} /> Утвердить
                             </button>
-                            <button onClick={() => handleOpenActionModal(bill, 'needs_revision')} className="btn" style={{ background: 'rgba(245, 158, 11, 0.1)', color: 'var(--warning)', border: '1px solid rgba(245, 158, 11, 0.2)', padding: '6px 10px' }}>
-                              <RotateCcw size={14} /> На доработку
+                            <button onClick={() => handleOpenActionModal(bill, 'needs_revision')} className="btn" style={{ background: 'rgba(245, 158, 11, 0.12)', color: '#fbbf24', border: '1px solid rgba(245, 158, 11, 0.3)', padding: '7px 14px' }}>
+                              <RotateCcw size={15} /> На доработку
                             </button>
-                            <button onClick={() => handleOpenActionModal(bill, 'rejected')} className="btn" style={{ background: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger)', border: '1px solid rgba(239, 68, 68, 0.2)', padding: '6px 10px' }}>
-                              <XCircle size={14} /> Отклонить
+                            <button onClick={() => handleOpenActionModal(bill, 'rejected')} className="btn btn-danger" style={{ padding: '7px 14px' }}>
+                              <XCircle size={15} /> Отклонить
                             </button>
                           </>
                         )}
@@ -182,31 +188,31 @@ export const AdminWorkspace: React.FC<AdminWorkspaceProps> = ({
         )}
       </div>
 
-      {/* Federal Verdict Modal */}
+      {/* ACTION MODAL */}
       {selectedBillForAction && pendingDecision && (
         <div className="modal-overlay">
           <div className="modal-content">
             <div className="modal-header">
-              <h3 style={{ margin: 0, fontSize: '1.1rem', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <ShieldCheck size={18} color="var(--primary)" /> 
-                Вердикт Федерального Правительства
+              <h3 style={{ margin: 0, fontSize: '1.1rem', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <ShieldCheck size={20} color="var(--primary-hover)" /> 
+                Решение Правительства
               </h3>
             </div>
             <div className="modal-body">
-              <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', marginBottom: '20px' }}>
-                Вы выносите вердикт 2-го этапа по законопроекту: <strong style={{ color: 'var(--text-primary)' }}>{selectedBillForAction.targetLaw}</strong>
+              <p style={{ fontSize: '0.92rem', color: 'var(--text-secondary)', marginBottom: '20px' }}>
+                Вы выносите официальный вердикт по документу: <strong style={{ color: 'var(--text-primary)' }}>{selectedBillForAction.targetLaw}</strong>
               </p>
 
-              <div style={{ marginBottom: '20px', padding: '16px', borderRadius: 'var(--radius-sm)', border: `1px solid ${pendingDecision === 'approved' ? 'var(--success)' : pendingDecision === 'rejected' ? 'var(--danger)' : 'var(--warning)'}`, background: 'var(--bg-input)' }}>
-                <div style={{ fontWeight: 600, color: pendingDecision === 'approved' ? 'var(--success)' : pendingDecision === 'rejected' ? 'var(--danger)' : 'var(--warning)', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  {pendingDecision === 'approved' ? <CheckCircle2 size={16}/> : pendingDecision === 'rejected' ? <XCircle size={16}/> : <RotateCcw size={16}/>}
-                  РЕШЕНИЕ: {pendingDecision === 'approved' ? 'ОДОБРИТЬ' : pendingDecision === 'rejected' ? 'ОТКЛОНИТЬ' : 'ОТПРАВИТЬ НА ДОРАБОТКУ'}
+              <div style={{ marginBottom: '20px', padding: '18px', borderRadius: 'var(--radius-md)', border: `1px solid ${pendingDecision === 'approved' ? 'var(--success)' : pendingDecision === 'rejected' ? 'var(--danger)' : 'var(--warning)'}`, background: 'var(--bg-input)' }}>
+                <div style={{ fontWeight: 700, color: pendingDecision === 'approved' ? 'var(--success)' : pendingDecision === 'rejected' ? 'var(--danger)' : 'var(--warning)', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.95rem' }}>
+                  {pendingDecision === 'approved' ? <CheckCircle2 size={18}/> : pendingDecision === 'rejected' ? <XCircle size={18}/> : <RotateCcw size={18}/>}
+                  ВЕРДИКТ: {pendingDecision === 'approved' ? 'УТВЕРДИТЬ' : pendingDecision === 'rejected' ? 'ОТКЛОНИТЬ' : 'НА ДОРАБОТКУ'}
                 </div>
-                <label className="input-label" style={{ marginTop: '16px' }}>Обоснование вердикта {pendingDecision !== 'approved' && '(обязательно)'}</label>
+                <label className="input-label" style={{ marginTop: '16px' }}>Мотивированное обоснование {pendingDecision !== 'approved' && '(обязательно)'}</label>
                 <textarea
                   className="input-field"
-                  style={{ width: '100%', minHeight: '100px', resize: 'vertical' }}
-                  placeholder="Введите обоснование решения для автора..."
+                  style={{ width: '100%', minHeight: '110px', resize: 'vertical' }}
+                  placeholder="Введите официальное обоснование вердикта..."
                   value={adminNoteInput}
                   onChange={(e) => setAdminNoteInput(e.target.value)}
                 />
@@ -219,7 +225,7 @@ export const AdminWorkspace: React.FC<AdminWorkspaceProps> = ({
                 onClick={handleExecuteAdminVerdict}
                 disabled={(pendingDecision !== 'approved' && !adminNoteInput.trim())}
               >
-                Подтвердить вердикт
+                Вынести вердикт
               </button>
             </div>
           </div>
