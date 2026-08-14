@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import type { Bill, BillStatus, UserProfile } from '../types/bill';
+import { isSystemAdmin } from '../services/securityService';
 import { 
   Search, 
   ChevronRight,
@@ -46,6 +47,11 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const filteredBills = useMemo(() => {
     return bills
       .filter((b) => {
+        // Drafts remain private to their author (and Admin) until submitted
+        if (b.status === 'draft' && b.author.trim() !== currentFullName && !isSystemAdmin(user)) {
+          return false;
+        }
+
         if (activeTab === 'my') {
           if (b.author.trim() !== currentFullName) return false;
         } else if (activeTab === 'active') {
@@ -53,7 +59,6 @@ export const Dashboard: React.FC<DashboardProps> = ({
         } else if (activeTab === 'approved') {
           if (b.status !== 'approved') return false;
         }
-        // activeTab === 'all': SHOW ALL BILL PROJECTS TO EVERYONE!
 
         if (searchQuery) {
           const query = searchQuery.toLowerCase();
@@ -68,7 +73,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
         return true;
       })
       .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
-  }, [bills, activeTab, searchQuery, currentFullName]);
+  }, [bills, activeTab, searchQuery, currentFullName, user]);
 
   const formatDate = (isoStr: string) => {
     const d = new Date(isoStr);
