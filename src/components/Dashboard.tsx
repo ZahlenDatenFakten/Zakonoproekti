@@ -11,7 +11,8 @@ import {
   Layers,
   CheckCircle2,
   Clock,
-  FileCode2
+  FileCode2,
+  Trash2
 } from 'lucide-react';
 
 interface DashboardProps {
@@ -27,6 +28,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
   user,
   bills,
   onSelectBill,
+  onDeleteBill,
   onNewBill
 }) => {
   const [activeTab, setActiveTab] = useState<'all' | 'my' | 'active' | 'approved'>('all');
@@ -295,6 +297,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
         ) : (
           filteredBills.map((bill, index) => {
             const decreeStamp = formatDecreeNumber(index);
+            const isAuthor = bill.author.trim() === currentFullName;
+            const canDelete = isAuthor || isSystemAdmin(user);
 
             return (
               <div 
@@ -357,14 +361,38 @@ export const Dashboard: React.FC<DashboardProps> = ({
                   </div>
                 </div>
                 
-                <div style={{ 
-                  width: '38px', height: '38px', borderRadius: '50%', 
-                  background: 'var(--bg-input)', border: '1px solid var(--border-subtle)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  flexShrink: 0,
-                  transition: 'all 0.2s ease'
-                }}>
-                  <ChevronRight size={18} color="var(--text-accent)" />
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
+                  {canDelete && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onDeleteBill(bill.id);
+                      }}
+                      className="btn btn-ghost"
+                      style={{
+                        padding: '8px',
+                        color: '#ff7b72',
+                        borderRadius: '50%',
+                        background: 'rgba(248, 81, 73, 0.12)',
+                        border: '1px solid rgba(248, 81, 73, 0.3)',
+                        transition: 'all 0.2s ease'
+                      }}
+                      title="Удалить законопроект"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  )}
+
+                  <div style={{ 
+                    width: '38px', height: '38px', borderRadius: '50%', 
+                    background: 'var(--bg-input)', border: '1px solid var(--border-subtle)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    flexShrink: 0,
+                    transition: 'all 0.2s ease'
+                  }}>
+                    <ChevronRight size={18} color="var(--text-accent)" />
+                  </div>
                 </div>
               </div>
             );

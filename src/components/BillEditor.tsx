@@ -32,6 +32,7 @@ interface BillEditorProps {
   permission: AccessPermission;
   returnView?: 'dashboard' | 'admin_workspace';
   onSave: (updatedBill: Bill) => void;
+  onDelete?: (billId: string) => void;
   onBack: () => void;
   onShare: (bill: Bill) => void;
   onToast: (type: 'success' | 'error' | 'info', text: string) => void;
@@ -43,6 +44,7 @@ export const BillEditor: React.FC<BillEditorProps> = ({
   permission,
   returnView = 'dashboard',
   onSave,
+  onDelete,
   onBack,
   onShare,
   onToast
@@ -340,6 +342,24 @@ export const BillEditor: React.FC<BillEditorProps> = ({
           <button onClick={() => onShare(bill)} className="btn btn-secondary btn-pill" style={{ padding: '7px 16px', fontSize: '0.82rem' }}>
             <Share2 size={14} /> Ссылка доступа
           </button>
+
+          {(isAuthor || isAdmin) && (
+            <button 
+              type="button"
+              onClick={() => onDelete && onDelete(bill.id)} 
+              className="btn btn-pill" 
+              style={{ 
+                padding: '7px 16px', 
+                fontSize: '0.82rem', 
+                background: 'rgba(248, 81, 73, 0.12)', 
+                color: '#ff7b72', 
+                border: '1px solid rgba(248, 81, 73, 0.35)' 
+              }}
+              title="Отозвать и полностью удалить законопроект из государственного реестра"
+            >
+              <Trash2 size={14} /> Отозвать и удалить
+            </button>
+          )}
 
           {canEdit && !isReadOnly && (
             <button onClick={handleLocalSave} className="btn btn-primary btn-pill" style={{ padding: '7px 20px', fontSize: '0.84rem' }}>
@@ -676,6 +696,30 @@ export const BillEditor: React.FC<BillEditorProps> = ({
                 style={{ width: '100%', padding: '10px', fontSize: '0.86rem', marginTop: '4px' }}
               >
                 <Send size={15} /> Опубликовать на рассмотрение
+              </button>
+            )}
+
+            {(isAuthor || isAdmin) && (
+              <button 
+                type="button"
+                onClick={() => onDelete && onDelete(bill.id)}
+                className="btn btn-pill" 
+                style={{ 
+                  width: '100%', 
+                  padding: '9px 14px', 
+                  fontSize: '0.82rem', 
+                  background: 'rgba(248, 81, 73, 0.14)', 
+                  color: '#ff7b72', 
+                  border: '1px solid rgba(248, 81, 73, 0.35)',
+                  marginTop: '10px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px'
+                }}
+                title="Отозвать и полностью удалить законопроект"
+              >
+                <Trash2 size={14} /> Отозвать законопроект из реестра
               </button>
             )}
           </div>

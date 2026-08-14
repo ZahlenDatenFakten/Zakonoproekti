@@ -300,6 +300,7 @@ export const App: React.FC = () => {
             permission={currentPermission}
             returnView={returnView}
             onSave={handleSaveBill}
+            onDelete={(id) => setConfirmDeleteId(id)}
             onBack={handleBackFromEditor}
             onShare={(b) => {
               setSelectedBill(b);
@@ -366,9 +367,9 @@ export const App: React.FC = () => {
       {/* Delete Confirmation Modal */}
       {confirmDeleteId && (
         <ConfirmModal
-          title="Удаление законопроекта"
-          message="Вы уверены, что хотите безвозвратно удалить данный законопроект?"
-          confirmLabel="Удалить безвозвратно"
+          title="Отозвать и удалить законопроект"
+          message="Вы действительно хотите полностью отозвать и удалить данный законопроект из государственного реестра? Проект будет безвозвратно удален из базы данных и всех списков."
+          confirmLabel="Отозвать и удалить"
           onConfirm={() => handleDeleteBill(confirmDeleteId)}
           onCancel={() => setConfirmDeleteId(null)}
         />
