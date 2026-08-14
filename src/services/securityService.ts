@@ -28,6 +28,44 @@ export function savePinRegistry(registry: RolePinRegistry): void {
   logSecurityEvent('SYSTEM_ADMIN', 'ADMIN', 'Обновлен реестр служебных PIN-кодов');
 }
 
+export function updateOfficialPin(role: OfficialRole, currentPin: string, newPin: string): void {
+  const status = getBruteforceStatus();
+  if (status.lockoutUntil > Date.now()) {
+    const minutesLeft = Math.ceil((status.lockoutUntil - Date.now()) / 60000);
+    throw new Error(`Внимание: Доступ заблокирован. Попробуйте через ${minutesLeft} минут.`);
+  }
+
+  const registry = getPinRegistry();
+  const trimmedCurrent = currentPin.trim();
+  const trimmedNew = newPin.trim();
+
+  let isMatch = false;
+  if (role === 'admin') isMatch = trimmedCurrent === registry.adminCode;
+  else if (role === 'prosecutor') isMatch = trimmedCurrent === registry.prosecutor;
+  else if (role === 'judge') isMatch = trimmedCurrent === registry.judge;
+  else if (role === 'governor') isMatch = trimmedCurrent === registry.governor;
+
+  if (!isMatch) {
+    recordFailedAttempt();
+    logSecurityEvent('SECURITY_ALERT', role, `Неудачная попытка смены PIN-кода для ${role}`);
+    throw new Error('Текущий PIN-код введен неверно');
+  }
+
+  if (!trimmedNew || trimmedNew.length < 4) {
+    throw new Error('Новый PIN-код должен содержать минимум 4 символа');
+  }
+
+  resetBruteforceAttempts();
+
+  if (role === 'admin') registry.adminCode = trimmedNew;
+  else if (role === 'prosecutor') registry.prosecutor = trimmedNew;
+  else if (role === 'judge') registry.judge = trimmedNew;
+  else if (role === 'governor') registry.governor = trimmedNew;
+
+  savePinRegistry(registry);
+  logSecurityEvent('PIN_UPDATE', role, `Пользователь успешно изменил PIN-код для должности ${role}`);
+}
+
 // Anti-Bruteforce Defense Engine (2026 Enterprise Security Standard)
 interface BruteforceStatus {
   failedAttempts: number;

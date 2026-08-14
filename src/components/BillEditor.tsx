@@ -55,9 +55,11 @@ export const BillEditor: React.FC<BillEditorProps> = ({
   // Admin verdict form state
   const [adminVerdictReason, setAdminVerdictReason] = useState('');
 
-  const canEdit = permission === 'edit';
+  const currentFullName = `${user.firstName} ${user.lastName}`.trim();
+  const isAuthor = bill.author.trim() === currentFullName;
   const isAdmin = isSystemAdmin(user);
-  const isOfficial = user.isOfficialVerified;
+  const isOfficial = user.isOfficialVerified && (user.officialRole === 'governor' || user.officialRole === 'prosecutor' || user.officialRole === 'judge');
+  const canEdit = permission === 'edit' || isAuthor || isAdmin || (isOfficial && bill.status !== 'approved');
 
   // Auto-save draft on changes
   const isInitialMount = useRef(true);

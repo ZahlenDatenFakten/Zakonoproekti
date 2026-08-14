@@ -28,7 +28,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
   onSelectBill,
   onNewBill
 }) => {
-  const [activeTab, setActiveTab] = useState<'all' | 'my' | 'active'>('active');
+  const [activeTab, setActiveTab] = useState<'all' | 'my' | 'active' | 'approved'>('all');
   const [searchQuery, setSearchQuery] = useState('');
 
   const currentFullName = `${user.firstName} ${user.lastName}`.trim();
@@ -36,7 +36,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
   // Statistics calculation
   const stats = useMemo(() => {
     const total = bills.length;
-    const active = bills.filter(b => b.status === 'under_review' || b.status === 'needs_revision').length;
+    const active = bills.filter(b => b.status === 'under_review' || b.status === 'needs_revision' || b.status === 'draft').length;
     const approved = bills.filter(b => b.status === 'approved').length;
     const myCount = bills.filter(b => b.author.trim() === currentFullName).length;
     return { total, active, approved, myCount };
@@ -46,15 +46,14 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const filteredBills = useMemo(() => {
     return bills
       .filter((b) => {
-        if (b.status === 'draft' && b.author.trim() !== currentFullName) return false;
-        
         if (activeTab === 'my') {
           if (b.author.trim() !== currentFullName) return false;
         } else if (activeTab === 'active') {
-          if (b.status === 'approved' || b.status === 'rejected' || b.status === 'draft') return false;
-        } else if (activeTab === 'all') {
-          if (b.status !== 'approved' && b.status !== 'rejected') return false;
+          if (b.status === 'approved' || b.status === 'rejected') return false;
+        } else if (activeTab === 'approved') {
+          if (b.status !== 'approved') return false;
         }
+        // activeTab === 'all': SHOW ALL BILL PROJECTS TO EVERYONE!
 
         if (searchQuery) {
           const query = searchQuery.toLowerCase();
@@ -226,9 +225,10 @@ export const Dashboard: React.FC<DashboardProps> = ({
           backdropFilter: 'blur(12px)'
         }}>
           {[
+            { id: 'all', label: 'Весь реестр проектов', icon: FileText },
+            { id: 'active', label: 'На рассмотрении', icon: Clock },
             { id: 'my', label: 'Мои проекты', icon: UserIcon },
-            { id: 'active', label: 'Актуальная реформа', icon: Clock },
-            { id: 'all', label: 'Весь реестр', icon: FileText }
+            { id: 'approved', label: 'Вступили в силу', icon: CheckCircle2 }
           ].map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;

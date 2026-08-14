@@ -2,8 +2,8 @@ import React, { useState } from 'react';
 import type { UserProfile, OfficialRole, RolePinRegistry, AuditLogEntry } from '../types/bill';
 import { OFFICIAL_ROLE_LABELS } from '../types/bill';
 import { CustomSelect } from './CustomSelect';
-import { verifyRolePin, getPinRegistry, savePinRegistry, isSystemAdmin, getAuditLogs } from '../services/securityService';
-import { X, User, Key, ShieldCheck, Check, Clock } from 'lucide-react';
+import { verifyRolePin, getPinRegistry, savePinRegistry, updateOfficialPin, isSystemAdmin, getAuditLogs } from '../services/securityService';
+import { X, User, Key, ShieldCheck, Check, Clock, Lock } from 'lucide-react';
 
 interface SettingsModalProps {
   user: UserProfile;
@@ -18,7 +18,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onClose,
   onToast
 }) => {
-  const [activeTab, setActiveTab] = useState<'profile' | 'official' | 'admin' | 'audit'>('profile');
+  const [activeTab, setActiveTab] = useState<'profile' | 'official' | 'changepin' | 'admin' | 'audit'>('profile');
 
   // Profile Form
   const [firstName, setFirstName] = useState(user.firstName);
@@ -27,6 +27,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   // Official PIN Form
   const [targetRole, setTargetRole] = useState<OfficialRole>('prosecutor');
   const [rolePin, setRolePin] = useState('');
+
+  // Change PIN Form
+  const [currentPinInput, setCurrentPinInput] = useState('');
+  const [newPinInput, setNewPinInput] = useState('');
+  const [confirmPinInput, setConfirmPinInput] = useState('');
 
   // Admin Code Form
   const [adminCodeInput, setAdminCodeInput] = useState('');
@@ -77,6 +82,26 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     }
   };
 
+  const handleChangePin = () => {
+    if (!currentPinInput.trim() || !newPinInput.trim() || !confirmPinInput.trim()) {
+      onToast('error', 'Заполните все поля смены PIN-кода');
+      return;
+    }
+    if (newPinInput.trim() !== confirmPinInput.trim()) {
+      onToast('error', 'Новый PIN-код и подтверждение не совпадают');
+      return;
+    }
+    try {
+      updateOfficialPin(user.officialRole, currentPinInput, newPinInput);
+      onToast('success', `PIN-код успешно изменен для роли: ${OFFICIAL_ROLE_LABELS[user.officialRole]}`);
+      setCurrentPinInput('');
+      setNewPinInput('');
+      setConfirmPinInput('');
+    } catch (err: any) {
+      onToast('error', err.message || 'Ошибка смены PIN-кода');
+    }
+  };
+
   const handleSavePinRegistry = () => {
     savePinRegistry(pinRegistry);
     onToast('success', 'Реестр служебных PIN-кодов ролей обновлен');
@@ -100,7 +125,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       }} 
       style={{ zIndex: 5000 }}
     >
-      <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '620px', width: '100%' }}>
+      <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '640px', width: '100%' }}>
         
         {/* Modal Header */}
         <div className="modal-header">
@@ -125,12 +150,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
         <div className="modal-body">
           {/* Navigation Tabs */}
-          <div style={{ display: 'flex', gap: '4px', background: 'var(--bg-input)', padding: '4px', borderRadius: 'var(--radius-pill)', marginBottom: '20px', border: '1px solid var(--border-subtle)' }}>
+          <div style={{ display: 'flex', gap: '4px', background: 'var(--bg-input)', padding: '4px', borderRadius: 'var(--radius-pill)', marginBottom: '20px', border: '1px solid var(--border-subtle)', flexWrap: 'wrap' }}>
             {[
               { id: 'profile', label: '👤 Профиль' },
               { id: 'official', label: '🔑 Авторизация' },
+              { id: 'changepin', label: '🛡️ Смена PIN' },
               { id: 'admin', label: '👑 Админ-панель' },
-              { id: 'audit', label: '📝 Аудит Логи' },
+              { id: 'audit', label: '📝 Аудит' },
             ].map((t) => (
               <button
                 key={t.id}
@@ -138,11 +164,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 className="btn btn-pill"
                 style={{
                   flex: 1,
-                  fontSize: '0.78rem',
+                  fontSize: '0.76rem',
                   padding: '6px 8px',
                   background: activeTab === t.id ? 'var(--primary-gradient)' : 'transparent',
                   color: activeTab === t.id ? '#ffffff' : 'var(--text-secondary)',
-                  border: 'none'
+                  border: 'none',
+                  whiteSpace: 'nowrap'
                 }}
               >
                 {t.label}
@@ -231,7 +258,71 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </div>
           )}
 
-          {/* TAB 3: Admin Panel */}
+          {/* TAB 3: Change Official PIN Password */}
+          {activeTab === 'changepin' && (
+            <div>
+              {!user.isOfficialVerified || user.officialRole === 'civilian' ? (
+                <div style={{ padding: '16px', background: 'rgba(234, 179, 8, 0.1)', border: '1px solid rgba(234, 179, 8, 0.3)', borderRadius: 'var(--radius-md)', color: '#fef08a', fontSize: '0.84rem', lineHeight: 1.5 }}>
+                  ⚠️ <strong>Смена PIN-кода ограниченного доступа:</strong> Данный раздел предназначен для верифицированных должностных лиц (Губернатор, Генпрокурор, Председатель суда, Администратор). Сначала подтвердите свои полномочия на соседней вкладке «Авторизация».
+                </div>
+              ) : (
+                <div>
+                  <div style={{ background: 'var(--bg-input)', padding: '12px 16px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)', marginBottom: '16px' }}>
+                    <div style={{ fontSize: '0.86rem', fontWeight: 700, color: 'var(--text-accent)', marginBottom: '2px', fontFamily: 'var(--font-mono)' }}>
+                      {OFFICIAL_ROLE_LABELS[user.officialRole]}
+                    </div>
+                    <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+                      Вы можете самостоятельно обновить свой персональный PIN-код для входа.
+                    </div>
+                  </div>
+
+                  <div style={{ marginBottom: '14px' }}>
+                    <label className="input-label">Текущий PIN-код:</label>
+                    <input
+                      type="password"
+                      autoComplete="new-password"
+                      className="input-field"
+                      placeholder="Введите действующий PIN..."
+                      value={currentPinInput}
+                      onChange={(e) => setCurrentPinInput(e.target.value)}
+                    />
+                  </div>
+
+                  <div style={{ marginBottom: '14px' }}>
+                    <label className="input-label">Новый PIN-код:</label>
+                    <input
+                      type="password"
+                      autoComplete="new-password"
+                      className="input-field"
+                      placeholder="Новый PIN-код (минимум 4 символа)..."
+                      value={newPinInput}
+                      onChange={(e) => setNewPinInput(e.target.value)}
+                    />
+                  </div>
+
+                  <div style={{ marginBottom: '20px' }}>
+                    <label className="input-label">Подтверждение нового PIN-кода:</label>
+                    <input
+                      type="password"
+                      autoComplete="new-password"
+                      className="input-field"
+                      placeholder="Повторите новый PIN-код..."
+                      value={confirmPinInput}
+                      onChange={(e) => setConfirmPinInput(e.target.value)}
+                    />
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                    <button onClick={handleChangePin} className="btn btn-primary btn-pill" style={{ fontSize: '0.84rem' }}>
+                      <Lock size={14} /> Сохранить новый PIN-код
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* TAB 4: Admin Panel */}
           {activeTab === 'admin' && (
             <div>
               {!isSystemAdmin(user) ? (

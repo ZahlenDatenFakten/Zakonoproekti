@@ -9,6 +9,7 @@ import {
   saveUserProfile
 } from './services/storageService';
 import { getStoredDbConfig } from './services/supabaseClient';
+import { isSystemAdmin } from './services/securityService';
 import { Header } from './components/Header';
 import { Dashboard } from './components/Dashboard';
 import { BillEditor } from './components/BillEditor';
@@ -124,7 +125,10 @@ export const App: React.FC = () => {
       const targetBill = loadedBills.find((b) => b.id === billId);
       if (targetBill) {
         setSelectedBill(targetBill);
-        setCurrentPermission(perm || 'read');
+        const currentFullName = `${user.firstName} ${user.lastName}`.trim();
+        const isAuthor = targetBill.author.trim() === currentFullName;
+        const canUserEdit = perm ? perm === 'edit' : (isAuthor || isSystemAdmin(user) || user.isOfficialVerified);
+        setCurrentPermission(canUserEdit ? 'edit' : 'read');
         setCurrentView('editor');
         return;
       }
