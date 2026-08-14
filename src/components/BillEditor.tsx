@@ -495,7 +495,28 @@ export const BillEditor: React.FC<BillEditorProps> = ({
                         alignItems: 'center',
                         justifyContent: 'space-between'
                       }}>
-                        <span>Действующая редакция (Оригинал)</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                          <span>Действующая редакция (Оригинал)</span>
+                          {canEdit && !isReadOnly && (
+                            <button
+                              type="button"
+                              onClick={() => updateComparisonRow(row.id, 'wasContent', '[Ранее статья в действующей редакции закона отсутствовала]')}
+                              className="btn btn-pill"
+                              style={{
+                                fontSize: '0.66rem',
+                                padding: '2px 8px',
+                                background: 'rgba(56, 189, 248, 0.12)',
+                                color: 'var(--text-accent)',
+                                border: '1px solid rgba(56, 189, 248, 0.3)',
+                                textTransform: 'none',
+                                fontWeight: 600
+                              }}
+                              title="Отметить, что этой статьи не существовало в прежнем законе"
+                            >
+                              ✨ Статьи ранее не было
+                            </button>
+                          )}
+                        </div>
                         <span style={{ fontSize: '0.65rem', opacity: 0.8 }}>УДАЛЕНИЯ (-)</span>
                       </div>
                       

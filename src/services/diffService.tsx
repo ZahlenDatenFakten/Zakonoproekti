@@ -80,6 +80,9 @@ export function computeWordDiff(wasText: string, becameText: string): DiffResult
   const becameFormatted: React.ReactNode[] = [];
   const unifiedFormatted: React.ReactNode[] = [];
 
+  // Special handling for brand new articles that didn't exist previously
+  const isBrandNewArticle = cleanWas.includes('отсутствовала') || cleanWas.includes('отсутствовал');
+
   edits.forEach((token, idx) => {
     const isWord = /\S+/.test(token.value);
 
@@ -89,17 +92,20 @@ export function computeWordDiff(wasText: string, becameText: string): DiffResult
         <span
           key={`was_del_${idx}`}
           style={{
-            color: '#f85149',
+            color: '#ff7b72',
             textDecoration: 'line-through',
-            background: 'rgba(248, 81, 73, 0.18)',
-            borderBottom: '1.5px solid #f85149',
-            padding: '1px 5px',
+            background: 'rgba(248, 81, 73, 0.22)',
+            border: '1px solid rgba(248, 81, 73, 0.45)',
+            padding: '2px 6px',
             borderRadius: '4px',
-            fontWeight: 600,
-            margin: '0 1px'
+            fontWeight: 700,
+            margin: '0 2px',
+            display: 'inline-block',
+            lineHeight: 1.4
           }}
-          title="Удаляемая действующая норма"
+          title="Исключаемая норма (-)"
         >
+          <span style={{ fontSize: '0.72rem', opacity: 0.85, marginRight: '3px', fontWeight: 900 }}>-</span>
           {token.value}
         </span>
       );
@@ -111,30 +117,42 @@ export function computeWordDiff(wasText: string, becameText: string): DiffResult
         <span
           key={`bec_add_${idx}`}
           style={{
-            color: '#3fb950',
+            color: '#56d364',
             fontWeight: 700,
-            background: 'rgba(63, 185, 80, 0.18)',
-            borderBottom: '1.5px solid #3fb950',
-            padding: '1px 5px',
+            background: 'rgba(45, 164, 78, 0.25)',
+            border: '1px solid rgba(63, 185, 80, 0.45)',
+            padding: '2px 6px',
             borderRadius: '4px',
-            margin: '0 1px'
+            margin: '0 2px',
+            display: 'inline-block',
+            lineHeight: 1.4,
+            boxShadow: '0 0 8px rgba(63, 185, 80, 0.2)'
           }}
-          title="Новая проектируемая норма"
+          title="Вносимая поправка (+)"
         >
+          <span style={{ fontSize: '0.72rem', opacity: 0.85, marginRight: '3px', fontWeight: 900 }}>+</span>
           {token.value}
         </span>
       );
       becameFormatted.push(node);
       unifiedFormatted.push(node);
     } else {
-      const sameNodeWas = <span key={`same_w_${idx}`}>{token.value}</span>;
-      const sameNodeBec = <span key={`same_b_${idx}`}>{token.value}</span>;
-      const sameNodeUni = <span key={`same_u_${idx}`}>{token.value}</span>;
+      const sameNodeWas = <span key={`same_w_${idx}`} style={{ color: 'var(--text-primary)' }}>{token.value}</span>;
+      const sameNodeBec = <span key={`same_b_${idx}`} style={{ color: 'var(--text-primary)' }}>{token.value}</span>;
+      const sameNodeUni = <span key={`same_u_${idx}`} style={{ color: 'var(--text-primary)' }}>{token.value}</span>;
       wasFormatted.push(sameNodeWas);
       becameFormatted.push(sameNodeBec);
       unifiedFormatted.push(sameNodeUni);
     }
   });
+
+  if (isBrandNewArticle && wasFormatted.length === 0) {
+    wasFormatted.push(
+      <span key="new_art_was" style={{ color: 'var(--text-accent)', fontStyle: 'italic', fontSize: '0.84rem' }}>
+        ✨ Ранее статья в действующей редакции закона отсутствовала (Новая статья)
+      </span>
+    );
+  }
 
   return {
     wasFormatted,

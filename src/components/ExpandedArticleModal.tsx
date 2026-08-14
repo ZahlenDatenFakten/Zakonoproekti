@@ -149,10 +149,31 @@ export const ExpandedArticleModal: React.FC<ExpandedArticleModalProps> = ({
               
               {/* WAS COLUMN */}
               <div style={{ display: 'flex', flexDirection: 'column', background: 'var(--bg-input)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)', padding: '16px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
-                  <h4 className="tech-label" style={{ color: 'var(--danger-text)', margin: 0 }}>
-                    Действующая редакция (Оригинал)
-                  </h4>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px', flexWrap: 'wrap', gap: '8px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <h4 className="tech-label" style={{ color: 'var(--danger-text)', margin: 0 }}>
+                      Действующая редакция (Оригинал)
+                    </h4>
+                    {canEdit && (
+                      <button
+                        type="button"
+                        onClick={() => onUpdateRow(row.id, 'wasContent', '[Ранее статья в действующей редакции закона отсутствовала]')}
+                        className="btn btn-pill"
+                        style={{
+                          fontSize: '0.66rem',
+                          padding: '2px 8px',
+                          background: 'rgba(56, 189, 248, 0.12)',
+                          color: 'var(--text-accent)',
+                          border: '1px solid rgba(56, 189, 248, 0.3)',
+                          textTransform: 'none',
+                          fontWeight: 600
+                        }}
+                        title="Отметить, что этой статьи не существовало в прежнем законе"
+                      >
+                        ✨ Статьи ранее не было
+                      </button>
+                    )}
+                  </div>
                   <span style={{ fontSize: '0.68rem', color: 'var(--danger-text)', fontFamily: 'var(--font-mono)' }}>
                     УДАЛЕНИЯ (-)
                   </span>
