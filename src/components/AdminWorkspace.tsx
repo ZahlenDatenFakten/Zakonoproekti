@@ -133,7 +133,7 @@ export const AdminWorkspace: React.FC<AdminWorkspaceProps> = ({
 
     const updated: Bill = {
       ...selectedBillForAction,
-      status: pendingDecision === 'approved' ? ('under_review' as any) : pendingDecision,
+      status: pendingDecision,
       statusReason: officialStatusReason,
       federalVerdict: verdict
     };
@@ -307,27 +307,27 @@ export const AdminWorkspace: React.FC<AdminWorkspaceProps> = ({
                             <Eye size={13} /> Просмотр
                           </button>
 
-                          {/* FORUM EXPORT BUTTON FOR ENACTED BILLS */}
+                          {/* FORUM & LAWS ENACTMENT BUTTON FOR APPROVED BILLS */}
                           {isEnacted && (
                             <button 
                               onClick={() => setForumExportBill(bill)} 
                               className="btn btn-pill" 
-                              style={{ padding: '6px 12px', fontSize: '0.76rem', background: 'rgba(56, 189, 248, 0.12)', color: 'var(--text-accent)', border: '1px solid rgba(56, 189, 248, 0.35)' }}
-                              title="Открыть сферу публикаций на Форуме"
+                              style={{ padding: '6px 14px', fontSize: '0.78rem', background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)', color: '#ffffff', border: '1px solid rgba(56, 189, 248, 0.5)', fontWeight: 700 }}
+                              title="Внести поправки в закон и открыть готовый BB-код для экспорта на Форум"
                             >
-                              <FileText size={13} /> Текст для Форума
+                              <FileText size={13} /> Изменить в законах
                             </button>
                           )}
 
-                          {/* ACTION BUTTONS FOR STAGE 2 VERDICT */}
+                          {/* ACTION BUTTONS FOR UNAPPROVED BILLS */}
                           {!isEnacted && (
                             <>
                               <button 
                                 onClick={() => handleOpenActionModal(bill, 'approved')} 
                                 className="btn btn-pill" 
-                                style={{ padding: '6px 12px', fontSize: '0.76rem', background: bill.federalVerdict?.status === 'approved' ? 'var(--success-bg)' : 'rgba(63, 185, 80, 0.14)', color: 'var(--success-text)', border: '1px solid var(--success-border)', fontWeight: 600 }}
+                                style={{ padding: '6px 14px', fontSize: '0.78rem', background: 'linear-gradient(135deg, #2ea043 0%, #238636 100%)', color: '#ffffff', border: '1px solid rgba(63, 185, 80, 0.5)', fontWeight: 700 }}
                               >
-                                <CheckCircle2 size={13} /> Одобрить 2-й этап
+                                <CheckCircle2 size={13} /> Одобрить
                               </button>
 
                               <button 

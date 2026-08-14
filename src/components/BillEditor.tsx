@@ -855,10 +855,34 @@ export const BillEditor: React.FC<BillEditorProps> = ({
               </div>
             </div>
 
-            {bill.federalVerdict ? (
-              <div style={{ padding: '14px', background: 'var(--bg-input)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)' }}>
-                <div style={{ fontSize: '0.82rem', fontFamily: 'var(--font-mono)', fontWeight: 800, color: bill.federalVerdict.status === 'approved' ? 'var(--success-text)' : 'var(--danger-text)', marginBottom: '4px' }}>
-                  {bill.federalVerdict.status === 'approved' ? 'ОФИЦИАЛЬНО УТВЕРЖДЕНО' : 'ОТКЛОНЕНО АДМИНИСТРАЦИЕЙ'}
+            {bill.status === 'approved' ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <div style={{ padding: '14px', background: 'var(--bg-input)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--success-border)' }}>
+                  <div style={{ fontSize: '0.82rem', fontFamily: 'var(--font-mono)', fontWeight: 800, color: 'var(--success-text)', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <CheckCircle2 size={16} /> ОДОБРЕНО И УТВЕРЖДЕНО
+                  </div>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: 1.45 }}>
+                    {bill.statusReason || bill.federalVerdict?.reason || 'Законопроект проверен и официально утвержден Администрацией.'}
+                  </div>
+                  {bill.federalVerdict?.adminName && (
+                    <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: '8px', fontFamily: 'var(--font-mono)' }}>
+                      Администратор: {bill.federalVerdict.adminName}
+                    </div>
+                  )}
+                </div>
+
+                <button 
+                  onClick={() => setShowForumExport(true)}
+                  className="btn btn-primary btn-pill"
+                  style={{ width: '100%', padding: '10px', fontSize: '0.86rem', background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)', border: '1px solid rgba(56, 189, 248, 0.5)', fontWeight: 700, boxShadow: '0 4px 14px rgba(56, 189, 248, 0.35)' }}
+                >
+                  <FileText size={16} /> Изменить в законах
+                </button>
+              </div>
+            ) : bill.federalVerdict && bill.federalVerdict.status === 'rejected' ? (
+              <div style={{ padding: '14px', background: 'var(--bg-input)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--danger-border)' }}>
+                <div style={{ fontSize: '0.82rem', fontFamily: 'var(--font-mono)', fontWeight: 800, color: 'var(--danger-text)', marginBottom: '4px' }}>
+                  ОТКЛОНЕНО АДМИНИСТРАЦИЕЙ
                 </div>
                 <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: 1.45 }}>
                   {bill.federalVerdict.reason}
@@ -867,7 +891,7 @@ export const BillEditor: React.FC<BillEditorProps> = ({
                   Администратор: {bill.federalVerdict.adminName}
                 </div>
               </div>
-            ) : isAdmin && (isStage1Passed || bill.status === 'under_review') ? (
+            ) : isAdmin ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 <label className="input-label">Мотивированное обоснование вердикта:</label>
                 <textarea 
@@ -875,16 +899,16 @@ export const BillEditor: React.FC<BillEditorProps> = ({
                   onChange={(e) => setAdminVerdictReason(e.target.value)}
                   className="input-field"
                   style={{ width: '100%', minHeight: '80px', fontSize: '0.82rem', resize: 'vertical' }}
-                  placeholder="Официальное заключение Администрации..."
+                  placeholder="Официальное заключение Администрации (необязательно для одобрения)..."
                 />
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   <button 
                     onClick={() => handleExecuteAdminVerdict('approved')}
                     className="btn btn-primary btn-pill"
-                    style={{ width: '100%', padding: '9px', fontSize: '0.82rem' }}
+                    style={{ width: '100%', padding: '10px', fontSize: '0.86rem', background: 'linear-gradient(135deg, #2ea043 0%, #238636 100%)', border: '1px solid rgba(63, 185, 80, 0.5)', fontWeight: 700, boxShadow: '0 4px 14px rgba(46, 160, 67, 0.35)' }}
                   >
-                    <CheckCircle2 size={15} /> Утвердить законом
+                    <CheckCircle2 size={16} /> Одобрить законопроект
                   </button>
                   <div style={{ display: 'flex', gap: '6px' }}>
                     <button 
