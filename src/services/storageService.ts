@@ -114,10 +114,29 @@ export async function saveBill(bill: Bill): Promise<Bill> {
     updatedAt: new Date().toISOString()
   };
 
-  // Save to Firebase Firestore
-  await saveBillToFirebase(updatedBill);
+  // 1. Immediately save to Local Vault (guarantees 0ms local persistence)
+  let localBills: Bill[] = [];
+  const savedLocal = localStorage.getItem(STORAGE_KEY);
+  if (savedLocal) {
+    try { localBills = JSON.parse(savedLocal); } catch { localBills = []; }
+  }
 
-  // Save to Supabase DB if connected
+  const index = localBills.findIndex((b) => b.id === updatedBill.id);
+  if (index >= 0) {
+    localBills[index] = updatedBill;
+  } else {
+    localBills.unshift(updatedBill);
+  }
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(localBills));
+
+  // 2. Asynchronously sync to Firebase Firestore Cloud
+  try {
+    await saveBillToFirebase(updatedBill);
+  } catch (err) {
+    console.warn('Firebase save warning:', err);
+  }
+
+  // 3. Asynchronously sync to Supabase Cloud DB if connected
   const dbConfig = getStoredDbConfig();
   if (dbConfig.isConnected) {
     const supabase = getSupabaseClient();
@@ -143,26 +162,10 @@ export async function saveBill(bill: Bill): Promise<Bill> {
           view_count: updatedBill.viewCount
         });
       } catch (err) {
-        console.warn('Supabase DB write error, failover active:', err);
+        console.warn('Supabase DB write error:', err);
       }
     }
   }
-
-  // Synchronize to Local Vault (read directly to avoid Firebase overwrite)
-  let localBills: Bill[] = [];
-  const savedLocal = localStorage.getItem(STORAGE_KEY);
-  if (savedLocal) {
-    try { localBills = JSON.parse(savedLocal); } catch { localBills = []; }
-  }
-
-  const index = localBills.findIndex((b) => b.id === updatedBill.id);
-  if (index >= 0) {
-    localBills[index] = updatedBill;
-  } else {
-    localBills.unshift(updatedBill);
-  }
-
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(localBills));
 
   return updatedBill;
 }

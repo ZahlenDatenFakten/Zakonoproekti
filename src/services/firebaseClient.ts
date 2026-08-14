@@ -1,5 +1,5 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getFirestore, collection, doc, setDoc, getDocs, deleteDoc, query, orderBy } from 'firebase/firestore';
+import { getFirestore, collection, doc, setDoc, getDocs, deleteDoc } from 'firebase/firestore';
 import { getDatabase, ref, set, get, remove } from 'firebase/database';
 import type { Bill } from '../types/bill';
 import type { StateLaw } from '../data/stateLaws';
@@ -76,67 +76,89 @@ export async function saveBillToFirebase(bill: Bill): Promise<boolean> {
     updatedAt: new Date().toISOString()
   };
 
-  // 1. Try Realtime Database first if databaseURL is provided
-  try {
-    const rtdb = getDatabase(app);
-    if (rtdb) {
-      const billRef = ref(rtdb, 'bills/' + bill.id);
-      await set(billRef, updatedBill);
-      return true;
-    }
-  } catch {
-    // fallback to Firestore
-  }
+  let savedSuccess = false;
 
-  // 2. Try Firestore
+  // 1. Save to Cloud Firestore
   try {
     const firestore = getFirestore(app);
     if (firestore) {
       const docRef = doc(firestore, 'bills', bill.id);
-      await setDoc(docRef, updatedBill);
-      return true;
+      await setDoc(docRef, updatedBill, { merge: true });
+      savedSuccess = true;
     }
   } catch (err) {
-    console.warn('Firebase saveBill error:', err);
+    console.warn('Firebase Firestore save error:', err);
   }
 
-  return false;
+  // 2. Save to Realtime Database if databaseURL is configured
+  try {
+    const config = getStoredFirebaseConfig();
+    if (config.databaseURL) {
+      const rtdb = getDatabase(app);
+      if (rtdb) {
+        const billRef = ref(rtdb, 'bills/' + bill.id);
+        await set(billRef, updatedBill);
+        savedSuccess = true;
+      }
+    }
+  } catch (err) {
+    console.warn('Firebase RealtimeDB save error:', err);
+  }
+
+  return savedSuccess;
 }
 
 export async function fetchBillsFromFirebase(): Promise<Bill[] | null> {
   const app = getFirebaseApp();
   if (!app) return null;
 
-  // 1. Try Realtime Database
-  try {
-    const rtdb = getDatabase(app);
-    if (rtdb) {
-      const billsRef = ref(rtdb, 'bills');
-      const snapshot = await get(billsRef);
-      if (snapshot.exists()) {
-        const val = snapshot.val();
-        const billsList: Bill[] = Object.values(val);
-        return billsList.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
-      }
-    }
-  } catch {
-    // fallback to Firestore
-  }
+  const fetchedMap = new Map<string, Bill>();
 
-  // 2. Try Firestore
+  // 1. Try Cloud Firestore (without orderBy to avoid requiring custom Firestore indexes)
   try {
     const firestore = getFirestore(app);
     if (firestore) {
-      const q = query(collection(firestore, 'bills'), orderBy('updatedAt', 'desc'));
-      const snapshot = await getDocs(q);
-      const bills: Bill[] = [];
+      const snapshot = await getDocs(collection(firestore, 'bills'));
       snapshot.forEach((docSnap) => {
-        bills.push(docSnap.data() as Bill);
+        const data = docSnap.data() as Bill;
+        if (data && data.id) {
+          fetchedMap.set(data.id, data);
+        }
       });
-      return bills;
     }
   } catch (err) {
-    console.warn('Firebase fetchBills error:', err);
+    console.warn('Firebase Firestore fetch error:', err);
+  }
+
+  // 2. Try Realtime Database if databaseURL is configured
+  try {
+    const config = getStoredFirebaseConfig();
+    if (config.databaseURL) {
+      const rtdb = getDatabase(app);
+      if (rtdb) {
+        const billsRef = ref(rtdb, 'bills');
+        const snapshot = await get(billsRef);
+        if (snapshot.exists()) {
+          const val = snapshot.val();
+          const list: Bill[] = Object.values(val);
+          list.forEach((item) => {
+            if (item && item.id) {
+              const existing = fetchedMap.get(item.id);
+              if (!existing || new Date(item.updatedAt).getTime() >= new Date(existing.updatedAt).getTime()) {
+                fetchedMap.set(item.id, item);
+              }
+            }
+          });
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('Firebase RealtimeDB fetch error:', err);
+  }
+
+  if (fetchedMap.size > 0) {
+    const billsList = Array.from(fetchedMap.values());
+    return billsList.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
   }
 
   return null;
