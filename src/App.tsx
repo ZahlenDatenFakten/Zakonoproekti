@@ -247,6 +247,7 @@ export const App: React.FC = () => {
   const handleSaveBill = async (updatedBill: Bill) => {
     const saved = await saveBill(updatedBill);
     setSelectedBill(saved);
+    setBills((prev) => [saved, ...prev.filter((b) => b.id !== saved.id)]);
     await loadData();
   };
 

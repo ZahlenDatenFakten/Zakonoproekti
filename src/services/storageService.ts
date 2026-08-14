@@ -22,67 +22,90 @@ const USER_KEY = 'legaldraft_user_v3';
  * Secondary Storage: IndexedDB / Local Vault Failover
  */
 export async function fetchAllBills(): Promise<Bill[]> {
+  let cloudBills: Bill[] = [];
+
   // 1. Try Firebase Cloud Firestore
   try {
     const fbBills = await fetchBillsFromFirebase();
     if (fbBills && fbBills.length > 0) {
-      return fbBills.filter((b: Bill) => !b.author.includes('Северов'));
+      cloudBills = fbBills;
     }
   } catch (err) {
     console.warn('Firebase fetch unavailable, trying Supabase/Local:', err);
   }
 
-  // 2. Try Supabase Cloud DB
-  const dbConfig = getStoredDbConfig();
-  if (dbConfig.isConnected) {
-    const supabase = getSupabaseClient();
-    if (supabase) {
-      try {
-        const { data, error } = await supabase
-          .from('bills')
-          .select('*')
-          .order('updated_at', { ascending: false });
+  // 2. Try Supabase Cloud DB if Firebase returned no bills
+  if (cloudBills.length === 0) {
+    const dbConfig = getStoredDbConfig();
+    if (dbConfig.isConnected) {
+      const supabase = getSupabaseClient();
+      if (supabase) {
+        try {
+          const { data, error } = await supabase
+            .from('bills')
+            .select('*')
+            .order('updated_at', { ascending: false });
 
-        if (!error && data) {
-          return data.map((item: any) => ({
-            id: item.id,
-            title: item.title,
-            targetLaw: item.target_law,
-            lawCode: item.law_code,
-            author: item.author,
-            authorRole: item.author_role,
-            status: item.status,
-            statusReason: item.status_reason,
-            explanatoryNote: item.explanatory_note || '',
-            comparisons: typeof item.comparisons === 'string' ? JSON.parse(item.comparisons) : item.comparisons || [],
-            shareTokens: typeof item.share_tokens === 'string' ? JSON.parse(item.share_tokens) : item.share_tokens || [],
-            comments: typeof item.comments === 'string' ? JSON.parse(item.comments) : item.comments || [],
-            votes: typeof item.votes === 'string' ? JSON.parse(item.votes) : item.votes || {},
-            federalVerdict: typeof item.federal_verdict === 'string' ? JSON.parse(item.federal_verdict) : item.federal_verdict || null,
-            sha256Hash: item.sha256_hash,
-            createdAt: item.created_at,
-            updatedAt: item.updated_at,
-            viewCount: item.view_count || 1
-          }));
+          if (!error && data) {
+            cloudBills = data.map((item: any) => ({
+              id: item.id,
+              title: item.title,
+              targetLaw: item.target_law,
+              lawCode: item.law_code,
+              author: item.author,
+              authorRole: item.author_role,
+              status: item.status,
+              statusReason: item.status_reason,
+              explanatoryNote: item.explanatory_note || '',
+              comparisons: typeof item.comparisons === 'string' ? JSON.parse(item.comparisons) : item.comparisons || [],
+              shareTokens: typeof item.share_tokens === 'string' ? JSON.parse(item.share_tokens) : item.share_tokens || [],
+              comments: typeof item.comments === 'string' ? JSON.parse(item.comments) : item.comments || [],
+              votes: typeof item.votes === 'string' ? JSON.parse(item.votes) : item.votes || {},
+              federalVerdict: typeof item.federal_verdict === 'string' ? JSON.parse(item.federal_verdict) : item.federal_verdict || null,
+              sha256Hash: item.sha256_hash,
+              createdAt: item.created_at,
+              updatedAt: item.updated_at,
+              viewCount: item.view_count || 1
+            }));
+          }
+        } catch (err) {
+          console.warn('Primary Cloud DB error:', err);
         }
-      } catch (err) {
-        console.warn('Primary Cloud DB unavailable. Switching seamlessly to Failover Vault:', err);
       }
     }
   }
 
-  // 3. Secondary Failover Storage (Local Vault)
+  // 3. Read Local Vault Storage
+  let localBills: Bill[] = [];
   const saved = localStorage.getItem(STORAGE_KEY);
   if (saved) {
     try {
-      const parsed = JSON.parse(saved);
-      return parsed.filter((b: Bill) => !b.author.includes('Северов'));
+      localBills = JSON.parse(saved);
     } catch {
-      // ignore
+      localBills = [];
     }
   }
 
-  return [];
+  // Merge Cloud & Local storage (Local bills with newer timestamps or unique IDs take precedence)
+  const billMap = new Map<string, Bill>();
+
+  cloudBills.forEach((b) => {
+    if (b && b.author && !b.author.includes('Северов')) {
+      billMap.set(b.id, b);
+    }
+  });
+
+  localBills.forEach((b) => {
+    if (b && b.author && !b.author.includes('Северов')) {
+      const existing = billMap.get(b.id);
+      if (!existing || new Date(b.updatedAt).getTime() >= new Date(existing.updatedAt).getTime()) {
+        billMap.set(b.id, b);
+      }
+    }
+  });
+
+  const merged = Array.from(billMap.values());
+  return merged.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
 }
 
 export async function saveBill(bill: Bill): Promise<Bill> {

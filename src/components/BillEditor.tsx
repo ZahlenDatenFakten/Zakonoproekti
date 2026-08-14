@@ -136,10 +136,17 @@ export const BillEditor: React.FC<BillEditorProps> = ({
   };
 
   const handlePublish = async () => {
-    const updated = { ...bill, status: 'under_review' as BillStatus };
+    const updated: Bill = { 
+      ...bill, 
+      status: 'under_review' as BillStatus,
+      statusReason: 'Официально опубликован автором и передан на 1-й этап: Законодательная Комиссия',
+      updatedAt: new Date().toISOString()
+    };
     setBill(updated);
     await onSave(updated);
-    onToast('success', 'Законопроект отправлен на 1-й этап: Голосование Законодательной Комиссии');
+    setIsSavedNotice(true);
+    setTimeout(() => setIsSavedNotice(false), 3000);
+    onToast('success', '🚀 Законопроект официально опубликован и передан на рассмотрение Законодательной Комиссии!');
   };
 
   const votes = bill.votes || {};
