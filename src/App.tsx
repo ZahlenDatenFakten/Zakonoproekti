@@ -168,7 +168,7 @@ export const App: React.FC = () => {
       title: 'О внесении изменений в Законы Штата',
       targetLaw: 'Уголовный кодекс Штата (УК)',
       author: authorFullName,
-      authorRole: OFFICIAL_ROLE_LABELS[user.officialRole],
+      authorRole: OFFICIAL_ROLE_LABELS[user.officialRole] || 'Гражданин',
       status: 'draft',
       explanatoryNote: 'Пояснительный комментарий к законопроекту...',
       comparisons: [
@@ -188,14 +188,27 @@ export const App: React.FC = () => {
       viewCount: 1
     };
 
-    // Save immediately so it persists on refresh
-    const saved = await saveBill(newBill);
-    await loadData();
-    setSelectedBill(saved);
+    // Instant zero-latency UI transition to editor
+    setReturnView('dashboard');
+    localStorage.setItem('legaldraft_return_view', 'dashboard');
+    setSelectedBill(newBill);
     setCurrentPermission('edit');
     setCurrentView('editor');
-    localStorage.setItem('legaldraft_active_bill_id', saved.id);
+    localStorage.setItem('legaldraft_active_bill_id', newBill.id);
     localStorage.setItem('legaldraft_current_view', 'editor');
+
+    try {
+      window.history.pushState({ view: 'editor', billId: newBill.id, returnView: 'dashboard' }, '', `?billId=${newBill.id}`);
+    } catch (e) {}
+
+    // Asynchronously save to storage and sync state without blocking UI
+    try {
+      const saved = await saveBill(newBill);
+      setBills(prev => [saved, ...prev.filter(b => b.id !== saved.id)]);
+      setSelectedBill(saved);
+    } catch (e) {
+      console.error('Error saving new bill:', e);
+    }
   };
 
   const handleOpenBill = (bill: Bill, sourceView?: 'dashboard' | 'admin_workspace') => {
