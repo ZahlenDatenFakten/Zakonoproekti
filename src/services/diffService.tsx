@@ -34,9 +34,10 @@ export function computeWordDiff(wasText: string, becameText: string): DiffResult
     };
   }
 
-  // Tokenize by word boundaries including spaces and punctuation
-  const wasTokens = cleanWas.match(/\S+|\s+/g) || [];
-  const becameTokens = cleanBecame.match(/\S+|\s+/g) || [];
+  // Tokenize by word, legal symbol (§, №, %, (), «»), punctuation and whitespace boundaries
+  const tokenize = (text: string) => text.match(/[\wА-Яа-яЁё0-9]+|[§№%()«»"".,;:\-\–\—\n]|\s+/g) || [];
+  const wasTokens = tokenize(cleanWas);
+  const becameTokens = tokenize(cleanBecame);
 
   const m = wasTokens.length;
   const n = becameTokens.length;
@@ -84,7 +85,7 @@ export function computeWordDiff(wasText: string, becameText: string): DiffResult
   const isBrandNewArticle = cleanWas.includes('отсутствовала') || cleanWas.includes('отсутствовал');
 
   edits.forEach((token, idx) => {
-    const isWord = /\S+/.test(token.value);
+    const isWord = /[\wА-Яа-яЁё0-9]+/.test(token.value);
 
     if (token.type === 'removed') {
       if (isWord) removedWords++;
@@ -94,18 +95,19 @@ export function computeWordDiff(wasText: string, becameText: string): DiffResult
           style={{
             color: '#ff7b72',
             textDecoration: 'line-through',
-            background: 'rgba(248, 81, 73, 0.22)',
-            border: '1px solid rgba(248, 81, 73, 0.45)',
+            background: 'rgba(218, 54, 51, 0.32)',
+            border: '1px solid rgba(248, 81, 73, 0.55)',
             padding: '2px 6px',
             borderRadius: '4px',
             fontWeight: 700,
-            margin: '0 2px',
+            margin: '0 1px',
             display: 'inline-block',
-            lineHeight: 1.4
+            lineHeight: 1.45,
+            boxShadow: '0 1px 4px rgba(218, 54, 51, 0.2)'
           }}
-          title="Исключаемая норма (-)"
+          title="Исключаемое нормативное положение (-)"
         >
-          <span style={{ fontSize: '0.72rem', opacity: 0.85, marginRight: '3px', fontWeight: 900 }}>-</span>
+          <span style={{ fontSize: '0.72rem', opacity: 0.9, marginRight: '3px', fontWeight: 900 }}>-</span>
           {token.value}
         </span>
       );
@@ -119,18 +121,18 @@ export function computeWordDiff(wasText: string, becameText: string): DiffResult
           style={{
             color: '#56d364',
             fontWeight: 700,
-            background: 'rgba(45, 164, 78, 0.25)',
-            border: '1px solid rgba(63, 185, 80, 0.45)',
+            background: 'rgba(46, 160, 67, 0.32)',
+            border: '1px solid rgba(63, 185, 80, 0.55)',
             padding: '2px 6px',
             borderRadius: '4px',
-            margin: '0 2px',
+            margin: '0 1px',
             display: 'inline-block',
-            lineHeight: 1.4,
-            boxShadow: '0 0 8px rgba(63, 185, 80, 0.2)'
+            lineHeight: 1.45,
+            boxShadow: '0 0 10px rgba(46, 160, 67, 0.25)'
           }}
-          title="Вносимая поправка (+)"
+          title="Проектируемое нормативное положение (+)"
         >
-          <span style={{ fontSize: '0.72rem', opacity: 0.85, marginRight: '3px', fontWeight: 900 }}>+</span>
+          <span style={{ fontSize: '0.72rem', opacity: 0.9, marginRight: '3px', fontWeight: 900 }}>+</span>
           {token.value}
         </span>
       );

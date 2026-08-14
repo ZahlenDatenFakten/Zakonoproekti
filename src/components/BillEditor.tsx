@@ -287,7 +287,7 @@ export const BillEditor: React.FC<BillEditorProps> = ({
   const isReadOnly = bill.status === 'approved' || bill.status === 'rejected';
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', background: 'var(--bg-base)' }}>
+    <div className="bill-creation-active" style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', background: 'var(--bg-base)' }}>
       
       {/* HIGH-TECH TOP TOOLBAR */}
       <div style={{ 
@@ -407,7 +407,7 @@ export const BillEditor: React.FC<BillEditorProps> = ({
               const diff = computeWordDiff(row.wasContent, row.becameContent);
 
               return (
-                <div key={row.id} className="card" style={{ padding: '0', overflow: 'hidden', border: '1px solid var(--border-medium)' }}>
+                <div key={row.id} className="card article-card-entry" style={{ padding: '0', overflow: 'hidden', border: '1px solid var(--border-medium)' }}>
                   
                   {/* ARTICLE HEADER CONTROL BAR */}
                   <div style={{ 
@@ -559,7 +559,7 @@ export const BillEditor: React.FC<BillEditorProps> = ({
                           lineHeight: 1.6 
                         }}>
                           <div className="tech-label" style={{ color: 'var(--danger-text)', marginBottom: '4px', fontSize: '0.65rem' }}>
-                            🔍 Живой аналитический просмотр вычеркиваний:
+                            📋 Сравнительный анализ исключаемых положений:
                           </div>
                           {diff.wasFormatted}
                         </div>
@@ -618,7 +618,7 @@ export const BillEditor: React.FC<BillEditorProps> = ({
                           lineHeight: 1.6 
                         }}>
                           <div className="tech-label" style={{ color: 'var(--success-text)', marginBottom: '4px', fontSize: '0.65rem' }}>
-                            🔍 Живой аналитический просмотр поправок:
+                            📋 Сравнительный анализ вносимых поправок:
                           </div>
                           {diff.becameFormatted}
                         </div>

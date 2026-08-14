@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import type { ComparisonRow } from '../types/bill';
 import { computeWordDiff } from '../services/diffService';
-import { X, Maximize2, FileCode, Edit3, Columns, FileText } from 'lucide-react';
+import { X, Maximize2, Edit3, Columns } from 'lucide-react';
 
 interface ExpandedArticleModalProps {
   row: ComparisonRow;
@@ -16,7 +16,7 @@ export const ExpandedArticleModal: React.FC<ExpandedArticleModalProps> = ({
   onUpdateRow,
   onClose
 }) => {
-  const [viewMode, setViewMode] = useState<'split_editor' | 'protocol' | 'unified'>('split_editor');
+  const [viewMode, setViewMode] = useState<'split_editor' | 'protocol'>('split_editor');
   const diff = computeWordDiff(row.wasContent, row.becameContent);
 
   const backdropMouseDownRef = React.useRef(false);
@@ -52,11 +52,11 @@ export const ExpandedArticleModal: React.FC<ExpandedArticleModalProps> = ({
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <span className="decree-stamp">
-                  РЕДАКТИРОВАНИЕ НОРМАТИВНОГО АКТА
+                  ПОСТАТЕЙНЫЙ АНАЛИЗ ЗАКОНОПРОЕКТА
                 </span>
               </div>
               <p style={{ fontSize: '0.76rem', color: 'rgba(255, 255, 255, 0.65)', fontFamily: 'var(--font-mono)', margin: '4px 0 0 0' }}>
-                Параллельный аналитический сравнительный протокол правовой нормы
+                Сравнительный анализ и нормативный контроль поправок
               </p>
             </div>
           </div>
@@ -75,20 +75,20 @@ export const ExpandedArticleModal: React.FC<ExpandedArticleModalProps> = ({
 
             <div style={{ width: '1px', height: '22px', background: 'var(--border-subtle)' }} />
 
-            {/* VIEW MODE TABS */}
+            {/* VIEW MODE TABS: ONLY 2 OFFICIAL TABS */}
             <div style={{ display: 'flex', gap: '4px', background: 'var(--bg-input)', padding: '3px', borderRadius: 'var(--radius-pill)', border: '1px solid var(--border-subtle)' }}>
               <button
                 onClick={() => setViewMode('split_editor')}
                 className="btn btn-pill"
                 style={{
                   fontSize: '0.76rem',
-                  padding: '5px 12px',
+                  padding: '5px 14px',
                   background: viewMode === 'split_editor' ? 'var(--primary-gradient)' : 'transparent',
                   color: viewMode === 'split_editor' ? '#ffffff' : 'var(--text-secondary)',
                   border: 'none'
                 }}
               >
-                <Edit3 size={13} /> Сплит-редактор
+                <Edit3 size={13} /> Параллельный редактор
               </button>
 
               <button
@@ -96,27 +96,13 @@ export const ExpandedArticleModal: React.FC<ExpandedArticleModalProps> = ({
                 className="btn btn-pill"
                 style={{
                   fontSize: '0.76rem',
-                  padding: '5px 12px',
+                  padding: '5px 14px',
                   background: viewMode === 'protocol' ? 'var(--primary-gradient)' : 'transparent',
                   color: viewMode === 'protocol' ? '#ffffff' : 'var(--text-secondary)',
                   border: 'none'
                 }}
               >
-                <Columns size={13} /> 100% Протокол Diff
-              </button>
-
-              <button
-                onClick={() => setViewMode('unified')}
-                className="btn btn-pill"
-                style={{
-                  fontSize: '0.76rem',
-                  padding: '5px 12px',
-                  background: viewMode === 'unified' ? 'var(--primary-gradient)' : 'transparent',
-                  color: viewMode === 'unified' ? '#ffffff' : 'var(--text-secondary)',
-                  border: 'none'
-                }}
-              >
-                <FileText size={13} /> Сводный Акт
+                <Columns size={13} /> Сравнительный протокол
               </button>
             </div>
 
@@ -261,27 +247,6 @@ export const ExpandedArticleModal: React.FC<ExpandedArticleModalProps> = ({
                 </div>
               </div>
 
-            </div>
-          )}
-
-          {/* MODE 3: UNIFIED LEGAL DECREE STREAM */}
-          {viewMode === 'unified' && (
-            <div style={{ background: 'var(--bg-input)', border: '1px solid var(--border-medium)', borderRadius: 'var(--radius-md)', padding: '24px', flex: 1, display: 'flex', flexDirection: 'column' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '12px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <FileCode size={18} color="var(--text-accent)" />
-                  <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-                    Сводный акт законопроекта (Unified Legal Stream)
-                  </h4>
-                </div>
-                <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
-                  Общее число изменений: {diff.stats.totalChanges}
-                </div>
-              </div>
-
-              <div style={{ flex: 1, overflowY: 'auto', whiteSpace: 'pre-wrap', lineHeight: 1.75, fontSize: '0.94rem', padding: '12px', background: 'var(--bg-surface)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)' }}>
-                {diff.unifiedFormatted.length > 0 ? diff.unifiedFormatted : <span style={{ opacity: 0.4 }}>Текст отсутствует</span>}
-              </div>
             </div>
           )}
 

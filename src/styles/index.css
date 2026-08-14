@@ -589,6 +589,31 @@ h1, h2, h3, h4, h5, h6 {
   100% { background-position: 200% 0; }
 }
 
+@keyframes articleSlideIn {
+  from { 
+    opacity: 0; 
+    transform: translateY(18px) scale(0.98); 
+  }
+  to { 
+    opacity: 1; 
+    transform: translateY(0) scale(1); 
+  }
+}
+
+@keyframes creationCelebration {
+  0% { transform: scale(0.96); opacity: 0.3; filter: brightness(1.3); }
+  60% { transform: scale(1.01); opacity: 1; filter: brightness(1.1); }
+  100% { transform: scale(1); opacity: 1; filter: brightness(1); }
+}
+
+.article-card-entry {
+  animation: articleSlideIn 0.32s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.bill-creation-active {
+  animation: creationCelebration 0.38s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
 .animate-fade-in {
   animation: fadeInUp 0.28s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
