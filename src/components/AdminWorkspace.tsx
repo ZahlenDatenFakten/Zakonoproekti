@@ -307,16 +307,31 @@ export const AdminWorkspace: React.FC<AdminWorkspaceProps> = ({
                             <Eye size={13} /> Просмотр
                           </button>
 
-                          {/* FORUM & LAWS ENACTMENT BUTTON FOR APPROVED BILLS */}
+                          {/* LAWS ENACTMENT ACTION FOR APPROVED BILLS */}
                           {isEnacted && (
-                            <button 
-                              onClick={() => setForumExportBill(bill)} 
-                              className="btn btn-pill" 
-                              style={{ padding: '6px 14px', fontSize: '0.78rem', background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)', color: '#ffffff', border: '1px solid rgba(56, 189, 248, 0.5)', fontWeight: 700 }}
-                              title="Внести поправки в закон и открыть готовый BB-код для экспорта на Форум"
-                            >
-                              <FileText size={13} /> Изменить в законах
-                            </button>
+                            bill.statusReason?.includes('внесены в законодательную базу') ? (
+                              <span style={{ fontSize: '0.74rem', color: 'var(--success-text)', fontFamily: 'var(--font-mono)', fontWeight: 700, padding: '4px 10px', background: 'var(--success-bg)', border: '1px solid var(--success-border)', borderRadius: 'var(--radius-pill)' }}>
+                                ✅ Законы внесены
+                              </span>
+                            ) : (
+                              <button 
+                                onClick={async () => {
+                                  const updated: Bill = {
+                                    ...bill,
+                                    status: 'approved',
+                                    statusReason: 'Изменения официально внесены в законодательную базу Штата San Andreas.',
+                                    updatedAt: new Date().toISOString()
+                                  };
+                                  await onSaveBill(updated);
+                                  onToast('success', 'Изменения официально внесены в законодательную базу Штата San Andreas!');
+                                }} 
+                                className="btn btn-pill" 
+                                style={{ padding: '6px 14px', fontSize: '0.78rem', background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)', color: '#ffffff', border: '1px solid rgba(56, 189, 248, 0.5)', fontWeight: 700 }}
+                                title="Официально внести поправки в законодательную базу Штата"
+                              >
+                                <FileText size={13} /> Изменить в законах
+                              </button>
+                            )
                           )}
 
                           {/* ACTION BUTTONS FOR UNAPPROVED BILLS */}

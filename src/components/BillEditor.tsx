@@ -245,6 +245,18 @@ export const BillEditor: React.FC<BillEditorProps> = ({
     onToast('success', `Финальный вердикт вынесен: ${decision === 'approved' ? 'УТВЕРЖДЕНО' : decision === 'rejected' ? 'ОТКЛОНЕНО' : 'НА ДОРАБОТКУ'}`);
   };
 
+  const handleEnactLaws = async () => {
+    const updated: Bill = {
+      ...bill,
+      status: 'approved',
+      statusReason: 'Изменения официально внесены в законодательную базу Штата San Andreas.',
+      updatedAt: new Date().toISOString()
+    };
+    setBill(updated);
+    await onSave(updated);
+    onToast('success', 'Изменения официально внесены в законодательную базу Штата San Andreas!');
+  };
+
   const getStatusBadge = (status: BillStatus) => {
     switch (status) {
       case 'approved':
@@ -329,14 +341,48 @@ export const BillEditor: React.FC<BillEditorProps> = ({
             </span>
           )}
           
-          {bill.status === 'approved' && (
+          {isAdmin && bill.status !== 'approved' && (
             <button 
-              onClick={() => setShowForumExport(true)} 
-              className="btn btn-pill" 
-              style={{ padding: '7px 16px', fontSize: '0.82rem', background: 'rgba(56, 189, 248, 0.12)', color: 'var(--text-accent)', border: '1px solid rgba(56, 189, 248, 0.35)' }}
+              onClick={() => handleExecuteAdminVerdict('approved')} 
+              className="btn btn-primary btn-pill" 
+              style={{ 
+                padding: '7px 18px', 
+                fontSize: '0.82rem', 
+                background: 'linear-gradient(135deg, #2ea043 0%, #238636 100%)', 
+                color: '#ffffff', 
+                border: '1px solid rgba(63, 185, 80, 0.5)', 
+                boxShadow: '0 4px 14px rgba(46, 160, 67, 0.35)',
+                fontWeight: 700
+              }}
+              title="Проверить и официально одобрить законопроект"
             >
-              <FileText size={14} /> Текст для Форума
+              <CheckCircle2 size={15} /> Одобрить законопроект
             </button>
+          )}
+
+          {bill.status === 'approved' && (
+            bill.statusReason?.includes('внесены в законодательную базу') ? (
+              <span style={{ fontSize: '0.82rem', color: 'var(--success-text)', display: 'inline-flex', alignItems: 'center', gap: '6px', fontWeight: 700, padding: '6px 14px', background: 'var(--success-bg)', border: '1px solid var(--success-border)', borderRadius: 'var(--radius-pill)' }}>
+                <CheckCircle2 size={15} /> Законы внесены
+              </span>
+            ) : (
+              <button 
+                onClick={handleEnactLaws} 
+                className="btn btn-primary btn-pill" 
+                style={{ 
+                  padding: '7px 18px', 
+                  fontSize: '0.82rem', 
+                  background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)', 
+                  color: '#ffffff', 
+                  border: '1px solid rgba(56, 189, 248, 0.5)', 
+                  boxShadow: '0 4px 14px rgba(56, 189, 248, 0.35)',
+                  fontWeight: 700 
+                }}
+                title="Официально внести поправки в законодательную базу Штата"
+              >
+                <FileText size={15} /> Изменить в законах
+              </button>
+            )
           )}
 
           <button onClick={() => onShare(bill)} className="btn btn-secondary btn-pill" style={{ padding: '7px 16px', fontSize: '0.82rem' }}>
@@ -871,13 +917,19 @@ export const BillEditor: React.FC<BillEditorProps> = ({
                   )}
                 </div>
 
-                <button 
-                  onClick={() => setShowForumExport(true)}
-                  className="btn btn-primary btn-pill"
-                  style={{ width: '100%', padding: '10px', fontSize: '0.86rem', background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)', border: '1px solid rgba(56, 189, 248, 0.5)', fontWeight: 700, boxShadow: '0 4px 14px rgba(56, 189, 248, 0.35)' }}
-                >
-                  <FileText size={16} /> Изменить в законах
-                </button>
+                {!bill.statusReason?.includes('внесены в законодательную базу') ? (
+                  <button 
+                    onClick={handleEnactLaws}
+                    className="btn btn-primary btn-pill"
+                    style={{ width: '100%', padding: '10px', fontSize: '0.86rem', background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)', border: '1px solid rgba(56, 189, 248, 0.5)', fontWeight: 700, boxShadow: '0 4px 14px rgba(56, 189, 248, 0.35)' }}
+                  >
+                    <FileText size={16} /> Изменить в законах
+                  </button>
+                ) : (
+                  <div style={{ padding: '10px 14px', background: 'rgba(46, 160, 67, 0.12)', border: '1px solid rgba(63, 185, 80, 0.3)', borderRadius: 'var(--radius-sm)', color: '#56d364', fontSize: '0.82rem', fontWeight: 700, textAlign: 'center', fontFamily: 'var(--font-mono)' }}>
+                    ✅ Изменения внесены в законы
+                  </div>
+                )}
               </div>
             ) : bill.federalVerdict && bill.federalVerdict.status === 'rejected' ? (
               <div style={{ padding: '14px', background: 'var(--bg-input)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--danger-border)' }}>
