@@ -35,24 +35,30 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
   const currentFullName = `${user.firstName} ${user.lastName}`.trim();
 
-  // Statistics calculation
+  // Filter out private drafts of other users first
+  const visibleBills = useMemo(() => {
+    return bills.filter((b) => {
+      // Drafts remain private to their author (and Admin) until submitted
+      if (b.status === 'draft' && b.author.trim() !== currentFullName && !isSystemAdmin(user)) {
+        return false;
+      }
+      return true;
+    });
+  }, [bills, currentFullName, user]);
+
+  // Statistics calculation based ONLY on bills the user is allowed to see
   const stats = useMemo(() => {
-    const total = bills.length;
-    const active = bills.filter(b => b.status === 'under_review' || b.status === 'needs_revision' || b.status === 'draft').length;
-    const approved = bills.filter(b => b.status === 'approved').length;
-    const myCount = bills.filter(b => b.author.trim() === currentFullName).length;
+    const total = visibleBills.length;
+    const active = visibleBills.filter(b => b.status === 'under_review' || b.status === 'needs_revision' || b.status === 'draft').length;
+    const approved = visibleBills.filter(b => b.status === 'approved').length;
+    const myCount = visibleBills.filter(b => b.author.trim() === currentFullName).length;
     return { total, active, approved, myCount };
-  }, [bills, currentFullName]);
+  }, [visibleBills, currentFullName]);
 
-  // Tab filtering logic
+  // Tab and Search filtering logic
   const filteredBills = useMemo(() => {
-    return bills
+    return visibleBills
       .filter((b) => {
-        // Drafts remain private to their author (and Admin) until submitted
-        if (b.status === 'draft' && b.author.trim() !== currentFullName && !isSystemAdmin(user)) {
-          return false;
-        }
-
         if (activeTab === 'my') {
           if (b.author.trim() !== currentFullName) return false;
         } else if (activeTab === 'active') {
@@ -64,8 +70,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
         if (searchQuery) {
           const query = searchQuery.toLowerCase();
           return (
-            b.targetLaw.toLowerCase().includes(query) ||
-            b.author.toLowerCase().includes(query) ||
+            (b.targetLaw && b.targetLaw.toLowerCase().includes(query)) ||
+            (b.author && b.author.toLowerCase().includes(query)) ||
             (b.title && b.title.toLowerCase().includes(query)) ||
             (b.id && b.id.toLowerCase().includes(query))
           );
@@ -74,7 +80,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
         return true;
       })
       .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
-  }, [bills, activeTab, searchQuery, currentFullName, user]);
+  }, [visibleBills, activeTab, searchQuery, currentFullName]);
 
   const formatDate = (isoStr: string) => {
     const d = new Date(isoStr);
