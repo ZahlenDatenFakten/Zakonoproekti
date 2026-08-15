@@ -122,6 +122,37 @@ export const DbConfigModal: React.FC<DbConfigModalProps> = ({ config, onUpdateCo
     }
   };
 
+  const handleDisconnect = async () => {
+    if (activeTab === 'firebase') {
+      const token = prompt('Для отключения базы данных Firebase у всех пользователей требуется Admin Token сервера:\n\nВведите Admin Token:');
+      if (token === null) return;
+      try {
+        await saveFirebaseConfigToServer({
+          apiKey: '',
+          projectId: '',
+          authDomain: '',
+          databaseURL: '',
+          storageBucket: '',
+          messagingSenderId: '',
+          appId: '',
+          isConnected: false
+        }, token);
+        alert('База данных Firebase успешно отключена для всех пользователей!');
+        onClose();
+      } catch (err: any) {
+        alert('Ошибка при отключении: ' + err.message);
+      }
+    } else {
+      // Supabase is client-side only based on local storage anyway
+      const emptyConfig = { supabaseUrl: '', supabaseAnonKey: '', isConnected: false };
+      saveDbConfig(emptyConfig);
+      resetSupabaseClient();
+      onUpdateConfig(emptyConfig);
+      alert('База данных Supabase отключена на вашем устройстве.');
+      onClose();
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <motion.div 
@@ -352,12 +383,20 @@ export const DbConfigModal: React.FC<DbConfigModalProps> = ({ config, onUpdateCo
         </div>
 
         <div className="p-5 border-t border-white/10 bg-white/[0.02] flex items-center justify-between gap-4">
-          <button 
-            onClick={onClose} 
-            className="px-6 py-2.5 bg-transparent hover:bg-white/5 text-zinc-400 hover:text-white text-sm font-bold rounded-xl transition-colors"
-          >
-            Отмена
-          </button>
+          <div className="flex gap-4">
+            <button 
+              onClick={onClose} 
+              className="px-6 py-2.5 bg-transparent hover:bg-white/5 text-zinc-400 hover:text-white text-sm font-bold rounded-xl transition-colors"
+            >
+              Отмена
+            </button>
+            <button 
+              onClick={handleDisconnect}
+              className="px-6 py-2.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 text-sm font-bold rounded-xl border border-rose-500/20 transition-colors"
+            >
+              Отключить базу
+            </button>
+          </div>
           <button 
             onClick={activeTab === 'firebase' ? handleSaveFirebase : handleSaveSupabase} 
             className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-extrabold rounded-xl shadow-lg shadow-indigo-500/20 border border-indigo-400/30 active:scale-95 transition-all"
