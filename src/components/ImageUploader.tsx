@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { UploadCloud, X, Loader2, Plus, ArrowRight } from 'lucide-react';
 import type { BillAttachment } from '../types/bill';
@@ -229,38 +230,43 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({ attachments, onCha
       )}
 
       {/* Fullscreen Image Viewer */}
-      <AnimatePresence>
-        {expandedImage && (
-          <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="absolute inset-0 bg-black/90 backdrop-blur-xl"
-              onClick={() => setExpandedImage(null)}
-            />
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="relative max-w-full max-h-full flex items-center justify-center"
-              onClick={() => setExpandedImage(null)}
-            >
-              <img 
-                src={expandedImage} 
-                alt="Просмотр на весь экран" 
-                className="max-w-[90vw] max-h-[90vh] object-contain rounded-xl shadow-2xl"
+      {createPortal(
+        <AnimatePresence>
+          {expandedImage && (
+            <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="absolute inset-0 bg-black/90 backdrop-blur-xl"
+                onClick={() => setExpandedImage(null)}
               />
-              <button
-                onClick={(e) => { e.stopPropagation(); setExpandedImage(null); }}
-                className="absolute top-4 right-4 w-12 h-12 bg-black/50 hover:bg-white/10 rounded-full flex items-center justify-center backdrop-blur-md transition-colors"
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                className="relative max-w-full max-h-full flex items-center justify-center z-10"
+                onClick={() => setExpandedImage(null)}
               >
-                <X size={24} className="text-white" />
-              </button>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+                <img 
+                  src={expandedImage} 
+                  alt="Expanded view" 
+                  className="max-w-full max-h-[90vh] object-contain rounded-lg shadow-2xl"
+                  onClick={(e) => e.stopPropagation()}
+                />
+                <button
+                  type="button"
+                  onClick={() => setExpandedImage(null)}
+                  className="absolute -top-4 -right-4 w-10 h-10 bg-rose-500 hover:bg-rose-600 text-white rounded-full flex items-center justify-center shadow-2xl transition-colors"
+                >
+                  <X size={20} strokeWidth={3} />
+                </button>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
     </div>
   );
 };
