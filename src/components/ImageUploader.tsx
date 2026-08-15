@@ -70,10 +70,9 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({ attachments, onCha
   const clearImage = (id: string, side: 'before' | 'after') => {
     onChange(attachments.map(att => {
       if (att.id === id) {
-        return {
-          ...att,
-          [side === 'before' ? 'beforeUrl' : 'afterUrl']: undefined
-        };
+        const newAtt = { ...att };
+        delete newAtt[side === 'before' ? 'beforeUrl' : 'afterUrl'];
+        return newAtt;
       }
       return att;
     }));
