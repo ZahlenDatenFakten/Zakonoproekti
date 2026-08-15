@@ -1,6 +1,7 @@
 import { initializeApp, getApps } from 'firebase/app';
 import { getFirestore, collection, doc, setDoc, getDocs, deleteDoc, onSnapshot, getDoc } from 'firebase/firestore';
 import { getDatabase, ref, set, get, remove, onValue } from 'firebase/database';
+import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 import type { Bill } from '../types/bill';
 import type { StateLaw } from '../data/stateLaws';
 
@@ -144,6 +145,31 @@ export function getFirebaseApp(customConfig?: FirebaseConfig) {
   } catch (err) {
     console.warn('Firebase init error:', err);
     return null;
+  }
+}
+
+export async function uploadFirebaseImage(file: File): Promise<string> {
+  const app = getFirebaseApp();
+  if (!app) {
+    throw new Error('База данных (Firebase) не подключена. Перейдите в настройки БД.');
+  }
+  
+  const config = getStoredFirebaseConfig();
+  if (!config.storageBucket) {
+    throw new Error('Storage Bucket не настроен в конфигурации Firebase. Загрузка фото невозможна.');
+  }
+
+  const storage = getStorage(app);
+  const uniqueName = Date.now() + '-' + Math.round(Math.random() * 1e9) + '-' + file.name;
+  const fileRef = storageRef(storage, `uploads/${uniqueName}`);
+  
+  try {
+    const snapshot = await uploadBytes(fileRef, file);
+    const url = await getDownloadURL(snapshot.ref);
+    return url;
+  } catch (err: any) {
+    console.error('Firebase storage error:', err);
+    throw new Error('Ошибка Firebase Storage: ' + (err.message || 'Неизвестная ошибка'));
   }
 }
 

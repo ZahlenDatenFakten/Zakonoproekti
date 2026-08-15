@@ -275,10 +275,19 @@ export const DbConfigModal: React.FC<DbConfigModalProps> = ({ config, onUpdateCo
                 </div>
                 <div>
                   <p className="text-[11px] text-indigo-200/80 leading-relaxed font-medium mb-1">
-                    💡 <strong className="text-indigo-300">В Firebase Console ➔ Storage ➔ Rules</strong> укажите:
+                    💡 <strong className="text-indigo-300">В Firebase Console ➔ Storage ➔ Rules</strong> укажите (более безопасно):
                   </p>
-                  <div className="bg-black/60 border border-white/5 rounded-lg p-2 font-mono text-[10px] text-indigo-400">
-                    allow read, write: if true;
+                  <div className="bg-black/60 border border-white/5 rounded-lg p-2 font-mono text-[10px] text-indigo-400 whitespace-pre-wrap">
+{`rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /uploads/{imageId} {
+      allow read: if true;
+      allow write: if request.resource.size < 15 * 1024 * 1024
+                   && request.resource.contentType.matches('image/.*');
+    }
+  }
+}`}
                   </div>
                 </div>
               </div>
