@@ -749,7 +749,7 @@ export const BillEditor: React.FC<BillEditorProps> = ({
                 <div className="text-[10px] font-mono font-bold text-emerald-400 mb-1">✓ ВНЕСЕН В ЗАКОНОДАТЕЛЬСТВО</div>
                 <div className="text-xs text-emerald-200/70">{bill.statusReason || 'Законопроект проверен, утвержден и официально внесен.'}</div>
               </div>
-            ) : bill.federalVerdict?.status === 'approved' && bill.status !== 'approved' ? (
+            ) : bill.federalVerdict?.status === 'approved' ? (
               <div className="flex flex-col gap-3 p-3 bg-indigo-500/10 border border-indigo-500/20 rounded-xl">
                 <div className="text-[10px] font-mono font-bold text-indigo-400 mb-1">ОДОБРЕН (ОЖИДАЕТ ВНЕСЕНИЯ)</div>
                 <div className="text-xs text-indigo-200/70">{bill.federalVerdict.reason || 'Законопроект одобрен Администрацией.'}</div>
