@@ -277,9 +277,6 @@ export const Dashboard: React.FC<DashboardProps> = ({
                       {decreeStamp}
                     </span>
                     {getStatusBadge(bill.status)}
-                    <span className="text-[10px] font-mono uppercase tracking-wider text-zinc-500">
-                      {bill.authorRole || 'Инициатива'}
-                    </span>
                   </div>
 
                   {/* Title */}
