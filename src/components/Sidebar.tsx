@@ -83,7 +83,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {isAdmin && (
           <div>
             <h2 className="text-[11px] font-bold tracking-wider uppercase text-amber-400 mb-3 px-3">
-              Губернатура
+              Администрирование
             </h2>
             <div className="flex flex-col gap-1">
               <button
