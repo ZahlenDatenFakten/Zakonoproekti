@@ -746,10 +746,32 @@ export const BillEditor: React.FC<BillEditorProps> = ({
 
             {bill.status === 'approved' ? (
               <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl">
-                <div className="text-[10px] font-mono font-bold text-emerald-400 mb-1">✓ УТВЕРЖДЕНО</div>
-                <div className="text-xs text-emerald-200/70">{bill.statusReason || bill.federalVerdict?.reason || 'Законопроект проверен и утвержден.'}</div>
+                <div className="text-[10px] font-mono font-bold text-emerald-400 mb-1">✓ ВНЕСЕН В ЗАКОНОДАТЕЛЬСТВО</div>
+                <div className="text-xs text-emerald-200/70">{bill.statusReason || 'Законопроект проверен, утвержден и официально внесен.'}</div>
               </div>
-            ) : bill.federalVerdict && bill.federalVerdict.status === 'rejected' ? (
+            ) : bill.federalVerdict?.status === 'approved' && bill.status !== 'approved' ? (
+              <div className="flex flex-col gap-3 p-3 bg-indigo-500/10 border border-indigo-500/20 rounded-xl">
+                <div className="text-[10px] font-mono font-bold text-indigo-400 mb-1">ОДОБРЕН (ОЖИДАЕТ ВНЕСЕНИЯ)</div>
+                <div className="text-xs text-indigo-200/70">{bill.federalVerdict.reason || 'Законопроект одобрен Администрацией.'}</div>
+                {isAdmin && (
+                  <button 
+                    onClick={async () => {
+                      const updated: Bill = {
+                        ...bill,
+                        status: 'approved',
+                        statusReason: 'Изменения официально внесены в законодательную базу Штата San Andreas.',
+                        updatedAt: new Date().toISOString()
+                      };
+                      await onSave(updated);
+                      onToast('success', 'Изменения внесены в законы');
+                    }}
+                    className="mt-2 w-full py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition-all shadow-[0_0_15px_rgba(79,70,229,0.3)]"
+                  >
+                    Внести в реестр
+                  </button>
+                )}
+              </div>
+            ) : bill.federalVerdict?.status === 'rejected' ? (
               <div className="p-3 bg-rose-500/10 border border-rose-500/20 rounded-xl">
                 <div className="text-[10px] font-mono font-bold text-rose-400 mb-1">ОТКЛОНЕНО</div>
                 <div className="text-xs text-rose-200/70">{bill.federalVerdict.reason}</div>

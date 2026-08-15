@@ -123,7 +123,7 @@ export const AdminWorkspace: React.FC<AdminWorkspaceProps> = ({
 
     const updated: Bill = {
       ...selectedBillForAction,
-      status: pendingDecision,
+      status: pendingDecision === 'approved' ? 'under_review' : pendingDecision,
       statusReason: officialStatusReason,
       federalVerdict: verdict
     };
@@ -287,30 +287,30 @@ export const AdminWorkspace: React.FC<AdminWorkspaceProps> = ({
                           </button>
 
                           {isEnacted && (
-                            bill.statusReason?.includes('внесены в законодательную базу') ? (
-                              <span className="flex items-center gap-1 text-[10px] font-mono font-bold text-emerald-400 uppercase tracking-wider px-2">
-                                <CheckCircle2 size={14} /> Внесен
-                              </span>
-                            ) : (
-                              <button 
-                                onClick={async () => {
-                                  const updated: Bill = {
-                                    ...bill,
-                                    status: 'approved',
-                                    statusReason: 'Изменения официально внесены в законодательную базу Штата San Andreas.',
-                                    updatedAt: new Date().toISOString()
-                                  };
-                                  await onSaveBill(updated);
-                                  onToast('success', 'Изменения внесены в законы');
-                                }} 
-                                className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl transition-all border border-indigo-400/30"
-                              >
-                                <FileText size={14} /> Внести
-                              </button>
-                            )
+                            <span className="flex items-center gap-1 text-[10px] font-mono font-bold text-emerald-400 uppercase tracking-wider px-2">
+                              <CheckCircle2 size={14} /> Внесен
+                            </span>
                           )}
 
-                          {!isEnacted && (
+                          {isStage2ApprovedPendingEnactment && (
+                            <button 
+                              onClick={async () => {
+                                const updated: Bill = {
+                                  ...bill,
+                                  status: 'approved',
+                                  statusReason: 'Изменения официально внесены в законодательную базу Штата San Andreas.',
+                                  updatedAt: new Date().toISOString()
+                                };
+                                await onSaveBill(updated);
+                                onToast('success', 'Изменения внесены в законы');
+                              }} 
+                              className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl transition-all border border-indigo-400/30"
+                            >
+                              <FileText size={14} /> Внести
+                            </button>
+                          )}
+
+                          {!isEnacted && !isStage2ApprovedPendingEnactment && (
                             <>
                               <button 
                                 onClick={() => handleOpenActionModal(bill, 'approved')} 
