@@ -17,9 +17,8 @@ export interface DiffResult {
 }
 
 /**
- * 100% Exact Sequence LCS (Longest Common Subsequence) Legal Diff Engine
- * Accurately highlights exact deleted phrases in WAS column (- red strikethrough)
- * and newly inserted phrases in BECAME column (+ neon green background)
+ * High-precision Longest Common Subsequence (LCS) Legal Diff Engine
+ * Produces clean inline additions (+ emerald highlight) and deletions (- ruby line-through)
  */
 export function computeWordDiff(wasText: string, becameText: string): DiffResult {
   const cleanWas = wasText || '';
@@ -34,7 +33,7 @@ export function computeWordDiff(wasText: string, becameText: string): DiffResult
     };
   }
 
-  // Tokenize by word, legal symbol (§, №, %, (), «»), punctuation and whitespace boundaries
+  // Tokenize by word, legal symbols, punctuation and whitespace boundaries
   const tokenize = (text: string) => text.match(/[\wА-Яа-яЁё0-9]+|[§№%()«»"".,;:\-\–\—\n]|\s+/g) || [];
   const wasTokens = tokenize(cleanWas);
   const becameTokens = tokenize(cleanBecame);
@@ -81,9 +80,6 @@ export function computeWordDiff(wasText: string, becameText: string): DiffResult
   const becameFormatted: React.ReactNode[] = [];
   const unifiedFormatted: React.ReactNode[] = [];
 
-  // Special handling for brand new articles that didn't exist previously
-  const isBrandNewArticle = cleanWas.includes('отсутствовала') || cleanWas.includes('отсутствовал');
-
   edits.forEach((token, idx) => {
     const isWord = /[\wА-Яа-яЁё0-9]+/.test(token.value);
 
@@ -91,23 +87,10 @@ export function computeWordDiff(wasText: string, becameText: string): DiffResult
       if (isWord) removedWords++;
       const node = (
         <span
-          key={`was_del_${idx}`}
-          style={{
-            color: '#ff7b72',
-            textDecoration: 'line-through',
-            background: 'rgba(218, 54, 51, 0.32)',
-            border: '1px solid rgba(248, 81, 73, 0.55)',
-            padding: '2px 6px',
-            borderRadius: '4px',
-            fontWeight: 700,
-            margin: '0 1px',
-            display: 'inline-block',
-            lineHeight: 1.45,
-            boxShadow: '0 1px 4px rgba(218, 54, 51, 0.2)'
-          }}
-          title="Исключаемое нормативное положение (-)"
+          key={`del_${idx}`}
+          className="diff-token-removed"
+          title="Исключаемый текст (-)"
         >
-          <span style={{ fontSize: '0.72rem', opacity: 0.9, marginRight: '3px', fontWeight: 900 }}>-</span>
           {token.value}
         </span>
       );
@@ -117,44 +100,24 @@ export function computeWordDiff(wasText: string, becameText: string): DiffResult
       if (isWord) addedWords++;
       const node = (
         <span
-          key={`bec_add_${idx}`}
-          style={{
-            color: '#56d364',
-            fontWeight: 700,
-            background: 'rgba(46, 160, 67, 0.32)',
-            border: '1px solid rgba(63, 185, 80, 0.55)',
-            padding: '2px 6px',
-            borderRadius: '4px',
-            margin: '0 1px',
-            display: 'inline-block',
-            lineHeight: 1.45,
-            boxShadow: '0 0 10px rgba(46, 160, 67, 0.25)'
-          }}
-          title="Проектируемое нормативное положение (+)"
+          key={`add_${idx}`}
+          className="diff-token-added"
+          title="Вносимый текст (+)"
         >
-          <span style={{ fontSize: '0.72rem', opacity: 0.9, marginRight: '3px', fontWeight: 900 }}>+</span>
           {token.value}
         </span>
       );
       becameFormatted.push(node);
       unifiedFormatted.push(node);
     } else {
-      const sameNodeWas = <span key={`same_w_${idx}`} style={{ color: 'var(--text-primary)' }}>{token.value}</span>;
-      const sameNodeBec = <span key={`same_b_${idx}`} style={{ color: 'var(--text-primary)' }}>{token.value}</span>;
-      const sameNodeUni = <span key={`same_u_${idx}`} style={{ color: 'var(--text-primary)' }}>{token.value}</span>;
+      const sameNodeWas = <span key={`sw_${idx}`} style={{ color: 'var(--text-primary)' }}>{token.value}</span>;
+      const sameNodeBec = <span key={`sb_${idx}`} style={{ color: 'var(--text-primary)' }}>{token.value}</span>;
+      const sameNodeUni = <span key={`su_${idx}`} style={{ color: 'var(--text-primary)' }}>{token.value}</span>;
       wasFormatted.push(sameNodeWas);
       becameFormatted.push(sameNodeBec);
       unifiedFormatted.push(sameNodeUni);
     }
   });
-
-  if (isBrandNewArticle && wasFormatted.length === 0) {
-    wasFormatted.push(
-      <span key="new_art_was" style={{ color: 'var(--text-accent)', fontStyle: 'italic', fontSize: '0.84rem' }}>
-        ✨ Ранее статья в действующей редакции закона отсутствовала (Новая статья)
-      </span>
-    );
-  }
 
   return {
     wasFormatted,

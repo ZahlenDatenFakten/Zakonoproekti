@@ -118,121 +118,120 @@ export const Dashboard: React.FC<DashboardProps> = ({
     }
   };
 
-  const formatDecreeNumber = (billIndex: number) => {
-    return `№ SA-${String(billIndex).padStart(3, '0')}`;
+  const formatDecreeNumber = (billId: string) => {
+    const numericId = billId.replace(/\D/g, '').slice(-4) || '0042';
+    return `АКТ № SA-${numericId}`;
   };
 
   return (
-    <div className="animate-fade-in" style={{ maxWidth: '1240px', margin: '28px auto 60px', padding: '0 24px' }}>
+    <div className="animate-fade-in" style={{ maxWidth: '1240px', margin: '24px auto 60px', padding: '0 24px' }}>
       
-      {/* COMMAND CENTER HERO HEADER */}
+      {/* HERO SECTION */}
       <div style={{
-        background: 'linear-gradient(135deg, rgba(18, 21, 30, 0.95) 0%, rgba(22, 26, 36, 0.95) 100%)',
-        border: '1px solid var(--border-medium)',
+        background: 'var(--bg-surface)',
+        border: '1px solid var(--border-subtle)',
         borderRadius: 'var(--radius-lg)',
-        padding: '32px 36px',
-        marginBottom: '28px',
-        boxShadow: '0 8px 32px rgba(0, 0, 0, 0.5)',
+        padding: '28px 32px',
+        marginBottom: '24px',
+        boxShadow: 'var(--shadow-sm)',
         position: 'relative',
         overflow: 'hidden'
       }}>
         <div style={{ position: 'relative', zIndex: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '20px' }}>
           <div>
-            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '4px 12px', borderRadius: 'var(--radius-pill)', background: 'rgba(56, 189, 248, 0.08)', border: '1px solid rgba(56, 189, 248, 0.2)', color: 'var(--text-accent)', fontSize: '0.74rem', fontFamily: 'var(--font-mono)', fontWeight: 600, marginBottom: '12px' }}>
-              <img src="/logo.png" alt="Seal" style={{ width: '18px', height: '18px', aspectRatio: '1 / 1', objectFit: 'contain' }} /> LEGISLATURE • STATE OF SAN ANDREAS
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '3px 10px', borderRadius: 'var(--radius-pill)', background: 'rgba(56, 189, 248, 0.08)', border: '1px solid rgba(56, 189, 248, 0.2)', color: 'var(--text-accent)', fontSize: '0.72rem', fontFamily: 'var(--font-mono)', fontWeight: 600, marginBottom: '10px' }}>
+              <img src="/logo.png" alt="Seal" style={{ width: '16px', height: '16px', objectFit: 'contain' }} /> LEGISLATURE • STATE OF SAN ANDREAS
             </div>
-            <h2 style={{ fontSize: '1.75rem', fontWeight: 800, margin: '0 0 6px 0', letterSpacing: '-0.02em', color: 'var(--text-primary)' }}>
-              Законотворческий Портал Реформ
+            <h2 style={{ fontSize: '1.6rem', fontWeight: 800, margin: '0 0 6px 0', letterSpacing: '-0.02em', color: 'var(--text-primary)' }}>
+              Законотворческий Портал
             </h2>
-            <p style={{ margin: 0, fontSize: '0.92rem', color: 'var(--text-secondary)', maxWidth: '680px' }}>
-              Строгий цифровой реестр законопроектов, правовой экспертизы, голосования Комиссии и регистрации нормативных актов Штата.
+            <p style={{ margin: 0, fontSize: '0.88rem', color: 'var(--text-secondary)', maxWidth: '640px' }}>
+              Государственный реестр законопроектов, экспертизы Комиссии и регистрации нормативных актов Штата San Andreas.
             </p>
           </div>
 
-          <button onClick={onNewBill} className="btn btn-primary btn-pill" style={{ padding: '12px 26px', fontSize: '0.9rem' }}>
-            <Plus size={18} /> Внести законопроект
+          <button onClick={onNewBill} className="btn btn-primary btn-pill" style={{ padding: '10px 22px', fontSize: '0.86rem', fontWeight: 700 }}>
+            <Plus size={16} /> Внести законопроект
           </button>
         </div>
 
-        {/* BENTO QUICK STATS WIDGETS WITH ACTIVITY CHIPS */}
+        {/* QUICK STATS CARDS */}
         <div style={{ 
           display: 'grid', 
-          gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', 
-          gap: '14px', 
-          marginTop: '28px', 
-          paddingTop: '20px', 
+          gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', 
+          gap: '12px', 
+          marginTop: '24px', 
+          paddingTop: '18px', 
           borderTop: '1px solid var(--border-subtle)' 
         }}>
           <div className="stat-card">
             <div className="stat-icon-wrapper">
-              <FileCode2 size={20} />
+              <FileCode2 size={18} />
             </div>
             <div style={{ flex: 1 }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}>
-                <div style={{ fontSize: '1.3rem', fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)', lineHeight: 1.1 }}>{stats.total}</div>
-                <span style={{ fontSize: '0.65rem', padding: '2px 6px', borderRadius: '4px', background: 'rgba(56, 189, 248, 0.1)', color: 'var(--text-accent)', border: '1px solid rgba(56, 189, 248, 0.2)', fontFamily: 'var(--font-mono)', fontWeight: 600 }}>РЕЕСТР</span>
+                <div style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)', lineHeight: 1.1 }}>{stats.total}</div>
+                <span style={{ fontSize: '0.64rem', padding: '1px 6px', borderRadius: '4px', background: 'rgba(56, 189, 248, 0.1)', color: 'var(--text-accent)', fontFamily: 'var(--font-mono)', fontWeight: 600 }}>РЕЕСТР</span>
               </div>
-              <div className="tech-label" style={{ marginTop: '4px' }}>Всего актов</div>
+              <div className="tech-label" style={{ marginTop: '2px' }}>Всего актов</div>
             </div>
           </div>
 
           <div className="stat-card">
             <div className="stat-icon-wrapper" style={{ background: 'var(--warning-bg)', color: 'var(--warning-text)', borderColor: 'var(--warning-border)' }}>
-              <Clock size={20} />
+              <Clock size={18} />
             </div>
             <div style={{ flex: 1 }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}>
-                <div style={{ fontSize: '1.3rem', fontWeight: 800, color: 'var(--warning-text)', fontFamily: 'var(--font-mono)', lineHeight: 1.1 }}>{stats.active}</div>
-                <span style={{ fontSize: '0.65rem', padding: '2px 6px', borderRadius: '4px', background: 'var(--warning-bg)', color: 'var(--warning-text)', border: '1px solid var(--warning-border)', fontFamily: 'var(--font-mono)', fontWeight: 600 }}>КВОРУМ 2/3</span>
+                <div style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--warning-text)', fontFamily: 'var(--font-mono)', lineHeight: 1.1 }}>{stats.active}</div>
+                <span style={{ fontSize: '0.64rem', padding: '1px 6px', borderRadius: '4px', background: 'var(--warning-bg)', color: 'var(--warning-text)', fontFamily: 'var(--font-mono)', fontWeight: 600 }}>КВОРУМ 2/3</span>
               </div>
-              <div className="tech-label" style={{ marginTop: '4px' }}>На рассмотрении</div>
+              <div className="tech-label" style={{ marginTop: '2px' }}>На рассмотрении</div>
             </div>
           </div>
 
           <div className="stat-card">
             <div className="stat-icon-wrapper" style={{ background: 'var(--success-bg)', color: 'var(--success-text)', borderColor: 'var(--success-border)' }}>
-              <CheckCircle2 size={20} />
+              <CheckCircle2 size={18} />
             </div>
             <div style={{ flex: 1 }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}>
-                <div style={{ fontSize: '1.3rem', fontWeight: 800, color: 'var(--success-text)', fontFamily: 'var(--font-mono)', lineHeight: 1.1 }}>{stats.approved}</div>
-                <span style={{ fontSize: '0.65rem', padding: '2px 6px', borderRadius: '4px', background: 'var(--success-bg)', color: 'var(--success-text)', border: '1px solid var(--success-border)', fontFamily: 'var(--font-mono)', fontWeight: 600 }}>АКТИВНЫ</span>
+                <div style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--success-text)', fontFamily: 'var(--font-mono)', lineHeight: 1.1 }}>{stats.approved}</div>
+                <span style={{ fontSize: '0.64rem', padding: '1px 6px', borderRadius: '4px', background: 'var(--success-bg)', color: 'var(--success-text)', fontFamily: 'var(--font-mono)', fontWeight: 600 }}>АКТИВНЫ</span>
               </div>
-              <div className="tech-label" style={{ marginTop: '4px' }}>Вступили в силу</div>
+              <div className="tech-label" style={{ marginTop: '2px' }}>Вступили в силу</div>
             </div>
           </div>
 
           <div className="stat-card">
             <div className="stat-icon-wrapper" style={{ background: 'rgba(255,255,255,0.04)', color: 'var(--text-secondary)', borderColor: 'var(--border-subtle)' }}>
-              <UserIcon size={20} />
+              <UserIcon size={18} />
             </div>
             <div style={{ flex: 1 }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}>
-                <div style={{ fontSize: '1.3rem', fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)', lineHeight: 1.1 }}>{stats.myCount}</div>
-                <span style={{ fontSize: '0.65rem', padding: '2px 6px', borderRadius: '4px', background: 'rgba(255,255,255,0.05)', color: 'var(--text-secondary)', border: '1px solid var(--border-subtle)', fontFamily: 'var(--font-mono)', fontWeight: 600 }}>ПРИВАТНО</span>
+                <div style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)', lineHeight: 1.1 }}>{stats.myCount}</div>
+                <span style={{ fontSize: '0.64rem', padding: '1px 6px', borderRadius: '4px', background: 'rgba(255,255,255,0.05)', color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)', fontWeight: 600 }}>ПРИВАТНО</span>
               </div>
-              <div className="tech-label" style={{ marginTop: '4px' }}>Мои инициативы</div>
+              <div className="tech-label" style={{ marginTop: '2px' }}>Мои инициативы</div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* FILTER CONTROLS & SEARCH */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
+      {/* FILTER TABS & SEARCH BAR */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px', flexWrap: 'wrap', gap: '14px' }}>
         
-        {/* SEGMENTED CONTROL TABS */}
+        {/* SEGMENTED TABS */}
         <div style={{ 
           display: 'flex', 
-          gap: '4px', 
+          gap: '3px', 
           background: 'var(--bg-surface)', 
-          padding: '5px', 
+          padding: '4px', 
           borderRadius: 'var(--radius-pill)', 
-          border: '1px solid var(--border-subtle)',
-          boxShadow: 'var(--shadow-sm)',
-          backdropFilter: 'blur(12px)'
+          border: '1px solid var(--border-subtle)'
         }}>
           {[
-            { id: 'all', label: 'Весь реестр проектов', icon: FileText },
+            { id: 'all', label: 'Все проекты', icon: FileText },
             { id: 'active', label: 'На рассмотрении', icon: Clock },
             { id: 'my', label: 'Мои проекты', icon: UserIcon },
             { id: 'approved', label: 'Вступили в силу', icon: CheckCircle2 }
@@ -248,55 +247,55 @@ export const Dashboard: React.FC<DashboardProps> = ({
                   background: isActive ? 'var(--primary-gradient)' : 'transparent',
                   color: isActive ? '#ffffff' : 'var(--text-secondary)',
                   border: 'none',
-                  padding: '7px 20px',
-                  fontSize: '0.82rem',
+                  padding: '6px 16px',
+                  fontSize: '0.8rem',
                   fontWeight: 600,
-                  boxShadow: isActive ? '0 4px 14px var(--primary-glow)' : 'none'
+                  boxShadow: isActive ? '0 2px 10px var(--primary-glow)' : 'none'
                 }}
               >
-                <Icon size={14} /> {tab.label}
+                <Icon size={13} /> {tab.label}
               </button>
             );
           })}
         </div>
 
         {/* SEARCH INPUT */}
-        <div style={{ position: 'relative', minWidth: '320px', flex: 1, maxWidth: '480px' }}>
+        <div style={{ position: 'relative', minWidth: '300px', flex: 1, maxWidth: '440px' }}>
           <Search 
-            size={16} 
+            size={15} 
             color="var(--text-muted)" 
-            style={{ position: 'absolute', left: '18px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} 
+            style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} 
           />
           <input 
             type="text" 
-            placeholder="Поиск по законам, автору или номеру акта..." 
+            placeholder="Поиск по названию, автору или номеру..." 
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="input-field"
             style={{
-              padding: '10px 20px 10px 44px',
-              fontSize: '0.85rem',
+              padding: '9px 18px 9px 40px',
+              fontSize: '0.84rem',
               borderRadius: 'var(--radius-pill)'
             }}
           />
         </div>
       </div>
 
-      {/* BENTO CARDS REFORM REGISTRY LIST */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+      {/* BILLS REGISTRY LIST */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
         {filteredBills.length === 0 ? (
-          <div className="card" style={{ textAlign: 'center', padding: '64px 20px', color: 'var(--text-muted)' }}>
-            <FileText size={44} style={{ opacity: 0.3, margin: '0 auto 16px', color: 'var(--text-accent)' }} />
-            <h3 style={{ fontSize: '1.1rem', margin: '0 0 6px 0', fontWeight: 700, color: 'var(--text-primary)' }}>
+          <div className="card" style={{ textAlign: 'center', padding: '56px 20px', color: 'var(--text-muted)' }}>
+            <FileText size={40} style={{ opacity: 0.25, margin: '0 auto 14px', color: 'var(--text-accent)' }} />
+            <h3 style={{ fontSize: '1.05rem', margin: '0 0 4px 0', fontWeight: 700, color: 'var(--text-primary)' }}>
               Законопроекты не найдены
             </h3>
-            <p style={{ fontSize: '0.86rem', margin: 0, color: 'var(--text-muted)' }}>
-              В выбранном разделе нет документов, соответствующих запросу.
+            <p style={{ fontSize: '0.84rem', margin: 0, color: 'var(--text-muted)' }}>
+              В выбранном разделе нет документов, удовлетворяющих условиям поиска.
             </p>
           </div>
         ) : (
-          filteredBills.map((bill, index) => {
-            const decreeStamp = formatDecreeNumber(index);
+          filteredBills.map((bill) => {
+            const decreeStamp = formatDecreeNumber(bill.id);
             const isAuthor = !bill.author || bill.author.trim().toLowerCase() === currentFullName.toLowerCase() || bill.author.trim() === currentFullName || isSystemAdmin(user);
             const canDelete = isAuthor || isSystemAdmin(user);
 
@@ -309,59 +308,58 @@ export const Dashboard: React.FC<DashboardProps> = ({
                   display: 'flex',
                   justifyContent: 'space-between',
                   alignItems: 'center',
-                  padding: '22px 28px'
+                  padding: '18px 24px'
                 }}
               >
-                <div style={{ flex: 1, paddingRight: '24px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '10px', flexWrap: 'wrap' }}>
+                <div style={{ flex: 1, paddingRight: '20px', minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px', flexWrap: 'wrap' }}>
                     <span className="decree-stamp">
                       {decreeStamp}
                     </span>
                     {getStatusBadge(bill.status)}
                     <span style={{ 
                       padding: '2px 8px', 
-                      borderRadius: '6px', 
-                      background: 'rgba(255, 255, 255, 0.05)', 
-                      border: '1px solid rgba(255, 255, 255, 0.1)', 
-                      color: '#cbd5e1', 
-                      fontSize: '0.72rem', 
-                      fontWeight: 500, 
+                      borderRadius: 'var(--radius-pill)', 
+                      background: 'rgba(255, 255, 255, 0.04)', 
+                      border: '1px solid var(--border-subtle)', 
+                      color: 'var(--text-secondary)', 
+                      fontSize: '0.7rem', 
                       fontFamily: 'var(--font-mono)' 
                     }}>
                       {bill.authorRole || 'Официальная инициатива'}
                     </span>
                   </div>
 
-                  <h3 style={{ margin: '0 0 8px 0', fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-0.01em', lineHeight: 1.3 }}>
+                  <h3 style={{ margin: '0 0 6px 0', fontSize: '1.02rem', fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-0.01em', lineHeight: 1.3 }}>
                     {bill.targetLaw || bill.title || 'Внесение изменений в закон'}
                   </h3>
                   
-                  {bill.title && bill.targetLaw && (
-                    <p style={{ fontSize: '0.86rem', color: 'var(--text-secondary)', margin: '0 0 14px 0', lineHeight: 1.45 }}>
-                      {bill.title}
+                  {bill.explanatoryNote && (
+                    <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: '0 0 10px 0', lineHeight: 1.4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {bill.explanatoryNote}
                     </p>
                   )}
 
-                  {/* SINGLE-LINE MONOSPACED FOOTER METADATA */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.78rem', color: 'var(--text-muted)', flexWrap: 'wrap', fontFamily: 'var(--font-mono)' }}>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <UserIcon size={13} color="var(--text-accent)" /> 
-                      <span style={{ color: '#f8fafc', fontWeight: 600 }}>{bill.author}</span>
+                  {/* FOOTER METADATA */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.75rem', color: 'var(--text-muted)', flexWrap: 'wrap', fontFamily: 'var(--font-mono)' }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                      <UserIcon size={12} color="var(--text-accent)" /> 
+                      <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{bill.author}</span>
                     </span>
-                    <span style={{ opacity: 0.35 }}>•</span>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <Calendar size={13} color="var(--text-muted)" /> 
+                    <span style={{ opacity: 0.3 }}>•</span>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                      <Calendar size={12} color="var(--text-muted)" /> 
                       <span>{formatDate(bill.updatedAt)}</span>
                     </span>
-                    <span style={{ opacity: 0.35 }}>•</span>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <Layers size={13} color="var(--text-muted)" /> 
+                    <span style={{ opacity: 0.3 }}>•</span>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                      <Layers size={12} color="var(--text-muted)" /> 
                       <span>Статей: <strong style={{ color: 'var(--text-accent)' }}>{bill.comparisons.length}</strong></span>
                     </span>
                   </div>
                 </div>
                 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
                   {canDelete && (
                     <button
                       type="button"
@@ -371,27 +369,25 @@ export const Dashboard: React.FC<DashboardProps> = ({
                       }}
                       className="btn btn-ghost"
                       style={{
-                        padding: '8px',
-                        color: '#ff7b72',
+                        padding: '7px',
+                        color: 'var(--danger-text)',
                         borderRadius: '50%',
-                        background: 'rgba(248, 81, 73, 0.12)',
-                        border: '1px solid rgba(248, 81, 73, 0.3)',
-                        transition: 'all 0.2s ease'
+                        background: 'rgba(244, 63, 94, 0.08)',
+                        border: '1px solid rgba(244, 63, 94, 0.2)'
                       }}
                       title="Удалить законопроект"
                     >
-                      <Trash2 size={16} />
+                      <Trash2 size={14} />
                     </button>
                   )}
 
                   <div style={{ 
-                    width: '38px', height: '38px', borderRadius: '50%', 
+                    width: '34px', height: '34px', borderRadius: '50%', 
                     background: 'var(--bg-input)', border: '1px solid var(--border-subtle)',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    flexShrink: 0,
-                    transition: 'all 0.2s ease'
+                    flexShrink: 0
                   }}>
-                    <ChevronRight size={18} color="var(--text-accent)" />
+                    <ChevronRight size={16} color="var(--text-accent)" />
                   </div>
                 </div>
               </div>

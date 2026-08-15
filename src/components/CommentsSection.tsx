@@ -38,59 +38,55 @@ export const CommentsSection: React.FC<CommentsSectionProps> = ({
   };
 
   return (
-    <div style={{ padding: '4px' }}>
+    <div style={{ padding: '0' }}>
       
       {/* COMMENT FORM */}
       {canComment ? (
-        <form onSubmit={handleSubmit} className="card" style={{ background: 'var(--bg-input)', border: '1px solid var(--border-subtle)', padding: '16px', marginBottom: '20px' }}>
-          <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: '10px', fontFamily: 'var(--font-mono)' }}>
-            Автор сообщения: <strong style={{ color: 'var(--text-primary)' }}>{user.firstName} {user.lastName}</strong>
-          </div>
-
+        <form onSubmit={handleSubmit} style={{ marginBottom: '14px' }}>
           <textarea
             className="input-field"
-            rows={3}
-            placeholder="Введите ваше экспертное мнение или предложение к законопроекту..."
+            rows={2}
+            placeholder="Оставить правовой комментарий..."
             value={newCommentText}
             onChange={(e) => setNewCommentText(e.target.value)}
-            style={{ width: '100%', marginBottom: '12px', minHeight: '75px', resize: 'vertical', fontSize: '0.85rem' }}
+            style={{ width: '100%', marginBottom: '8px', minHeight: '64px', resize: 'vertical', fontSize: '0.8rem' }}
           />
 
           <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-            <button type="submit" className="btn btn-primary btn-pill" style={{ fontSize: '0.78rem', padding: '7px 16px' }}>
-              <Send size={13} /> Опубликовать
+            <button type="submit" className="btn btn-primary btn-pill" style={{ fontSize: '0.74rem', padding: '5px 14px' }}>
+              <Send size={12} /> Отправить
             </button>
           </div>
         </form>
       ) : (
-        <div style={{ background: 'var(--bg-input)', padding: '12px 16px', borderRadius: 'var(--radius-sm)', marginBottom: '18px', color: 'var(--text-muted)', fontSize: '0.8rem', border: '1px solid var(--border-subtle)', fontFamily: 'var(--font-mono)' }}>
-          🔒 Офлайн: Комментирование закрыто после вынесения решения.
+        <div style={{ padding: '8px 12px', borderRadius: 'var(--radius-sm)', marginBottom: '12px', color: 'var(--text-muted)', fontSize: '0.74rem', border: '1px solid var(--border-subtle)', fontFamily: 'var(--font-mono)' }}>
+          🔒 Обсуждение закрыто
         </div>
       )}
 
       {/* COMMENTS LIST */}
       {comments.length === 0 ? (
-        <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', textAlign: 'center', padding: '24px 0', fontFamily: 'var(--font-mono)' }}>
-          Обсуждения отсутствуют. Напишите первый комментарий.
+        <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)', textAlign: 'center', padding: '16px 0', fontFamily: 'var(--font-mono)' }}>
+          Комментариев пока нет.
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
           {comments.map((cm) => (
-            <div key={cm.id} className="card" style={{ background: 'var(--bg-input)', padding: '14px', border: '1px solid var(--border-subtle)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <div style={{ width: '26px', height: '26px', borderRadius: '50%', background: 'rgba(56, 189, 248, 0.1)', border: '1px solid rgba(56, 189, 248, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <User size={13} color="var(--text-accent)" />
+            <div key={cm.id} style={{ background: 'var(--bg-input)', padding: '10px 12px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <div style={{ width: '22px', height: '22px', borderRadius: '50%', background: 'rgba(56, 189, 248, 0.1)', border: '1px solid rgba(56, 189, 248, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <User size={11} color="var(--text-accent)" />
                   </div>
-                  <strong style={{ color: 'var(--text-primary)', fontSize: '0.84rem', fontWeight: 600 }}>{cm.authorName}</strong>
+                  <span style={{ color: 'var(--text-primary)', fontSize: '0.78rem', fontWeight: 600 }}>{cm.authorName}</span>
                 </div>
 
-                <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px', fontFamily: 'var(--font-mono)' }}>
-                  <Calendar size={11} /> {new Date(cm.createdAt).toLocaleDateString('ru-RU')}
+                <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px', fontFamily: 'var(--font-mono)' }}>
+                  <Calendar size={10} /> {new Date(cm.createdAt).toLocaleDateString('ru-RU')}
                 </span>
               </div>
 
-              <div style={{ fontSize: '0.84rem', color: 'var(--text-secondary)', lineHeight: 1.5, paddingLeft: '34px' }}>
+              <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', lineHeight: 1.45, paddingLeft: '28px' }}>
                 {cm.content}
               </div>
             </div>
