@@ -399,6 +399,17 @@ export const BillEditor: React.FC<BillEditorProps> = ({
             </button>
           )}
 
+          {/* DELETE BUTTON FOR AUTHOR/ADMIN */}
+          {canDelete && (
+            <button 
+              onClick={() => { if (onDelete) onDelete(bill.id); }} 
+              className="btn btn-outline-danger btn-pill" 
+              style={{ padding: '6px 16px', fontSize: '0.8rem' }}
+            >
+              <Trash2 size={13} /> Удалить
+            </button>
+          )}
+
           {/* MORE ACTIONS DROPDOWN (···) */}
           <div ref={menuRef} style={{ position: 'relative' }}>
             <button 
@@ -420,18 +431,6 @@ export const BillEditor: React.FC<BillEditorProps> = ({
                 >
                   <Share2 size={14} /> Ссылка доступа
                 </button>
-
-                {canDelete && (
-                  <button 
-                    onClick={() => {
-                      setShowMoreMenu(false);
-                      if (onDelete) onDelete(bill.id);
-                    }}
-                    className="dropdown-item dropdown-item-danger"
-                  >
-                    <Trash2 size={14} /> Удалить проект
-                  </button>
-                )}
               </div>
             )}
           </div>
@@ -814,14 +813,29 @@ export const BillEditor: React.FC<BillEditorProps> = ({
               ))}
             </div>
 
-            {/* SUMMARY */}
-            <div style={{ background: 'var(--bg-input)', padding: '6px 10px', borderRadius: 'var(--radius-sm)', marginBottom: '10px', border: '1px solid var(--border-subtle)', textAlign: 'center' }}>
-              <div style={{ fontSize: '0.72rem', fontFamily: 'var(--font-mono)', fontWeight: 600, color: isStage1Passed ? 'var(--success-text)' : isStage1Rejected ? 'var(--danger-text)' : 'var(--text-secondary)' }}>
-                {isStage1Passed 
-                  ? `Одобрено Комиссией (${approvedVotesCount}/3)` 
-                  : isStage1Rejected 
-                  ? `Отклонено Комиссией (${rejectedVotesCount}/3)`
-                  : `Голоса: ${approvedVotesCount} За / ${rejectedVotesCount} Против`}
+            {/* PROGRESS BAR SUMMARY */}
+            <div style={{ marginBottom: '14px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', fontFamily: 'var(--font-mono)', fontWeight: 600, marginBottom: '6px', color: isStage1Passed ? 'var(--success-text)' : isStage1Rejected ? 'var(--danger-text)' : 'var(--text-secondary)' }}>
+                <span>
+                  {isStage1Passed ? 'Одобрено Комиссией' : isStage1Rejected ? 'Отклонено Комиссией' : 'Итог голосования'}
+                </span>
+                <span>{approvedVotesCount} За / {rejectedVotesCount} Против</span>
+              </div>
+              <div className="voting-progress-bar">
+                {(() => {
+                  const revisionVotesCount = [votes.prosecutor, votes.judge, votes.governor].filter((v) => v === 'needs_revision').length;
+                  const totalVoted = approvedVotesCount + rejectedVotesCount + revisionVotesCount;
+                  const pendingCount = 3 - totalVoted;
+                  
+                  return (
+                    <>
+                      {approvedVotesCount > 0 && <div className="voting-segment voting-segment-approved" style={{ width: `${(approvedVotesCount / 3) * 100}%` }} title={`За: ${approvedVotesCount}`} />}
+                      {rejectedVotesCount > 0 && <div className="voting-segment voting-segment-rejected" style={{ width: `${(rejectedVotesCount / 3) * 100}%` }} title={`Против: ${rejectedVotesCount}`} />}
+                      {revisionVotesCount > 0 && <div className="voting-segment voting-segment-revision" style={{ width: `${(revisionVotesCount / 3) * 100}%` }} title={`Правки: ${revisionVotesCount}`} />}
+                      {pendingCount > 0 && <div className="voting-segment voting-segment-pending" style={{ width: `${(pendingCount / 3) * 100}%` }} title={`Ожидают: ${pendingCount}`} />}
+                    </>
+                  );
+                })()}
               </div>
             </div>
 
