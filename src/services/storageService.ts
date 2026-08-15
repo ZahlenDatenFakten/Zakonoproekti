@@ -238,25 +238,25 @@ export async function deleteBill(billId: string): Promise<boolean> {
     localStorage.setItem('legaldraft_current_view', 'dashboard');
   }
 
-  // 3. Asynchronously delete from Firebase
+  // 3. Delete from Firebase and await
   try {
-    deleteBillFromFirebase(billId).catch((err) => console.warn('Firebase delete error:', err));
+    await deleteBillFromFirebase(billId);
   } catch (err) {
-    console.warn('Firebase delete trigger warning:', err);
+    console.warn('Firebase delete error:', err);
   }
 
-  // 4. Asynchronously delete from Supabase if connected
+  // 4. Delete from Supabase if connected and await
   try {
     const dbConfig = getStoredDbConfig();
     if (dbConfig.isConnected) {
       const supabase = getSupabaseClient();
       if (supabase) {
-        supabase.from('bills').delete().eq('id', billId)
-          .then(() => {}, (err: any) => console.warn('Supabase delete error:', err));
+        const { error } = await supabase.from('bills').delete().eq('id', billId);
+        if (error) console.warn('Supabase delete error:', error.message);
       }
     }
   } catch (err) {
-    console.warn('Supabase delete trigger warning:', err);
+    console.warn('Supabase delete error:', err);
   }
 
   return true;
