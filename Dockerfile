@@ -14,25 +14,33 @@ COPY . .
 # Build production bundle with TypeScript check
 RUN npm run build
 
-# Stage 2: Production Web Server (Nginx)
-FROM nginx:alpine AS production
+# Stage 2: Production Web Server (Node.js)
+FROM node:20-alpine AS production
 
-# Remove default nginx assets
-RUN rm -rf /usr/share/nginx/html/*
+WORKDIR /app
 
-# Copy built assets from builder stage
-COPY --from=builder /app/dist /usr/share/nginx/html
+# We only need the production dependencies for the server (express, cors, etc)
+COPY package*.json ./
+RUN npm ci --omit=dev --prefer-offline --no-audit
 
-# Copy custom security-hardened Nginx configuration
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+# Copy the server script and the built frontend assets
+COPY server.js ./
+COPY --from=builder /app/dist ./dist
 
-# Set permissions
-RUN chown -R nginx:nginx /usr/share/nginx/html && \
-    chmod -R 755 /usr/share/nginx/html
+# Create an empty config.json so we can set correct permissions
+RUN touch config.json && \
+    chown node:node config.json && \
+    chmod 666 config.json
 
-EXPOSE 80 443
+EXPOSE 80
 
 HEALTHCHECK --interval=30s --timeout=3s --retries=3 \
   CMD wget --quiet --tries=1 --spider http://localhost/ || exit 1
 
-CMD ["nginx", "-g", "daemon off;"]
+# Run as non-root user for security
+USER node
+
+# We use PORT 80 internally
+ENV PORT=80
+
+CMD ["node", "server.js"]

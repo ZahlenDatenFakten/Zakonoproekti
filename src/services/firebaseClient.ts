@@ -81,6 +81,37 @@ export function saveFirebaseConfig(config: FirebaseConfig): void {
   localStorage.setItem(FIREBASE_CONFIG_KEY, JSON.stringify(config));
 }
 
+// Fetch config from Node.js backend (if running) and save to localStorage
+export async function initFirebaseConfigFromServer(): Promise<void> {
+  try {
+    const res = await fetch('/api/config');
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.apiKey) {
+        saveFirebaseConfig({ ...data, isConnected: true });
+      }
+    }
+  } catch (err) {
+    // silently ignore, probably running in dev mode or without node backend
+  }
+}
+
+// Send updated config to Node.js backend so it applies to everyone
+export async function saveFirebaseConfigToServer(config: FirebaseConfig): Promise<boolean> {
+  try {
+    saveFirebaseConfig(config); // Save locally first
+    const res = await fetch('/api/config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(config)
+    });
+    return res.ok;
+  } catch (err) {
+    console.warn('Failed to save config to server:', err);
+    return false;
+  }
+}
+
 export function getFirebaseApp(customConfig?: FirebaseConfig) {
   const config = customConfig || getStoredFirebaseConfig();
   if (!config.isConnected || !config.apiKey || (!config.projectId && !config.databaseURL)) {

@@ -10,7 +10,10 @@ import {
   subscribeToAllBills
 } from './services/storageService';
 import { getStoredDbConfig, saveDbConfig } from './services/supabaseClient';
-import { saveFirebaseConfig } from './services/firebaseClient';
+import { 
+  saveFirebaseConfig,
+  initFirebaseConfigFromServer 
+} from './services/firebaseClient';
 import { isSystemAdmin } from './services/securityService';
 import { Sidebar } from './components/Sidebar';
 import { Dashboard } from './components/Dashboard';
@@ -124,11 +127,24 @@ export const App: React.FC = () => {
       console.warn('DB Sync URL parse warning:', err);
     }
 
-    loadData();
+    // Initialize server config first, then load data and subscribe
+    const initializeApp = async () => {
+      await initFirebaseConfigFromServer();
+      
+      await loadData();
 
-    // 2. Realtime continuous live listener (Firestore onSnapshot / Realtime DB)
-    const unsubscribe = subscribeToAllBills((incomingBills) => {
-      setBills(incomingBills);
+      // 2. Realtime continuous live listener (Firestore onSnapshot / Realtime DB)
+      const unsubscribeFb = subscribeToAllBills((incomingBills) => {
+        setBills(incomingBills);
+      });
+      // Need to store the cleanup function in a ref or just return it? 
+      // Actually we can't easily return it from an async function to useEffect directly.
+      return unsubscribeFb;
+    };
+
+    let unsubscribeFn: (() => void) | undefined;
+    initializeApp().then(unsub => {
+      unsubscribeFn = unsub;
     });
 
     // 3. Safety background polling every 4 seconds to guarantee mirror-like synchronization
@@ -138,7 +154,7 @@ export const App: React.FC = () => {
     }, 4000);
 
     return () => {
-      if (unsubscribe) unsubscribe();
+      if (unsubscribeFn) unsubscribeFn();
       clearInterval(pollInterval);
     };
   }, []);

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { DbConfig } from '../types/bill';
 import { saveDbConfig, resetSupabaseClient, testSupabaseConnection } from '../services/supabaseClient';
-import { getStoredFirebaseConfig, saveFirebaseConfig, testFirebaseConnection } from '../services/firebaseClient';
+import { getStoredFirebaseConfig, testFirebaseConnection, saveFirebaseConfigToServer } from '../services/firebaseClient';
 import type { FirebaseConfig } from '../services/firebaseClient';
 import { Database, X, Flame, ShieldAlert, CheckCircle2, AlertTriangle, Copy, Check, RefreshCw } from 'lucide-react';
 import { cn } from '../utils/cn';
@@ -28,7 +28,7 @@ export const DbConfigModal: React.FC<DbConfigModalProps> = ({ config, onUpdateCo
   const [testResult, setTestResult] = useState<{ success?: boolean; message?: string; details?: string } | null>(null);
   const [copiedLink, setCopiedLink] = useState(false);
 
-  const handleSaveFirebase = () => {
+  const handleSaveFirebase = async () => {
     const isConn = Boolean(firebaseConfig.apiKey.trim() && firebaseConfig.projectId.trim());
     const updated = {
       ...firebaseConfig,
@@ -41,7 +41,7 @@ export const DbConfigModal: React.FC<DbConfigModalProps> = ({ config, onUpdateCo
       appId: (firebaseConfig.appId || '').trim(),
       isConnected: isConn
     };
-    saveFirebaseConfig(updated);
+    await saveFirebaseConfigToServer(updated);
     onClose();
   };
 
