@@ -293,8 +293,15 @@ export const DbConfigModal: React.FC<DbConfigModalProps> = ({ config, onUpdateCo
                   <p className="text-[11px] text-indigo-200/80 leading-relaxed font-medium mb-1">
                     💡 <strong className="text-indigo-300">В Firebase Console ➔ Firestore Database ➔ Rules</strong> укажите:
                   </p>
-                  <div className="bg-black/60 border border-white/5 rounded-lg p-2 font-mono text-[10px] text-indigo-400">
-                    allow read, write: if true;
+                  <div className="bg-black/60 border border-white/5 rounded-lg p-2 font-mono text-[10px] text-indigo-400 whitespace-pre-wrap">
+{`rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if true;
+    }
+  }
+}`}
                   </div>
                 </div>
                 <div>
