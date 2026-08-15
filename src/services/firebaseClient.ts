@@ -129,31 +129,50 @@ export async function testFirebaseConnection(customConfig?: FirebaseConfig): Pro
     let writePassed = false;
     let readPassed = false;
 
+    // Helper to add timeout to any Firebase promise (Firebase SDK often hangs instead of rejecting on network/setup errors)
+    const withTimeout = <T>(promise: Promise<T>, ms = 7000, errorMsg = 'Таймаут подключения'): Promise<T> => {
+      let timeoutId: any;
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        timeoutId = setTimeout(() => reject(new Error(errorMsg)), ms);
+      });
+      return Promise.race([promise, timeoutPromise]).finally(() => clearTimeout(timeoutId));
+    };
+
     // Test Firestore
     if (config.projectId) {
-      const firestore = getFirestore(app);
-      const testDocRef = doc(firestore, '_system_health', 'ping_' + Date.now());
-      await setDoc(testDocRef, { timestamp: new Date().toISOString(), test: true });
-      writePassed = true;
-
-      const snap = await getDoc(testDocRef);
-      if (snap.exists()) {
-        readPassed = true;
-      }
       try {
-        await deleteDoc(testDocRef);
-      } catch {}
+        const firestore = getFirestore(app);
+        const testDocRef = doc(firestore, '_system_health', 'ping_' + Date.now());
+        await withTimeout(setDoc(testDocRef, { timestamp: new Date().toISOString(), test: true }), 5000, 'Таймаут записи Firestore (возможно база не создана)');
+        writePassed = true;
+
+        const snap = await withTimeout(getDoc(testDocRef), 5000, 'Таймаут чтения Firestore');
+        if (snap.exists()) {
+          readPassed = true;
+        }
+        try {
+          await deleteDoc(testDocRef);
+        } catch {}
+      } catch (err: any) {
+        if (!config.databaseURL) throw err; // If RTDB is not configured, throw this to fail the whole test
+        console.warn('Firestore test failed, but RTDB is configured. Error:', err);
+      }
     }
 
     // Test Realtime Database if configured
     if (config.databaseURL) {
-      const rtdb = getDatabase(app);
-      const testRef = ref(rtdb, '_system_health/ping');
-      await set(testRef, { timestamp: new Date().toISOString(), test: true });
-      writePassed = true;
-      const snap = await get(testRef);
-      if (snap.exists()) {
-        readPassed = true;
+      try {
+        const rtdb = getDatabase(app);
+        const testRef = ref(rtdb, '_system_health/ping');
+        await withTimeout(set(testRef, { timestamp: new Date().toISOString(), test: true }), 5000, 'Таймаут записи RTDB (неверный URL или база не создана)');
+        writePassed = true;
+        const snap = await withTimeout(get(testRef), 5000, 'Таймаут чтения RTDB');
+        if (snap.exists()) {
+          readPassed = true;
+        }
+      } catch (err: any) {
+        if (!writePassed && !readPassed) throw err; // Only throw if Firestore also failed
+        console.warn('RTDB test failed. Error:', err);
       }
     }
 
