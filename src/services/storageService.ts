@@ -43,7 +43,17 @@ function mapSupabaseRow(item: any): Bill {
 }
 
 function isValidBill(b: any): b is Bill {
-  return Boolean(b && b.id && b.author);
+  if (!b || !b.id || !b.author) return false;
+  
+  // Ensure critical fields have correct types to prevent UI crashes
+  if (typeof b.author !== 'string') b.author = String(b.author);
+  if (b.targetLaw && typeof b.targetLaw !== 'string') b.targetLaw = String(b.targetLaw);
+  if (b.title && typeof b.title !== 'string') b.title = String(b.title);
+  
+  if (!Array.isArray(b.comparisons)) b.comparisons = [];
+  if (!Array.isArray(b.shareTokens)) b.shareTokens = [];
+  if (!Array.isArray(b.comments)) b.comments = [];
+  return true;
 }
 
 function mergeBills(primary: Bill[], secondary: Bill[]): Bill[] {
