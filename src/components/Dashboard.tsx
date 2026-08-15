@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { motion } from 'framer-motion';
 import type { Bill, BillStatus, UserProfile } from '../types/bill';
 import { isSystemAdmin } from '../services/securityService';
 import { 
@@ -8,8 +9,10 @@ import {
   Calendar,
   User as UserIcon,
   Layers,
-  Trash2
+  Trash2,
+  FileText
 } from 'lucide-react';
+import { cn } from '../utils/cn';
 
 interface DashboardProps {
   user: UserProfile;
@@ -82,33 +85,33 @@ export const Dashboard: React.FC<DashboardProps> = ({
     switch (status) {
       case 'approved':
         return (
-          <span className="badge badge-status-approved">
-            <span className="status-dot status-dot-active" /> Вступил в силу
+          <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-[10px] font-extrabold uppercase tracking-wider text-emerald-400">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]" /> Вступил в силу
           </span>
         );
       case 'rejected':
         return (
-          <span className="badge badge-status-rejected">
-            <span className="status-dot status-dot-danger" /> Отклонен
+          <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-rose-500/10 border border-rose-500/20 text-[10px] font-extrabold uppercase tracking-wider text-rose-400">
+            <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.8)]" /> Отклонен
           </span>
         );
       case 'needs_revision':
         return (
-          <span className="badge badge-status-revision">
-            <span className="status-dot status-dot-info" /> Доработка
+          <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-[10px] font-extrabold uppercase tracking-wider text-amber-400">
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.8)] animate-pulse" /> Доработка
           </span>
         );
       case 'under_review':
         return (
-          <span className="badge badge-status-review">
-            <span className="status-dot status-dot-review" /> На рассмотрении
+          <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-[10px] font-extrabold uppercase tracking-wider text-blue-400">
+            <span className="w-1.5 h-1.5 rounded-full bg-blue-400 shadow-[0_0_8px_rgba(96,165,250,0.8)] animate-pulse" /> На рассмотрении
           </span>
         );
       case 'draft':
       default:
         return (
-          <span className="badge badge-status-draft">
-            <span className="status-dot status-dot-draft" /> Черновик
+          <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-zinc-500/10 border border-zinc-500/20 text-[10px] font-extrabold uppercase tracking-wider text-zinc-400">
+            <span className="w-1.5 h-1.5 rounded-full bg-zinc-500" /> Черновик
           </span>
         );
     }
@@ -119,89 +122,84 @@ export const Dashboard: React.FC<DashboardProps> = ({
     return `АКТ № SA-${numericId}`;
   };
 
+  // Animation variants
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    show: {
+      opacity: 1,
+      transition: { staggerChildren: 0.05 }
+    }
+  };
+
+  const itemVariants = {
+    hidden: { opacity: 0, y: 15 },
+    show: { opacity: 1, y: 0, transition: { type: "spring" as const, stiffness: 300, damping: 30 } }
+  };
+
   return (
-    <div className="animate-fade-in" style={{ maxWidth: '1200px', margin: '20px auto 60px', padding: '0 20px' }}>
+    <div className="max-w-6xl mx-auto space-y-8 pb-12">
       
-      {/* COMPACT TOP HEADER */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '14px' }}>
+      {/* Header Area */}
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
         <div>
-          <h2 style={{ fontSize: '1.35rem', fontWeight: 700, margin: '0 0 2px 0', color: 'var(--text-primary)' }}>
-            Государственный реестр законопроектов
+          <h2 className="text-3xl font-extrabold tracking-tight text-white mb-2">
+            Реестр законопроектов
           </h2>
-          <p style={{ margin: 0, fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+          <p className="text-sm text-zinc-400 font-medium">
             Электронный архив законодательных актов и экспертиз Штата San Andreas
           </p>
         </div>
 
         <button 
           onClick={onNewBill} 
-          className="btn btn-primary btn-pill" 
-          style={{ padding: '8px 18px', fontSize: '0.84rem' }}
+          className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold px-5 py-3 rounded-xl shadow-lg shadow-indigo-500/20 border border-indigo-400/30 active:scale-95 transition-all"
         >
-          <Plus size={14} /> Внести законопроект
+          <Plus size={18} />
+          Внести законопроект
         </button>
       </div>
 
-      {/* COMPACT METRICS STRIP */}
-      <div style={{ 
-        display: 'grid', 
-        gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', 
-        gap: '10px', 
-        marginBottom: '20px' 
-      }}>
-        <div className="stat-card">
-          <div className="stat-icon-wrapper">
-            <Layers size={16} />
-          </div>
-          <div>
-            <div style={{ fontSize: '1.15rem', fontWeight: 700, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)', lineHeight: 1.1 }}>{stats.total}</div>
-            <div className="tech-label" style={{ marginTop: '2px' }}>Всего актов</div>
-          </div>
-        </div>
-
-        <div className="stat-card">
-          <div className="stat-icon-wrapper" style={{ background: 'var(--warning-bg)', color: 'var(--warning-text)', borderColor: 'var(--warning-border)' }}>
-            <span style={{ fontSize: '0.75rem', fontWeight: 700, fontFamily: 'var(--font-mono)' }}>2/3</span>
-          </div>
-          <div>
-            <div style={{ fontSize: '1.15rem', fontWeight: 700, color: 'var(--warning-text)', fontFamily: 'var(--font-mono)', lineHeight: 1.1 }}>{stats.active}</div>
-            <div className="tech-label" style={{ marginTop: '2px' }}>На рассмотрении</div>
-          </div>
-        </div>
-
-        <div className="stat-card">
-          <div className="stat-icon-wrapper" style={{ background: 'var(--success-bg)', color: 'var(--success-text)', borderColor: 'var(--success-border)' }}>
-            <span style={{ fontSize: '0.75rem', fontWeight: 700, fontFamily: 'var(--font-mono)' }}>✓</span>
-          </div>
-          <div>
-            <div style={{ fontSize: '1.15rem', fontWeight: 700, color: 'var(--success-text)', fontFamily: 'var(--font-mono)', lineHeight: 1.1 }}>{stats.approved}</div>
-            <div className="tech-label" style={{ marginTop: '2px' }}>Вступили в силу</div>
-          </div>
-        </div>
-
-        <div className="stat-card">
-          <div className="stat-icon-wrapper" style={{ background: 'rgba(255,255,255,0.03)', color: 'var(--text-secondary)', borderColor: 'var(--border-subtle)' }}>
-            <UserIcon size={16} />
-          </div>
-          <div>
-            <div style={{ fontSize: '1.15rem', fontWeight: 700, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)', lineHeight: 1.1 }}>{stats.myCount}</div>
-            <div className="tech-label" style={{ marginTop: '2px' }}>Мои проекты</div>
-          </div>
-        </div>
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {[
+          { icon: <Layers size={20} />, value: stats.total, label: 'Всего актов', color: 'indigo' },
+          { icon: <FileText size={20} />, value: stats.active, label: 'На рассмотрении', color: 'amber' },
+          { icon: <ChevronRight size={20} />, value: stats.approved, label: 'Вступили в силу', color: 'emerald' },
+          { icon: <UserIcon size={20} />, value: stats.myCount, label: 'Мои проекты', color: 'zinc' },
+        ].map((stat, i) => (
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: i * 0.1 }}
+            key={i} 
+            className="flex items-center gap-4 p-5 rounded-2xl bg-white/[0.02] backdrop-blur-xl border border-white/10 shadow-2xl shadow-black/50 hover:border-white/20 transition-all duration-200"
+          >
+            <div className={cn(
+              "w-12 h-12 rounded-xl flex items-center justify-center shrink-0 border",
+              stat.color === 'indigo' && "bg-indigo-500/10 border-indigo-500/20 text-indigo-400 shadow-[inset_0_2px_8px_rgba(99,102,241,0.15)]",
+              stat.color === 'amber' && "bg-amber-500/10 border-amber-500/20 text-amber-400 shadow-[inset_0_2px_8px_rgba(245,158,11,0.15)]",
+              stat.color === 'emerald' && "bg-emerald-500/10 border-emerald-500/20 text-emerald-400 shadow-[inset_0_2px_8px_rgba(16,185,129,0.15)]",
+              stat.color === 'zinc' && "bg-zinc-500/10 border-zinc-500/20 text-zinc-400 shadow-[inset_0_2px_8px_rgba(161,161,170,0.15)]",
+            )}>
+              {stat.icon}
+            </div>
+            <div>
+              <div className="text-2xl font-extrabold font-mono text-white leading-none mb-1">
+                {stat.value}
+              </div>
+              <div className="text-[11px] font-bold tracking-wider uppercase text-zinc-400">
+                {stat.label}
+              </div>
+            </div>
+          </motion.div>
+        ))}
       </div>
 
-      {/* FILTER TABS & SEARCH */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
+      {/* Filters & Search */}
+      <div className="flex flex-col md:flex-row items-center justify-between gap-4 bg-white/[0.02] backdrop-blur-xl border border-white/10 rounded-2xl p-2 shadow-2xl shadow-black/50">
         
         {/* TABS */}
-        <div style={{ 
-          display: 'flex', 
-          gap: '2px', 
-          background: 'var(--bg-surface)', 
-          padding: '3px', 
-          borderRadius: 'var(--radius-pill)', 
-          border: '1px solid var(--border-subtle)'
-        }}>
+        <div className="flex w-full md:w-auto gap-1">
           {[
             { id: 'all', label: 'Все' },
             { id: 'active', label: 'На рассмотрении' },
@@ -213,15 +211,12 @@ export const Dashboard: React.FC<DashboardProps> = ({
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id as any)}
-                className="btn btn-pill"
-                style={{
-                  background: isActive ? 'var(--bg-surface-active)' : 'transparent',
-                  color: isActive ? 'var(--text-primary)' : 'var(--text-muted)',
-                  border: 'none',
-                  padding: '5px 14px',
-                  fontSize: '0.78rem',
-                  fontWeight: 500
-                }}
+                className={cn(
+                  "flex-1 md:flex-none px-4 py-2 rounded-xl text-xs font-bold tracking-wide transition-all duration-200",
+                  isActive 
+                    ? "bg-white/10 text-white shadow-lg" 
+                    : "text-zinc-400 hover:text-white hover:bg-white/5"
+                )}
               >
                 {tab.label}
               </button>
@@ -230,33 +225,30 @@ export const Dashboard: React.FC<DashboardProps> = ({
         </div>
 
         {/* SEARCH INPUT */}
-        <div style={{ position: 'relative', minWidth: '260px', flex: 1, maxWidth: '380px' }}>
-          <Search 
-            size={14} 
-            color="var(--text-muted)" 
-            style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} 
-          />
+        <div className="relative w-full md:w-80 shrink-0">
+          <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-500" />
           <input 
             type="text" 
-            placeholder="Поиск по законам, автору или номеру..." 
+            placeholder="Поиск (название, автор, номер)..." 
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="input-field"
-            style={{
-              padding: '7px 14px 7px 34px',
-              fontSize: '0.8rem',
-              borderRadius: 'var(--radius-pill)'
-            }}
+            className="w-full bg-black/60 border border-white/10 rounded-xl py-2 pl-10 pr-4 text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/50 transition-all duration-200"
           />
         </div>
       </div>
 
       {/* BILLS LIST */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+      <motion.div 
+        variants={containerVariants}
+        initial="hidden"
+        animate="show"
+        className="flex flex-col gap-3"
+      >
         {filteredBills.length === 0 ? (
-          <div className="card" style={{ textAlign: 'center', padding: '48px 20px', color: 'var(--text-muted)' }}>
-            <p style={{ margin: 0, fontSize: '0.84rem' }}>
-              Законопроекты не найдены.
+          <div className="flex flex-col items-center justify-center py-20 px-4 text-center bg-white/[0.02] backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl shadow-black/50">
+            <Search size={48} className="text-zinc-600 mb-4" />
+            <p className="text-zinc-400 text-sm font-medium">
+              Законопроекты не найдены. Измените параметры поиска.
             </p>
           </div>
         ) : (
@@ -266,56 +258,56 @@ export const Dashboard: React.FC<DashboardProps> = ({
             const canDelete = isAuthor || isSystemAdmin(user);
 
             return (
-              <div 
+              <motion.div 
+                variants={itemVariants}
                 key={bill.id}
                 onClick={() => onSelectBill(bill)}
-                className="card card-hover"
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  padding: '14px 18px'
-                }}
+                className="group flex flex-col sm:flex-row sm:items-center justify-between p-5 rounded-2xl bg-white/[0.02] backdrop-blur-xl border border-white/10 shadow-2xl shadow-black/50 hover:border-white/20 hover:bg-white/[0.04] cursor-pointer transition-all duration-200"
               >
-                <div style={{ flex: 1, paddingRight: '16px', minWidth: 0 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px', flexWrap: 'wrap' }}>
-                    <span className="decree-stamp">
+                <div className="flex-1 min-w-0 pr-4">
+                  {/* Top Meta Line */}
+                  <div className="flex items-center gap-3 mb-3 flex-wrap">
+                    <span className="px-2 py-0.5 rounded-md bg-indigo-500/10 border border-indigo-500/20 text-[10px] font-mono font-bold text-indigo-300 uppercase tracking-wider">
                       {decreeStamp}
                     </span>
                     {getStatusBadge(bill.status)}
-                    <span style={{ 
-                      fontSize: '0.7rem', 
-                      color: 'var(--text-muted)', 
-                      fontFamily: 'var(--font-mono)' 
-                    }}>
+                    <span className="text-[10px] font-mono uppercase tracking-wider text-zinc-500">
                       {bill.authorRole || 'Инициатива'}
                     </span>
                   </div>
 
-                  <h3 style={{ margin: '0 0 4px 0', fontSize: '0.94rem', fontWeight: 600, color: 'var(--text-primary)', lineHeight: 1.3 }}>
+                  {/* Title */}
+                  <h3 className="text-base font-bold text-white mb-2 leading-snug truncate">
                     {bill.targetLaw || bill.title || 'Внесение изменений в закон'}
                   </h3>
                   
+                  {/* Note preview */}
                   {bill.explanatoryNote && (
-                    <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', margin: '0 0 6px 0', lineHeight: 1.4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    <p className="text-sm text-zinc-400 mb-4 truncate max-w-3xl">
                       {bill.explanatoryNote}
                     </p>
                   )}
 
-                  {/* METADATA LINE */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.72rem', color: 'var(--text-muted)', flexWrap: 'wrap', fontFamily: 'var(--font-mono)' }}>
-                    <span>{bill.author}</span>
-                    <span style={{ opacity: 0.3 }}>•</span>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <Calendar size={11} /> 
+                  {/* Bottom Meta */}
+                  <div className="flex items-center gap-4 text-[11px] font-mono text-zinc-500 flex-wrap uppercase tracking-wider">
+                    <div className="flex items-center gap-1.5">
+                      <UserIcon size={12} className="text-zinc-600" />
+                      <span className="text-zinc-300 font-bold">{bill.author}</span>
+                    </div>
+                    <span className="opacity-30">•</span>
+                    <div className="flex items-center gap-1.5">
+                      <Calendar size={12} className="text-zinc-600" />
                       <span>{formatDate(bill.updatedAt)}</span>
-                    </span>
-                    <span style={{ opacity: 0.3 }}>•</span>
-                    <span>Статей: <strong style={{ color: 'var(--text-accent)' }}>{bill.comparisons.length}</strong></span>
+                    </div>
+                    <span className="opacity-30">•</span>
+                    <div>
+                      Статей: <span className="text-indigo-400 font-extrabold">{bill.comparisons.length}</span>
+                    </div>
                   </div>
                 </div>
                 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+                {/* Actions */}
+                <div className="flex items-center gap-2 mt-4 sm:mt-0 shrink-0">
                   {canDelete && (
                     <button
                       type="button"
@@ -323,23 +315,22 @@ export const Dashboard: React.FC<DashboardProps> = ({
                         e.stopPropagation();
                         onDeleteBill(bill.id);
                       }}
-                      className="btn btn-ghost btn-icon"
-                      style={{ color: 'var(--danger-text)', width: '28px', height: '28px' }}
+                      className="p-2.5 rounded-xl bg-transparent hover:bg-rose-500/10 text-zinc-500 hover:text-rose-400 transition-colors duration-200"
                       title="Удалить законопроект"
                     >
-                      <Trash2 size={13} />
+                      <Trash2 size={16} />
                     </button>
                   )}
 
-                  <div style={{ color: 'var(--text-muted)', display: 'flex', alignItems: 'center' }}>
-                    <ChevronRight size={15} />
+                  <div className="w-10 h-10 rounded-xl bg-white/[0.04] border border-white/10 flex items-center justify-center text-zinc-400 group-hover:bg-indigo-500 group-hover:text-white group-hover:border-indigo-400/50 group-hover:shadow-[0_0_15px_rgba(99,102,241,0.4)] transition-all duration-300">
+                    <ChevronRight size={18} />
                   </div>
                 </div>
-              </div>
+              </motion.div>
             );
           })
         )}
-      </div>
+      </motion.div>
 
     </div>
   );

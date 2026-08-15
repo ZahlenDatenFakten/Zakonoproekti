@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import type { Bill, UserProfile, DbConfig, AccessPermission, AppTheme, OfficialRole } from './types/bill';
+import type { Bill, UserProfile, DbConfig, AccessPermission, OfficialRole } from './types/bill';
 import { OFFICIAL_ROLE_LABELS } from './types/bill';
 import { 
   fetchAllBills, 
@@ -12,7 +12,7 @@ import {
 import { getStoredDbConfig, saveDbConfig } from './services/supabaseClient';
 import { saveFirebaseConfig } from './services/firebaseClient';
 import { isSystemAdmin } from './services/securityService';
-import { Header } from './components/Header';
+import { Sidebar } from './components/Sidebar';
 import { Dashboard } from './components/Dashboard';
 import { BillEditor } from './components/BillEditor';
 import { AdminWorkspace } from './components/AdminWorkspace';
@@ -29,11 +29,6 @@ export const App: React.FC = () => {
   const [dbConfig, setDbConfig] = useState<DbConfig>(getStoredDbConfig());
   const [bills, setBills] = useState<Bill[]>([]);
   
-  // Theme Management (Dark / Light)
-  const [theme, setTheme] = useState<AppTheme>(() => {
-    return (localStorage.getItem('legaldraft_theme') as AppTheme) || 'dark';
-  });
-
   // Mandatory Citizen Identity State
   const [isIdentityConfirmed, setIsIdentityConfirmed] = useState<boolean>(() => {
     return localStorage.getItem('legaldraft_identity_confirmed') === 'true';
@@ -56,11 +51,11 @@ export const App: React.FC = () => {
   // In-App Toast Notifications
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
 
-  // Apply Theme Attribute to HTML root element
+  // Always force dark mode for Cyber State OS
   useEffect(() => {
-    document.documentElement.setAttribute('data-theme', theme);
-    localStorage.setItem('legaldraft_theme', theme);
-  }, [theme]);
+    document.documentElement.setAttribute('data-theme', 'dark');
+    document.documentElement.classList.add('dark');
+  }, []);
 
   // Handle native browser Back / Forward buttons (popstate)
   useEffect(() => {
@@ -79,10 +74,6 @@ export const App: React.FC = () => {
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
-
-  const toggleTheme = () => {
-    setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
-  };
 
   const handleConfirmIdentity = (firstName: string, lastName: string) => {
     const updatedUser: UserProfile = {
@@ -304,65 +295,65 @@ export const App: React.FC = () => {
   };
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+    <div className="flex h-screen overflow-hidden bg-[#090B10] text-white selection:bg-indigo-500/40 selection:text-white">
       
-      {/* Global Header */}
-      <Header
+      {/* Sidebar Navigation */}
+      <Sidebar
         user={user}
-        theme={theme}
         currentView={currentView}
         onNavigate={handleNavigateView}
-        onToggleTheme={toggleTheme}
         onOpenNewBill={handleCreateNewBill}
         onOpenSettings={() => setShowSettingsModal(true)}
         onOpenDbConfig={() => setShowDbModal(true)}
       />
 
-      {/* Main View Router */}
-      <main style={{ flex: 1 }}>
-        {currentView === 'dashboard' && (
-          <Dashboard
-            bills={bills}
-            user={user}
-            onSelectBill={handleOpenBill}
-            onNewBill={handleCreateNewBill}
-            onDeleteBill={(id) => setConfirmDeleteId(id)}
-            onShareBill={(b) => {
-              setSelectedBill(b);
-              setShowShareModal(true);
-            }}
-          />
-        )}
+      {/* Main Content Area */}
+      <main className="flex-1 ml-64 overflow-y-auto custom-scrollbar relative">
+        <div className="min-h-full p-8 max-w-7xl mx-auto">
+          {currentView === 'dashboard' && (
+            <Dashboard
+              bills={bills}
+              user={user}
+              onSelectBill={handleOpenBill}
+              onNewBill={handleCreateNewBill}
+              onDeleteBill={(id) => setConfirmDeleteId(id)}
+              onShareBill={(b) => {
+                setSelectedBill(b);
+                setShowShareModal(true);
+              }}
+            />
+          )}
 
-        {currentView === 'editor' && selectedBill && (
-          <BillEditor
-            bill={selectedBill}
-            user={user}
-            permission={currentPermission}
-            returnView={returnView}
-            onSave={handleSaveBill}
-            onDelete={(id) => setConfirmDeleteId(id)}
-            onBack={handleBackFromEditor}
-            onShare={(b) => {
-              setSelectedBill(b);
-              setShowShareModal(true);
-            }}
-            onToast={addToast}
-          />
-        )}
+          {currentView === 'editor' && selectedBill && (
+            <BillEditor
+              bill={selectedBill}
+              user={user}
+              permission={currentPermission}
+              returnView={returnView}
+              onSave={handleSaveBill}
+              onDelete={(id) => setConfirmDeleteId(id)}
+              onBack={handleBackFromEditor}
+              onShare={(b) => {
+                setSelectedBill(b);
+                setShowShareModal(true);
+              }}
+              onToast={addToast}
+            />
+          )}
 
-        {currentView === 'admin_workspace' && (
-          <AdminWorkspace
-            bills={bills}
-            user={user}
-            onSelectBill={handleOpenBill}
-            onSaveBill={handleSaveBill}
-            onToast={addToast}
-          />
-        )}
+          {currentView === 'admin_workspace' && (
+            <AdminWorkspace
+              bills={bills}
+              user={user}
+              onSelectBill={handleOpenBill}
+              onSaveBill={handleSaveBill}
+              onToast={addToast}
+            />
+          )}
+        </div>
       </main>
 
-      {/* Mandatory Citizen Identity Confirmation Modal */}
+      {/* Modals & Portals */}
       {!isIdentityConfirmed && (
         <IdentityModal
           initialFirstName={user.firstName}
@@ -371,10 +362,8 @@ export const App: React.FC = () => {
         />
       )}
 
-      {/* Toast Notification Container */}
       <ToastContainer toasts={toasts} onDismiss={removeToast} />
 
-      {/* Access Share Link Modal */}
       {showShareModal && selectedBill && (
         <AccessModal
           bill={selectedBill}
@@ -386,7 +375,6 @@ export const App: React.FC = () => {
         />
       )}
 
-      {/* DB Configuration Modal (Firebase / Supabase) */}
       {showDbModal && (
         <DbConfigModal
           config={dbConfig}
@@ -395,7 +383,6 @@ export const App: React.FC = () => {
         />
       )}
 
-      {/* User Profile & Settings Modal */}
       {showSettingsModal && (
         <SettingsModal
           user={user}
@@ -405,7 +392,6 @@ export const App: React.FC = () => {
         />
       )}
 
-      {/* Delete Confirmation Modal */}
       {confirmDeleteId && (
         <ConfirmModal
           title="Отозвать и удалить законопроект"

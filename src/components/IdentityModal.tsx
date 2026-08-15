@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { motion } from 'framer-motion';
 import { ShieldCheck, UserCheck } from 'lucide-react';
 
 interface IdentityModalProps {
@@ -35,88 +36,73 @@ export const IdentityModal: React.FC<IdentityModalProps> = ({
   };
 
   return (
-    <div 
-      className="modal-overlay" 
-      style={{ 
-        zIndex: 99999, 
-        background: 'rgba(6, 8, 12, 0.94)',
-        backdropFilter: 'blur(20px)'
-      }}
-    >
-      <div 
-        className="modal-content animate-fade-in" 
-        style={{ 
-          maxWidth: '460px', 
-          padding: '32px',
-          border: '1px solid var(--border-accent)',
-          boxShadow: 'var(--shadow-lg), 0 0 50px var(--primary-glow)'
-        }}
+    <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-[#06080C]/95 backdrop-blur-2xl" />
+      
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        className="relative w-full max-w-md bg-[#0C0D12] border border-indigo-500/30 rounded-3xl p-8 shadow-[0_0_50px_rgba(99,102,241,0.15)] flex flex-col"
       >
-        <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-          <div style={{
-            width: '52px', height: '52px', borderRadius: 'var(--radius-md)',
-            background: 'var(--primary-gradient)',
-            boxShadow: '0 0 24px var(--primary-glow)',
-            border: '1px solid rgba(56, 189, 248, 0.4)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            margin: '0 auto 16px'
-          }}>
-            <ShieldCheck size={26} color="#ffffff" />
+        <div className="text-center mb-8">
+          <div className="w-16 h-16 mx-auto rounded-2xl bg-indigo-500/10 border border-indigo-500/30 flex items-center justify-center mb-5 shadow-[0_0_30px_rgba(99,102,241,0.2)]">
+            <ShieldCheck size={32} className="text-indigo-400" />
           </div>
 
-          <span className="decree-stamp" style={{ marginBottom: '10px' }}>
+          <span className="inline-block px-3 py-1 mb-3 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-[10px] font-mono font-bold text-indigo-300 uppercase tracking-[0.2em]">
             SA GOV TECH REGISTRY
           </span>
 
-          <h2 style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--text-primary)', margin: '8px 0 6px' }}>
+          <h2 className="text-2xl font-black text-white mb-2">
             Идентификация Гражданина
           </h2>
-          <p style={{ fontSize: '0.84rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.45, fontFamily: 'var(--font-mono)' }}>
+          <p className="text-sm font-mono text-zinc-400 leading-relaxed">
             Для работы в Государственном реестре укажите ваше полное Имя и Фамилию.
           </p>
         </div>
 
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        <form onSubmit={handleSubmit} className="flex flex-col gap-5">
           <div>
-            <label className="input-label">Имя гражданина</label>
+            <label className="block text-[10px] font-bold tracking-wider uppercase text-zinc-500 mb-2">Имя гражданина</label>
             <input 
               type="text" 
               value={firstName}
               onChange={(e) => { setFirstName(e.target.value); setError(''); }}
               placeholder="Например: Александр"
-              className="input-field"
               autoFocus
-              style={{ fontSize: '0.9rem' }}
+              className="w-full bg-black/60 border border-white/10 rounded-xl px-5 py-3.5 text-sm text-white font-bold focus:outline-none focus:border-indigo-500/50 transition-colors placeholder-zinc-600"
             />
           </div>
 
           <div>
-            <label className="input-label">Фамилия</label>
+            <label className="block text-[10px] font-bold tracking-wider uppercase text-zinc-500 mb-2">Фамилия</label>
             <input 
               type="text" 
               value={lastName}
               onChange={(e) => { setLastName(e.target.value); setError(''); }}
               placeholder="Например: Северов"
-              className="input-field"
-              style={{ fontSize: '0.9rem' }}
+              className="w-full bg-black/60 border border-white/10 rounded-xl px-5 py-3.5 text-sm text-white font-bold focus:outline-none focus:border-indigo-500/50 transition-colors placeholder-zinc-600"
             />
           </div>
 
           {error && (
-            <div style={{ fontSize: '0.8rem', color: 'var(--danger-text)', background: 'var(--danger-bg)', border: '1px solid var(--danger-border)', padding: '8px 14px', borderRadius: 'var(--radius-sm)', textAlign: 'center', fontFamily: 'var(--font-mono)' }}>
+            <motion.div 
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              className="text-xs font-mono text-rose-400 bg-rose-500/10 border border-rose-500/20 px-4 py-3 rounded-xl text-center"
+            >
               {error}
-            </div>
+            </motion.div>
           )}
 
           <button 
             type="submit" 
-            className="btn btn-primary btn-pill" 
-            style={{ width: '100%', padding: '12px', fontSize: '0.92rem', marginTop: '6px' }}
+            className="w-full mt-2 flex items-center justify-center gap-2 py-3.5 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-extrabold rounded-xl shadow-lg shadow-indigo-500/20 border border-indigo-400/30 active:scale-95 transition-all"
           >
             <UserCheck size={18} /> Подтвердить доступ
           </button>
         </form>
-      </div>
+      </motion.div>
     </div>
   );
 };

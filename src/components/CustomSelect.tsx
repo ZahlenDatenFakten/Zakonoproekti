@@ -1,5 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronDown, Check } from 'lucide-react';
+import { cn } from '../utils/cn';
 
 export interface SelectOption {
   value: string;
@@ -14,6 +16,7 @@ interface CustomSelectProps {
   placeholder?: string;
   style?: React.CSSProperties;
   width?: string;
+  className?: string;
 }
 
 export const CustomSelect: React.FC<CustomSelectProps> = ({
@@ -22,7 +25,8 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
   onChange,
   placeholder = 'Выберите...',
   style,
-  width = '100%'
+  width = '100%',
+  className
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -42,111 +46,72 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
   return (
     <div 
       ref={containerRef} 
-      style={{ 
-        position: 'relative', 
-        width: width, 
-        userSelect: 'none',
-        ...style 
-      }}
+      className={cn("relative select-none", className)}
+      style={{ width, ...style }}
     >
       {/* Select Trigger Box */}
       <div
         onClick={() => setIsOpen(!isOpen)}
-        style={{
-          background: 'var(--bg-input)',
-          border: '1px solid ' + (isOpen ? 'var(--border-focus)' : 'var(--border-subtle)'),
-          borderRadius: 'var(--radius-md)',
-          padding: '9px 14px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          cursor: 'pointer',
-          fontSize: '0.86rem',
-          color: selectedOption ? 'var(--text-primary)' : 'var(--text-muted)',
-          transition: 'all 0.15s ease',
-          boxShadow: isOpen ? '0 0 0 3px var(--primary-glow)' : 'none'
-        }}
+        className={cn(
+          "bg-black/60 border rounded-xl px-4 py-3 flex items-center justify-between cursor-pointer text-sm transition-all",
+          isOpen 
+            ? "border-indigo-500/50 shadow-[0_0_0_2px_rgba(99,102,241,0.2)]" 
+            : "border-white/10 hover:border-white/20",
+          selectedOption ? "text-white" : "text-zinc-600 font-medium"
+        )}
       >
-        <span style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 500 }}>
+        <span className="flex items-center gap-2 overflow-hidden whitespace-nowrap font-medium">
           {selectedOption?.icon}
           {selectedOption ? selectedOption.label : placeholder}
         </span>
         <ChevronDown 
           size={16} 
-          style={{ 
-            color: 'var(--text-muted)', 
-            transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)',
-            transition: 'transform 0.2s ease',
-            flexShrink: 0,
-            marginLeft: '8px'
-          }} 
+          className={cn(
+            "text-zinc-500 shrink-0 ml-2 transition-transform duration-200",
+            isOpen ? "rotate-180 text-indigo-400" : "rotate-0"
+          )} 
         />
       </div>
 
       {/* Floating Dropdown Menu */}
-      {isOpen && (
-        <div
-          style={{
-            position: 'absolute',
-            top: 'calc(100% + 4px)',
-            left: 0,
-            right: 0,
-            background: 'var(--bg-surface-elevated)',
-            opacity: 1,
-            border: '1px solid var(--border-medium)',
-            borderRadius: 'var(--radius-md)',
-            boxShadow: 'var(--shadow-lg), 0 0 20px var(--primary-glow)',
-            zIndex: 999999,
-            overflow: 'hidden',
-            maxHeight: '240px',
-            overflowY: 'auto'
-          }}
-        >
-          {options.map((option) => {
-            const isSelected = option.value === value;
-            return (
-              <div
-                key={option.value}
-                onClick={() => {
-                  onChange(option.value);
-                  setIsOpen(false);
-                }}
-                style={{
-                  padding: '10px 14px',
-                  fontSize: '0.85rem',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  cursor: 'pointer',
-                  background: isSelected ? 'rgba(56, 189, 248, 0.15)' : 'transparent',
-                  color: isSelected ? 'var(--text-accent)' : 'var(--text-primary)',
-                  borderLeft: isSelected ? '3px solid var(--primary)' : '3px solid transparent',
-                  fontWeight: isSelected ? 600 : 400,
-                  transition: 'all 0.12s ease'
-                }}
-                onMouseEnter={(e) => {
-                  if (!isSelected) {
-                    e.currentTarget.style.background = 'var(--bg-hover)';
-                    e.currentTarget.style.color = '#ffffff';
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (!isSelected) {
-                    e.currentTarget.style.background = 'transparent';
-                    e.currentTarget.style.color = 'var(--text-primary)';
-                  }
-                }}
-              >
-                <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  {option.icon}
-                  {option.label}
-                </span>
-                {isSelected && <Check size={14} color="var(--primary)" />}
-              </div>
-            );
-          })}
-        </div>
-      )}
+      <AnimatePresence>
+        {isOpen && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.15 }}
+            className="absolute top-[calc(100%+8px)] left-0 right-0 z-[999999] bg-[#0C0D12] border border-white/10 rounded-xl shadow-2xl overflow-hidden max-h-60 overflow-y-auto custom-scrollbar"
+          >
+            <div className="p-1">
+              {options.map((option) => {
+                const isSelected = option.value === value;
+                return (
+                  <div
+                    key={option.value}
+                    onClick={() => {
+                      onChange(option.value);
+                      setIsOpen(false);
+                    }}
+                    className={cn(
+                      "px-3 py-2.5 text-sm flex items-center justify-between cursor-pointer rounded-lg transition-all",
+                      isSelected 
+                        ? "bg-indigo-500/10 text-indigo-400 font-bold border-l-2 border-indigo-500" 
+                        : "text-zinc-300 hover:bg-white/5 hover:text-white border-l-2 border-transparent font-medium"
+                    )}
+                  >
+                    <span className="flex items-center gap-2">
+                      {option.icon}
+                      {option.label}
+                    </span>
+                    {isSelected && <Check size={16} className="text-indigo-400" />}
+                  </div>
+                );
+              })}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
