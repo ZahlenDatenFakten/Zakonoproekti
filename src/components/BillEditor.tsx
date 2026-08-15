@@ -334,11 +334,29 @@ export const BillEditor: React.FC<BillEditorProps> = ({
           </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
           {isSavedNotice && (
-            <span style={{ fontSize: '0.82rem', color: 'var(--success-text)', display: 'flex', alignItems: 'center', gap: '6px', marginRight: '8px', fontFamily: 'var(--font-mono)', fontWeight: 600 }}>
+            <span style={{ fontSize: '0.82rem', color: 'var(--success-text)', display: 'flex', alignItems: 'center', gap: '6px', marginRight: '4px', fontFamily: 'var(--font-mono)', fontWeight: 600 }}>
               <CheckCircle2 size={15} /> Синхронизировано
             </span>
+          )}
+
+          {bill.status === 'draft' && canEdit && (
+            <button 
+              onClick={handlePublish} 
+              className="btn btn-primary btn-pill" 
+              style={{ 
+                padding: '7px 18px', 
+                fontSize: '0.82rem', 
+                background: 'var(--primary-gradient)', 
+                color: '#ffffff', 
+                boxShadow: '0 4px 14px var(--primary-glow)',
+                fontWeight: 700
+              }}
+              title="Опубликовать законопроект и передать на 1-й этап Законодательной Комиссии"
+            >
+              <Send size={15} /> Опубликовать
+            </button>
           )}
           
           {isAdmin && bill.status !== 'approved' && (
@@ -735,39 +753,16 @@ export const BillEditor: React.FC<BillEditorProps> = ({
               </div>
             </div>
 
-            {canEdit && bill.status === 'draft' && (
-              <button 
-                onClick={handlePublish}
-                className="btn btn-primary btn-pill" 
-                style={{ width: '100%', padding: '10px', fontSize: '0.86rem', marginTop: '4px' }}
-              >
-                <Send size={15} /> Опубликовать на рассмотрение
-              </button>
-            )}
-
-            {(isAuthor || isAdmin) && (
-              <button 
-                type="button"
-                onClick={() => onDelete && onDelete(bill.id)}
-                className="btn btn-pill" 
-                style={{ 
-                  width: '100%', 
-                  padding: '9px 14px', 
-                  fontSize: '0.82rem', 
-                  background: 'rgba(248, 81, 73, 0.14)', 
-                  color: '#ff7b72', 
-                  border: '1px solid rgba(248, 81, 73, 0.35)',
-                  marginTop: '10px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '6px'
-                }}
-                title="Отозвать и полностью удалить законопроект"
-              >
-                <Trash2 size={14} /> Отозвать законопроект из реестра
-              </button>
-            )}
+            <div style={{ marginTop: '14px', paddingTop: '12px', borderTop: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.74rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span>Дата создания:</span>
+                <span style={{ color: '#cbd5e1' }}>{new Date(bill.createdAt).toLocaleDateString('ru-RU')}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span>Ревизия:</span>
+                <span style={{ color: 'var(--text-accent)' }}>v1.0 (SHA-256)</span>
+              </div>
+            </div>
           </div>
 
           {/* STAGE 1: LEGISLATIVE COMMISSION VOTING WIDGET */}
