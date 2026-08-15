@@ -280,6 +280,13 @@ export const DbConfigModal: React.FC<DbConfigModalProps> = ({ config, onUpdateCo
                   style={{ fontSize: '0.82rem', fontFamily: 'var(--font-mono)', width: '100%' }}
                 />
               </div>
+
+              {/* RLS / Sharing Guidance */}
+              <div style={{ padding: '12px 14px', background: 'rgba(56, 189, 248, 0.08)', border: '1px solid rgba(56, 189, 248, 0.25)', borderRadius: 'var(--radius-md)', fontSize: '0.78rem', color: '#e2e8f0', lineHeight: 1.6 }}>
+                💡 <strong>Чтобы все пользователи видели законопроекты:</strong><br />
+                1. В Supabase → <strong>Table Editor → bills → RLS</strong> отключите политики (или добавьте политику: <code style={{ background: '#0a0d14', padding: '1px 5px', borderRadius: '3px', color: '#38bdf8' }}>allow all for anon</code>).<br />
+                2. Для автоматического подключения всех пользователей без ввода ключей — добавьте <strong>VITE_SUPABASE_URL</strong> и <strong>VITE_SUPABASE_ANON_KEY</strong> в переменные окружения Vercel (Settings → Environment Variables).
+              </div>
             </div>
           )}
 

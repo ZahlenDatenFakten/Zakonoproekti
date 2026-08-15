@@ -3,32 +3,54 @@ import type { DbConfig } from '../types/bill';
 
 const CONFIG_KEY = 'legaldraft_db_config';
 
+/**
+ * Reads Supabase config.
+ * Priority:
+ *   1. Vite build-time environment variables (VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY)
+ *      — these are baked into every user's bundle, so ALL users connect automatically.
+ *   2. Admin-entered values saved in localStorage (via DbConfigModal).
+ *
+ * isConnected is derived purely from whether a valid URL + key exist.
+ * The stored `isConnected` flag is ignored to prevent a mismatch where
+ * User A saved the config but User B's localStorage has no entry.
+ */
 export function getStoredDbConfig(): DbConfig {
   const envUrl = (import.meta.env.VITE_SUPABASE_URL || '').trim();
   const envKey = (import.meta.env.VITE_SUPABASE_ANON_KEY || '').trim();
 
+  // If env vars are set (e.g. deployed on Vercel with env configured), always use them.
+  if (envUrl && envKey) {
+    return {
+      supabaseUrl: envUrl,
+      supabaseAnonKey: envKey,
+      isConnected: true
+    };
+  }
+
+  // Fall back to admin-configured values stored in localStorage.
   const saved = localStorage.getItem(CONFIG_KEY);
   if (saved) {
     try {
       const parsed = JSON.parse(saved);
       if (parsed && typeof parsed === 'object') {
-        const url = (parsed.supabaseUrl || envUrl).trim();
-        const key = (parsed.supabaseAnonKey || envKey).trim();
+        const url = (parsed.supabaseUrl || '').trim();
+        const key = (parsed.supabaseAnonKey || '').trim();
+        // Derive connection status purely from key presence — ignore the stored flag.
         return {
           supabaseUrl: url,
           supabaseAnonKey: key,
-          isConnected: parsed.isConnected !== undefined ? parsed.isConnected : Boolean(url && key)
+          isConnected: Boolean(url && key)
         };
       }
     } catch {
       // fallback
     }
   }
-  const hasEnv = Boolean(envUrl && envKey);
+
   return {
-    supabaseUrl: envUrl,
-    supabaseAnonKey: envKey,
-    isConnected: hasEnv
+    supabaseUrl: '',
+    supabaseAnonKey: '',
+    isConnected: false
   };
 }
 
@@ -66,7 +88,7 @@ export async function testSupabaseConnection(customConfig?: DbConfig): Promise<{
     return {
       success: false,
       message: 'Не заполнены URL или Anon Key проекта Supabase.',
-      details: 'Скопируйте Project URL и anon/public ключ из настроек Supabase -> API.'
+      details: 'Скопируйте Project URL и anon/public ключ из настроек Supabase → API.'
     };
   }
 
@@ -80,6 +102,13 @@ export async function testSupabaseConnection(customConfig?: DbConfig): Promise<{
           success: false,
           message: 'Таблица "bills" не найдена в Supabase.',
           details: 'Откройте SQL Editor в Supabase и выполните скрипт schema.sql для создания таблиц.'
+        };
+      }
+      if (error.code === 'PGRST301' || error.message?.includes('row-level security') || error.message?.includes('policy')) {
+        return {
+          success: false,
+          message: 'Блокировка Row Level Security (RLS).',
+          details: 'В Supabase → Table Editor → bills → RLS отключите политики или добавьте политику: allow all for anon.'
         };
       }
       return {

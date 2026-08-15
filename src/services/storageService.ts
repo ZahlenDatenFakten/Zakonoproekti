@@ -17,136 +17,142 @@ const USER_KEY = 'legaldraft_user_v3';
 })();
 
 /**
- * MULTI-DATABASE AUTO-FAILOVER ARCHITECTURE (2026 Enterprise Security Standard)
- * Primary Cloud DB: Firebase Cloud Firestore / Supabase Postgres
- * Secondary Storage: IndexedDB / Local Vault Failover
+ * Map Supabase DB row → Bill object
  */
-export async function fetchAllBills(): Promise<Bill[]> {
-  let cloudBills: Bill[] = [];
+function mapSupabaseRow(item: any): Bill {
+  return {
+    id: item.id,
+    title: item.title,
+    targetLaw: item.target_law,
+    lawCode: item.law_code,
+    author: item.author,
+    authorRole: item.author_role,
+    status: item.status,
+    statusReason: item.status_reason,
+    explanatoryNote: item.explanatory_note || '',
+    comparisons: typeof item.comparisons === 'string' ? JSON.parse(item.comparisons) : item.comparisons || [],
+    shareTokens: typeof item.share_tokens === 'string' ? JSON.parse(item.share_tokens) : item.share_tokens || [],
+    comments: typeof item.comments === 'string' ? JSON.parse(item.comments) : item.comments || [],
+    votes: typeof item.votes === 'string' ? JSON.parse(item.votes) : item.votes || {},
+    federalVerdict: typeof item.federal_verdict === 'string' ? JSON.parse(item.federal_verdict) : item.federal_verdict || null,
+    sha256Hash: item.sha256_hash,
+    createdAt: item.created_at,
+    updatedAt: item.updated_at,
+    viewCount: item.view_count || 1
+  };
+}
 
-  // 1. Try Firebase Cloud Firestore
+function isValidBill(b: any): b is Bill {
+  return b && b.id && b.author && !b.author.includes('Северов');
+}
+
+function mergeBills(primary: Bill[], secondary: Bill[]): Bill[] {
+  const map = new Map<string, Bill>();
+  primary.forEach((b) => { if (isValidBill(b)) map.set(b.id, b); });
+  secondary.forEach((b) => {
+    if (!isValidBill(b)) return;
+    const existing = map.get(b.id);
+    if (!existing || new Date(b.updatedAt).getTime() >= new Date(existing.updatedAt).getTime()) {
+      map.set(b.id, b);
+    }
+  });
+  return Array.from(map.values()).sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+}
+
+async function fetchFromSupabase(): Promise<Bill[]> {
+  const dbConfig = getStoredDbConfig();
+  if (!dbConfig.isConnected) return [];
+  const supabase = getSupabaseClient();
+  if (!supabase) return [];
   try {
-    const fbBills = await fetchBillsFromFirebase();
-    if (fbBills && fbBills.length > 0) {
-      cloudBills = fbBills;
+    const { data, error } = await supabase
+      .from('bills')
+      .select('*')
+      .order('updated_at', { ascending: false });
+    if (error) {
+      console.warn('Supabase fetch error:', error.message);
+      return [];
     }
+    return (data || []).map(mapSupabaseRow).filter(isValidBill);
   } catch (err) {
-    console.warn('Firebase fetch unavailable, trying Supabase/Local:', err);
+    console.warn('Supabase fetch exception:', err);
+    return [];
   }
+}
 
-  // 2. Try Supabase Cloud DB if Firebase returned no bills
-  if (cloudBills.length === 0) {
-    const dbConfig = getStoredDbConfig();
-    if (dbConfig.isConnected) {
-      const supabase = getSupabaseClient();
-      if (supabase) {
-        try {
-          const { data, error } = await supabase
-            .from('bills')
-            .select('*')
-            .order('updated_at', { ascending: false });
-
-          if (!error && data) {
-            cloudBills = data.map((item: any) => ({
-              id: item.id,
-              title: item.title,
-              targetLaw: item.target_law,
-              lawCode: item.law_code,
-              author: item.author,
-              authorRole: item.author_role,
-              status: item.status,
-              statusReason: item.status_reason,
-              explanatoryNote: item.explanatory_note || '',
-              comparisons: typeof item.comparisons === 'string' ? JSON.parse(item.comparisons) : item.comparisons || [],
-              shareTokens: typeof item.share_tokens === 'string' ? JSON.parse(item.share_tokens) : item.share_tokens || [],
-              comments: typeof item.comments === 'string' ? JSON.parse(item.comments) : item.comments || [],
-              votes: typeof item.votes === 'string' ? JSON.parse(item.votes) : item.votes || {},
-              federalVerdict: typeof item.federal_verdict === 'string' ? JSON.parse(item.federal_verdict) : item.federal_verdict || null,
-              sha256Hash: item.sha256_hash,
-              createdAt: item.created_at,
-              updatedAt: item.updated_at,
-              viewCount: item.view_count || 1
-            }));
-          }
-        } catch (err) {
-          console.warn('Primary Cloud DB error:', err);
-        }
-      }
-    }
-  }
-
-  // 3. Read Local Vault Storage
-  let localBills: Bill[] = [];
+function readLocalBills(): Bill[] {
   const saved = localStorage.getItem(STORAGE_KEY);
-  if (saved) {
-    try {
-      localBills = JSON.parse(saved);
-    } catch {
-      localBills = [];
-    }
-  }
-
-  // Merge Cloud & Local storage (Local bills with newer timestamps or unique IDs take precedence)
-  const billMap = new Map<string, Bill>();
-
-  cloudBills.forEach((b) => {
-    if (b && b.author && !b.author.includes('Северов')) {
-      billMap.set(b.id, b);
-    }
-  });
-
-  localBills.forEach((b) => {
-    if (b && b.author && !b.author.includes('Северов')) {
-      const existing = billMap.get(b.id);
-      if (!existing || new Date(b.updatedAt).getTime() >= new Date(existing.updatedAt).getTime()) {
-        billMap.set(b.id, b);
-      }
-    }
-  });
-
-  const merged = Array.from(billMap.values());
-  return merged.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+  if (!saved) return [];
+  try { return JSON.parse(saved); } catch { return []; }
 }
 
 /**
- * Real-time continuous live listener
+ * MULTI-DATABASE AUTO-FAILOVER ARCHITECTURE
+ * Reads from Firebase AND Supabase in parallel, then merges with local cache.
+ * All users — regardless of their localStorage — get the full shared cloud dataset.
+ */
+export async function fetchAllBills(): Promise<Bill[]> {
+  // Run all cloud fetches in parallel
+  const [fbBills, supaBills] = await Promise.allSettled([
+    fetchBillsFromFirebase().catch(() => []),
+    fetchFromSupabase()
+  ]);
+
+  const fromFirebase: Bill[] = fbBills.status === 'fulfilled' ? fbBills.value || [] : [];
+  const fromSupabase: Bill[] = supaBills.status === 'fulfilled' ? supaBills.value || [] : [];
+  const localBills = readLocalBills();
+
+  // Merge: cloud sources first, then local (local wins on newer timestamp)
+  const cloudMerged = mergeBills(fromFirebase, fromSupabase);
+  const all = mergeBills(cloudMerged, localBills);
+
+  return all;
+}
+
+/**
+ * Real-time continuous live listener.
+ * Firebase provides websocket events. Supabase is polled as supplement.
  */
 export function subscribeToAllBills(callback: (bills: Bill[]) => void): () => void {
+  let latestFirebaseBills: Bill[] = [];
+  let latestSupaBills: Bill[] = [];
+
+  const pushMerge = () => {
+    const localBills = readLocalBills();
+    const cloudMerged = mergeBills(latestFirebaseBills, latestSupaBills);
+    const all = mergeBills(cloudMerged, localBills);
+    // Update local cache with authoritative cloud state
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(all));
+    callback(all);
+  };
+
+  // 1. Firebase real-time listener
   const unsubscribeFb = subscribeToFirebaseBills((cloudBills) => {
-    let localBills: Bill[] = [];
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-      try {
-        localBills = JSON.parse(saved);
-      } catch {
-        localBills = [];
-      }
-    }
-
-    const billMap = new Map<string, Bill>();
-
-    cloudBills.forEach((b) => {
-      if (b && b.author && !b.author.includes('Северов')) {
-        billMap.set(b.id, b);
-      }
-    });
-
-    localBills.forEach((b) => {
-      if (b && b.author && !b.author.includes('Северов')) {
-        const existing = billMap.get(b.id);
-        if (!existing || new Date(b.updatedAt).getTime() >= new Date(existing.updatedAt).getTime()) {
-          billMap.set(b.id, b);
-        }
-      }
-    });
-
-    const merged = Array.from(billMap.values()).sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
-    callback(merged);
+    latestFirebaseBills = (cloudBills || []).filter(isValidBill);
+    pushMerge();
   });
+
+  // 2. Supabase realtime via polling (Supabase Realtime requires auth config;
+  //    polling every 5s is sufficient and works with any anon key setup)
+  let supaInterval: ReturnType<typeof setInterval> | null = null;
+  const dbConfig = getStoredDbConfig();
+  if (dbConfig.isConnected) {
+    // Initial fetch
+    fetchFromSupabase().then((bills) => {
+      latestSupaBills = bills;
+      pushMerge();
+    });
+
+    supaInterval = setInterval(async () => {
+      const bills = await fetchFromSupabase();
+      latestSupaBills = bills;
+      pushMerge();
+    }, 5000);
+  }
 
   return () => {
     if (unsubscribeFb) unsubscribeFb();
+    if (supaInterval) clearInterval(supaInterval);
   };
 }
 
@@ -157,12 +163,7 @@ export async function saveBill(bill: Bill): Promise<Bill> {
   };
 
   // 1. Immediately save to Local Vault (guarantees 0ms local persistence)
-  let localBills: Bill[] = [];
-  const savedLocal = localStorage.getItem(STORAGE_KEY);
-  if (savedLocal) {
-    try { localBills = JSON.parse(savedLocal); } catch { localBills = []; }
-  }
-
+  const localBills = readLocalBills();
   const index = localBills.findIndex((b) => b.id === updatedBill.id);
   if (index >= 0) {
     localBills[index] = updatedBill;
@@ -184,7 +185,7 @@ export async function saveBill(bill: Bill): Promise<Bill> {
     const supabase = getSupabaseClient();
     if (supabase) {
       try {
-        await supabase.from('bills').upsert({
+        const { error } = await supabase.from('bills').upsert({
           id: updatedBill.id,
           title: updatedBill.title,
           target_law: updatedBill.targetLaw,
@@ -203,6 +204,9 @@ export async function saveBill(bill: Bill): Promise<Bill> {
           updated_at: updatedBill.updatedAt,
           view_count: updatedBill.viewCount
         });
+        if (error) {
+          console.warn('Supabase upsert error:', error.message);
+        }
       } catch (err) {
         console.warn('Supabase DB write error:', err);
       }
@@ -213,18 +217,9 @@ export async function saveBill(bill: Bill): Promise<Bill> {
 }
 
 export async function deleteBill(billId: string): Promise<boolean> {
-  // 1. Immediately wipe from Local Storage Vault (guarantees 0ms local response)
-  let localBills: Bill[] = [];
-  const saved = localStorage.getItem(STORAGE_KEY);
-  if (saved) {
-    try {
-      localBills = JSON.parse(saved);
-    } catch {
-      localBills = [];
-    }
-  }
-  const filtered = localBills.filter((b) => b.id !== billId);
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(filtered));
+  // 1. Immediately wipe from Local Storage Vault
+  const localBills = readLocalBills().filter((b) => b.id !== billId);
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(localBills));
 
   // 2. Clear active session if active bill is being deleted
   if (localStorage.getItem('legaldraft_active_bill_id') === billId) {
@@ -232,7 +227,7 @@ export async function deleteBill(billId: string): Promise<boolean> {
     localStorage.setItem('legaldraft_current_view', 'dashboard');
   }
 
-  // 3. Asynchronously delete from Firebase Firestore & Realtime DB in background
+  // 3. Asynchronously delete from Firebase
   try {
     deleteBillFromFirebase(billId).catch((err) => console.warn('Firebase delete error:', err));
   } catch (err) {
@@ -245,7 +240,8 @@ export async function deleteBill(billId: string): Promise<boolean> {
     if (dbConfig.isConnected) {
       const supabase = getSupabaseClient();
       if (supabase) {
-        supabase.from('bills').delete().eq('id', billId).then(() => {}, (err: any) => console.warn('Supabase delete error:', err));
+        supabase.from('bills').delete().eq('id', billId)
+          .then(() => {}, (err: any) => console.warn('Supabase delete error:', err));
       }
     }
   } catch (err) {
