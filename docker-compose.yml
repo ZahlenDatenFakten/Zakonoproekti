@@ -12,8 +12,17 @@ services:
       - "443:443"
     environment:
       - NODE_ENV=production
+    volumes:
+      - config_data:/app/config
+      - uploads_data:/app/uploads
+      - admin_token:/app/admin_token
     logging:
       driver: "json-file"
       options:
         max-size: "10m"
         max-file: "3"
+
+volumes:
+  config_data:
+  uploads_data:
+  admin_token:

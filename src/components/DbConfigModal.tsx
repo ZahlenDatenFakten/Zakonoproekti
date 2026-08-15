@@ -5,6 +5,7 @@ import { saveDbConfig, resetSupabaseClient, testSupabaseConnection } from '../se
 import { getStoredFirebaseConfig, testFirebaseConnection, saveFirebaseConfigToServer } from '../services/firebaseClient';
 import type { FirebaseConfig } from '../services/firebaseClient';
 import { Database, X, Flame, ShieldAlert, CheckCircle2, AlertTriangle, Copy, Check, RefreshCw } from 'lucide-react';
+import { useDialog } from '../contexts/DialogContext';
 import { cn } from '../utils/cn';
 
 interface DbConfigModalProps {
@@ -14,6 +15,7 @@ interface DbConfigModalProps {
 }
 
 export const DbConfigModal: React.FC<DbConfigModalProps> = ({ config, onUpdateConfig, onClose }) => {
+  const { alert, prompt } = useDialog();
   const [activeTab, setActiveTab] = useState<'firebase' | 'supabase'>('firebase');
 
   // Firebase Form State
@@ -43,16 +45,28 @@ export const DbConfigModal: React.FC<DbConfigModalProps> = ({ config, onUpdateCo
     };
     
     // Only prompt for token if we actually want to save to the server
-    const token = prompt('Для применения этих настроек для всех пользователей требуется Admin Token сервера.\nЕсли вы его не знаете, проверьте консоль (логи docker) вашего сервера.\n\nВведите Admin Token:');
+    const token = await prompt({
+      title: 'Авторизация Администратора',
+      message: 'Для применения этих настроек для всех пользователей требуется Admin Token сервера.\nЕсли вы его не знаете, проверьте консоль (логи docker) вашего сервера.',
+      placeholder: 'Введите Admin Token'
+    });
     
     if (token === null) return; // User cancelled
     
     try {
       await saveFirebaseConfigToServer(updated, token);
-      alert('Настройки успешно применены для всех пользователей!');
+      await alert({
+        title: 'Успех',
+        message: 'Настройки успешно применены для всех пользователей!',
+        variant: 'success'
+      });
       onClose();
     } catch (err: any) {
-      alert('Ошибка при сохранении: ' + err.message);
+      await alert({
+        title: 'Ошибка',
+        message: 'Ошибка при сохранении: ' + err.message,
+        variant: 'error'
+      });
     }
   };
 
@@ -124,7 +138,11 @@ export const DbConfigModal: React.FC<DbConfigModalProps> = ({ config, onUpdateCo
 
   const handleDisconnect = async () => {
     if (activeTab === 'firebase') {
-      const token = prompt('Для отключения базы данных Firebase у всех пользователей требуется Admin Token сервера:\n\nВведите Admin Token:');
+      const token = await prompt({
+        title: 'Отключение Firebase',
+        message: 'Для отключения базы данных Firebase у всех пользователей требуется Admin Token сервера:',
+        placeholder: 'Введите Admin Token'
+      });
       if (token === null) return;
       try {
         await saveFirebaseConfigToServer({
@@ -137,10 +155,18 @@ export const DbConfigModal: React.FC<DbConfigModalProps> = ({ config, onUpdateCo
           appId: '',
           isConnected: false
         }, token);
-        alert('База данных Firebase успешно отключена для всех пользователей!');
+        await alert({
+          title: 'Отключено',
+          message: 'База данных Firebase успешно отключена для всех пользователей!',
+          variant: 'success'
+        });
         onClose();
       } catch (err: any) {
-        alert('Ошибка при отключении: ' + err.message);
+        await alert({
+          title: 'Ошибка',
+          message: 'Ошибка при отключении: ' + err.message,
+          variant: 'error'
+        });
       }
     } else {
       // Supabase is client-side only based on local storage anyway
@@ -148,7 +174,11 @@ export const DbConfigModal: React.FC<DbConfigModalProps> = ({ config, onUpdateCo
       saveDbConfig(emptyConfig);
       resetSupabaseClient();
       onUpdateConfig(emptyConfig);
-      alert('База данных Supabase отключена на вашем устройстве.');
+      await alert({
+        title: 'Отключено',
+        message: 'База данных Supabase отключена на вашем устройстве.',
+        variant: 'info'
+      });
       onClose();
     }
   };

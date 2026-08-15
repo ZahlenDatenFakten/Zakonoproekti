@@ -10,6 +10,7 @@ import {
   subscribeToAllBills
 } from './services/storageService';
 import { getStoredDbConfig, saveDbConfig } from './services/supabaseClient';
+import { DialogProvider } from './contexts/DialogContext';
 import { 
   saveFirebaseConfig,
   initFirebaseConfigFromServer 
@@ -315,7 +316,8 @@ export const App: React.FC = () => {
   };
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#090B10] text-white selection:bg-indigo-500/40 selection:text-white">
+    <DialogProvider>
+      <div className="flex h-screen overflow-hidden bg-[#090B10] text-white selection:bg-indigo-500/40 selection:text-white">
       
       {/* Sidebar Navigation */}
       <Sidebar
@@ -421,6 +423,7 @@ export const App: React.FC = () => {
           onCancel={() => setConfirmDeleteId(null)}
         />
       )}
-    </div>
+      </div>
+    </DialogProvider>
   );
 };

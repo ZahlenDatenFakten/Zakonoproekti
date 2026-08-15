@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import type { Bill, ComparisonRow, AccessPermission, UserProfile, BillStatus, VoteDecision, FederalGovernmentVerdict } from '../types/bill';
 import { CommentsSection } from './CommentsSection';
 import { ExpandedArticleModal } from './ExpandedArticleModal';
+import { ImageUploader } from './ImageUploader';
 import { isSystemAdmin } from '../services/securityService';
 import { computeWordDiff } from '../services/diffService';
 import { 
@@ -25,7 +26,8 @@ import {
   Sparkles,
   MoreVertical,
   Edit3,
-  Columns
+  Columns,
+  Image as ImageIcon
 } from 'lucide-react';
 import { cn } from '../utils/cn';
 
@@ -639,6 +641,26 @@ export const BillEditor: React.FC<BillEditorProps> = ({
                 </div>
               );
             })}
+          </div>
+
+          {/* ATTACHMENTS SECTION */}
+          <div className="bg-white/[0.02] backdrop-blur-xl border border-white/10 rounded-2xl p-5 shadow-2xl shadow-black/50">
+            <div className="flex items-center gap-2 mb-4">
+              <div className="w-8 h-8 rounded-lg bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center">
+                <ImageIcon size={16} />
+              </div>
+              <h3 className="text-lg font-bold text-white tracking-wide">Приложения (Медиа)</h3>
+            </div>
+            
+            {bill.attachments && bill.attachments.length > 0 || (canEdit && !isReadOnly) ? (
+              <ImageUploader 
+                attachments={bill.attachments || []} 
+                onChange={(urls) => setBill({ ...bill, attachments: urls })}
+                disabled={!canEdit || isReadOnly}
+              />
+            ) : (
+              <div className="text-sm text-zinc-500 italic py-4">Нет прикрепленных файлов</div>
+            )}
           </div>
         </motion.div>
 

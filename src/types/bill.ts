@@ -82,6 +82,7 @@ export interface Bill {
   votes?: CommissionVotes;
   federalVerdict?: FederalGovernmentVerdict;
   sha256Hash?: string; // Криптографический отпечаток целостности документа
+  attachments?: string[];
   createdAt: string;
   updatedAt: string;
   viewCount: number;

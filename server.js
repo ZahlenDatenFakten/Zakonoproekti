@@ -3,6 +3,7 @@ import cors from 'cors';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import multer from 'multer';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -12,8 +13,36 @@ const PORT = process.env.PORT || 80;
 
 app.use(cors());
 app.use(express.json());
+const CONFIG_DIR = path.join(__dirname, 'config');
+if (!fs.existsSync(CONFIG_DIR)) {
+  fs.mkdirSync(CONFIG_DIR, { recursive: true });
+}
+const CONFIG_FILE = path.join(CONFIG_DIR, 'config.json');
+const UPLOADS_DIR = path.join(__dirname, 'uploads');
 
-const CONFIG_FILE = path.join(__dirname, 'config.json');
+// Ensure uploads dir exists
+if (!fs.existsSync(UPLOADS_DIR)) {
+  fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+}
+
+// Serve uploaded files statically
+app.use('/uploads', express.static(UPLOADS_DIR));
+
+// Configure Multer for file uploads
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, UPLOADS_DIR);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    const ext = path.extname(file.originalname) || '.jpg';
+    cb(null, uniqueSuffix + ext);
+  }
+});
+const upload = multer({ 
+  storage,
+  limits: { fileSize: 15 * 1024 * 1024 }, // 15MB limit
+});
 
 // Helper to seed config from .env if it doesn't exist
 function seedConfig() {
@@ -56,7 +85,11 @@ app.get('/api/config', (req, res) => {
 });
 
 // Ensure an admin token exists for security
-const TOKEN_FILE = path.join(__dirname, 'admin_token.txt');
+const TOKEN_DIR = path.join(__dirname, 'admin_token');
+if (!fs.existsSync(TOKEN_DIR)) {
+  fs.mkdirSync(TOKEN_DIR, { recursive: true });
+}
+const TOKEN_FILE = path.join(TOKEN_DIR, 'admin_token.txt');
 let ADMIN_TOKEN = process.env.ADMIN_SECRET_KEY || '';
 
 if (!ADMIN_TOKEN) {
@@ -97,6 +130,21 @@ app.post('/api/config', (req, res) => {
   } catch (err) {
     console.error('Error writing config.json:', err);
     res.status(500).json({ error: 'Failed to save config' });
+  }
+});
+
+// API Endpoint to upload files
+app.post('/api/upload', upload.single('image'), (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+    // Return the URL to access the uploaded file
+    const fileUrl = `/uploads/${req.file.filename}`;
+    res.json({ success: true, url: fileUrl });
+  } catch (err) {
+    console.error('Error handling upload:', err);
+    res.status(500).json({ error: 'Upload failed' });
   }
 });
 
