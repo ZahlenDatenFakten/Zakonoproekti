@@ -43,7 +43,7 @@ function mapSupabaseRow(item: any): Bill {
 }
 
 function isValidBill(b: any): b is Bill {
-  return b && b.id && b.author;
+  return Boolean(b && b.id && b.author);
 }
 
 function mergeBills(primary: Bill[], secondary: Bill[]): Bill[] {
