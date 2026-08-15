@@ -10,7 +10,8 @@ import {
   User as UserIcon,
   Layers,
   Trash2,
-  FileText
+  FileText,
+  CheckCircle2
 } from 'lucide-react';
 import { cn } from '../utils/cn';
 
@@ -262,6 +263,10 @@ export const Dashboard: React.FC<DashboardProps> = ({
             const decreeStamp = formatDecreeNumber(bill.id);
             const isAuthor = !bill.author || bill.author.trim().toLowerCase() === currentFullName.toLowerCase() || bill.author.trim() === currentFullName || isSystemAdmin(user);
             const canDelete = isAuthor || isSystemAdmin(user);
+            const isCommission = ['prosecutor', 'judge', 'governor'].includes(user.officialRole);
+            const hasVoted = isCommission && bill.votes?.[user.officialRole as 'prosecutor'|'judge'|'governor'];
+            const hasAdminVerdict = user.officialRole === 'admin' && bill.federalVerdict;
+            const alreadyVoted = hasVoted || hasAdminVerdict;
 
             return (
               <motion.div 
@@ -277,6 +282,12 @@ export const Dashboard: React.FC<DashboardProps> = ({
                       {decreeStamp}
                     </span>
                     {getStatusBadge(bill.status)}
+                    {alreadyVoted && (
+                      <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-purple-500/10 border border-purple-500/20 text-[10px] font-extrabold uppercase tracking-wider text-purple-400" title="Вы уже отдали свой голос по этому законопроекту">
+                        <CheckCircle2 size={12} />
+                        Голос учтен
+                      </span>
+                    )}
                   </div>
 
                   {/* Title */}
