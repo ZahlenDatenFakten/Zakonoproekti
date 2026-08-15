@@ -24,19 +24,19 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
 
   return (
     <div 
-      className="modal-overlay" 
+      className="modal-overlay animate-fade-in" 
       onMouseDown={(e) => { backdropMouseDownRef.current = (e.target === e.currentTarget); }}
       onClick={(e) => {
         if (e.target === e.currentTarget && backdropMouseDownRef.current) {
           onCancel();
         }
       }} 
-      style={{ zIndex: 2000 }}
+      style={{ zIndex: 99999 }}
     >
       <div 
         className="modal-content" 
         onClick={(e) => e.stopPropagation()} 
-        style={{ maxWidth: '440px' }}
+        style={{ maxWidth: '460px', width: '100%' }}
       >
         <div className="modal-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>

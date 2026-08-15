@@ -58,10 +58,11 @@ export const BillEditor: React.FC<BillEditorProps> = ({
   const [adminVerdictReason, setAdminVerdictReason] = useState('');
 
   const currentFullName = `${user.firstName} ${user.lastName}`.trim();
-  const isAuthor = bill.author.trim() === currentFullName;
+  const isAuthor = !bill.author || bill.author.trim().toLowerCase() === currentFullName.toLowerCase() || bill.author.trim() === currentFullName || isSystemAdmin(user);
   const isAdmin = isSystemAdmin(user);
   const isOfficial = user.isOfficialVerified && (user.officialRole === 'governor' || user.officialRole === 'prosecutor' || user.officialRole === 'judge');
   const canEdit = permission === 'edit' || isAuthor || isAdmin || (isOfficial && bill.status !== 'approved');
+  const canDelete = isAuthor || isAdmin;
 
   // Auto-save draft on changes
   const isInitialMount = useRef(true);
@@ -407,17 +408,22 @@ export const BillEditor: React.FC<BillEditorProps> = ({
             <Share2 size={14} /> Ссылка доступа
           </button>
 
-          {(isAuthor || isAdmin) && (
+          {canDelete && (
             <button 
               type="button"
-              onClick={() => onDelete && onDelete(bill.id)} 
+              onClick={() => {
+                if (onDelete) {
+                  onDelete(bill.id);
+                }
+              }} 
               className="btn btn-pill" 
               style={{ 
                 padding: '7px 16px', 
                 fontSize: '0.82rem', 
                 background: 'rgba(248, 81, 73, 0.12)', 
                 color: '#ff7b72', 
-                border: '1px solid rgba(248, 81, 73, 0.35)' 
+                border: '1px solid rgba(248, 81, 73, 0.35)',
+                cursor: 'pointer'
               }}
               title="Отозвать и полностью удалить законопроект из государственного реестра"
             >

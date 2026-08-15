@@ -213,23 +213,45 @@ export async function saveBill(bill: Bill): Promise<Bill> {
 }
 
 export async function deleteBill(billId: string): Promise<boolean> {
-  await deleteBillFromFirebase(billId);
-
-  const dbConfig = getStoredDbConfig();
-  if (dbConfig.isConnected) {
-    const supabase = getSupabaseClient();
-    if (supabase) {
-      try {
-        await supabase.from('bills').delete().eq('id', billId);
-      } catch (err) {
-        console.warn('Supabase delete failed:', err);
-      }
+  // 1. Immediately wipe from Local Storage Vault (guarantees 0ms local response)
+  let localBills: Bill[] = [];
+  const saved = localStorage.getItem(STORAGE_KEY);
+  if (saved) {
+    try {
+      localBills = JSON.parse(saved);
+    } catch {
+      localBills = [];
     }
   }
-
-  const currentBills = await fetchAllBills();
-  const filtered = currentBills.filter((b) => b.id !== billId);
+  const filtered = localBills.filter((b) => b.id !== billId);
   localStorage.setItem(STORAGE_KEY, JSON.stringify(filtered));
+
+  // 2. Clear active session if active bill is being deleted
+  if (localStorage.getItem('legaldraft_active_bill_id') === billId) {
+    localStorage.removeItem('legaldraft_active_bill_id');
+    localStorage.setItem('legaldraft_current_view', 'dashboard');
+  }
+
+  // 3. Asynchronously delete from Firebase Firestore & Realtime DB in background
+  try {
+    deleteBillFromFirebase(billId).catch((err) => console.warn('Firebase delete error:', err));
+  } catch (err) {
+    console.warn('Firebase delete trigger warning:', err);
+  }
+
+  // 4. Asynchronously delete from Supabase if connected
+  try {
+    const dbConfig = getStoredDbConfig();
+    if (dbConfig.isConnected) {
+      const supabase = getSupabaseClient();
+      if (supabase) {
+        supabase.from('bills').delete().eq('id', billId).then(() => {}, (err: any) => console.warn('Supabase delete error:', err));
+      }
+    }
+  } catch (err) {
+    console.warn('Supabase delete trigger warning:', err);
+  }
+
   return true;
 }
 

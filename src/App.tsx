@@ -292,14 +292,15 @@ export const App: React.FC = () => {
   };
 
   const handleDeleteBill = async (billId: string) => {
-    await deleteBill(billId);
     setConfirmDeleteId(null);
+    setBills((prev) => prev.filter((b) => b.id !== billId));
     if (selectedBill?.id === billId) {
       setSelectedBill(null);
       handleNavigateView('dashboard');
     }
+    await deleteBill(billId);
+    addToast('info', 'Законопроект успешно отозван и удален из реестра');
     await loadData();
-    addToast('info', 'Законопроект удален');
   };
 
   return (

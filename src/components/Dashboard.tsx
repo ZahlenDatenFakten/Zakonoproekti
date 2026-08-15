@@ -297,7 +297,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
         ) : (
           filteredBills.map((bill, index) => {
             const decreeStamp = formatDecreeNumber(index);
-            const isAuthor = bill.author.trim() === currentFullName;
+            const isAuthor = !bill.author || bill.author.trim().toLowerCase() === currentFullName.toLowerCase() || bill.author.trim() === currentFullName || isSystemAdmin(user);
             const canDelete = isAuthor || isSystemAdmin(user);
 
             return (
