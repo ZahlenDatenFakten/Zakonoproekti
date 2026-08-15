@@ -41,8 +41,19 @@ export const DbConfigModal: React.FC<DbConfigModalProps> = ({ config, onUpdateCo
       appId: (firebaseConfig.appId || '').trim(),
       isConnected: isConn
     };
-    await saveFirebaseConfigToServer(updated);
-    onClose();
+    
+    // Only prompt for token if we actually want to save to the server
+    const token = prompt('Для применения этих настроек для всех пользователей требуется Admin Token сервера.\nЕсли вы его не знаете, проверьте консоль (логи docker) вашего сервера.\n\nВведите Admin Token:');
+    
+    if (token === null) return; // User cancelled
+    
+    try {
+      await saveFirebaseConfigToServer(updated, token);
+      alert('Настройки успешно применены для всех пользователей!');
+      onClose();
+    } catch (err: any) {
+      alert('Ошибка при сохранении: ' + err.message);
+    }
   };
 
   const handleSaveSupabase = () => {

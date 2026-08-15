@@ -55,9 +55,37 @@ app.get('/api/config', (req, res) => {
   }
 });
 
+// Ensure an admin token exists for security
+const TOKEN_FILE = path.join(__dirname, 'admin_token.txt');
+let ADMIN_TOKEN = process.env.ADMIN_SECRET_KEY || '';
+
+if (!ADMIN_TOKEN) {
+  if (fs.existsSync(TOKEN_FILE)) {
+    ADMIN_TOKEN = fs.readFileSync(TOKEN_FILE, 'utf8').trim();
+  } else {
+    // Generate a random token on first start
+    ADMIN_TOKEN = Math.random().toString(36).slice(-10) + Math.random().toString(36).slice(-10);
+    try {
+      fs.writeFileSync(TOKEN_FILE, ADMIN_TOKEN, 'utf8');
+      console.log('====================================================');
+      console.log('SECURITY NOTICE: Generated new admin token for API!');
+      console.log(`Your Admin Token is: ${ADMIN_TOKEN}`);
+      console.log('You will need this token to change DB settings from the UI.');
+      console.log('====================================================');
+    } catch (err) {
+      console.error('Failed to write admin_token.txt', err);
+    }
+  }
+}
+
 // API Endpoint to POST (update) current config
 app.post('/api/config', (req, res) => {
   try {
+    const providedToken = req.headers['x-admin-token'];
+    if (!providedToken || providedToken !== ADMIN_TOKEN) {
+      return res.status(401).json({ error: 'Unauthorized: Invalid Admin Token' });
+    }
+
     const newConfig = req.body;
     // ensure basic shape
     if (typeof newConfig !== 'object') {

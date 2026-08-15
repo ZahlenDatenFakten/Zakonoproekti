@@ -97,18 +97,27 @@ export async function initFirebaseConfigFromServer(): Promise<void> {
 }
 
 // Send updated config to Node.js backend so it applies to everyone
-export async function saveFirebaseConfigToServer(config: FirebaseConfig): Promise<boolean> {
+export async function saveFirebaseConfigToServer(config: FirebaseConfig, adminToken?: string): Promise<boolean> {
   try {
     saveFirebaseConfig(config); // Save locally first
     const res = await fetch('/api/config', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        ...(adminToken ? { 'x-admin-token': adminToken } : {})
+      },
       body: JSON.stringify(config)
     });
-    return res.ok;
-  } catch (err) {
+    if (!res.ok) {
+      if (res.status === 401) {
+        throw new Error('Неверный токен администратора сервера');
+      }
+      throw new Error(`Server returned ${res.status}`);
+    }
+    return true;
+  } catch (err: any) {
     console.warn('Failed to save config to server:', err);
-    return false;
+    throw err; // Re-throw so the UI can catch and display it
   }
 }
 
