@@ -4,6 +4,8 @@ import { UploadCloud, X, Loader2, Plus, ArrowRight } from 'lucide-react';
 import type { BillAttachment } from '../types/bill';
 import { cn } from '../utils/cn';
 
+import { uploadImage } from '../services/imageUploadService';
+
 interface ImageUploaderProps {
   attachments: BillAttachment[];
   onChange: (attachments: BillAttachment[]) => void;
@@ -30,34 +32,18 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({ attachments, onCha
     setIsUploading({ id, side });
     setError(null);
 
-    const formData = new FormData();
-    formData.append('image', file);
-
     try {
-      const response = await fetch('/api/upload', {
-        method: 'POST',
-        body: formData,
+      const url = await uploadImage(file);
+      const newAttachments = attachments.map(att => {
+        if (att.id === id) {
+          return {
+            ...att,
+            [side === 'before' ? 'beforeUrl' : 'afterUrl']: url
+          };
+        }
+        return att;
       });
-      
-      if (!response.ok) {
-        throw new Error('Ошибка при загрузке на сервер');
-      }
-
-      const data = await response.json();
-      if (data.success && data.url) {
-        const newAttachments = attachments.map(att => {
-          if (att.id === id) {
-            return {
-              ...att,
-              [side === 'before' ? 'beforeUrl' : 'afterUrl']: data.url
-            };
-          }
-          return att;
-        });
-        onChange(newAttachments);
-      } else {
-        throw new Error(data.error || 'Неизвестная ошибка сервера');
-      }
+      onChange(newAttachments);
     } catch (err: any) {
       setError(err.message || 'Ошибка загрузки');
       console.error(err);
