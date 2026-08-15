@@ -27,6 +27,7 @@ export function getStoredFirebaseConfig(): FirebaseConfig {
   const envBucket = (import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || '').trim();
   const envSenderId = (import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '').trim();
   const envAppId = (import.meta.env.VITE_FIREBASE_APP_ID || '').trim();
+  const envImgbb = (import.meta.env.VITE_IMGBB_API_KEY || '').trim();
 
   // 1. Priority to ENV variables
   if (envApiKey && envProjectId) {
@@ -38,7 +39,7 @@ export function getStoredFirebaseConfig(): FirebaseConfig {
       storageBucket: envBucket,
       messagingSenderId: envSenderId,
       appId: envAppId,
-      imgbbApiKey: '',
+      imgbbApiKey: envImgbb,
       isConnected: true
     };
   }
