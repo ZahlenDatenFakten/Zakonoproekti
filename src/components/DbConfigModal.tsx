@@ -41,6 +41,7 @@ export const DbConfigModal: React.FC<DbConfigModalProps> = ({ config, onUpdateCo
       storageBucket: (firebaseConfig.storageBucket || '').trim(),
       messagingSenderId: (firebaseConfig.messagingSenderId || '').trim(),
       appId: (firebaseConfig.appId || '').trim(),
+      imgbbApiKey: (firebaseConfig.imgbbApiKey || '').trim(),
       isConnected: isConn
     };
     
@@ -112,6 +113,7 @@ export const DbConfigModal: React.FC<DbConfigModalProps> = ({ config, onUpdateCo
             storageBucket: (firebaseConfig.storageBucket || '').trim(),
             messagingSenderId: (firebaseConfig.messagingSenderId || '').trim(),
             appId: (firebaseConfig.appId || '').trim(),
+            imgbbApiKey: (firebaseConfig.imgbbApiKey || '').trim(),
             isConnected: true
           }
         };
@@ -153,6 +155,7 @@ export const DbConfigModal: React.FC<DbConfigModalProps> = ({ config, onUpdateCo
           storageBucket: '',
           messagingSenderId: '',
           appId: '',
+          imgbbApiKey: '',
           isConnected: false
         }, token);
         await alert({
@@ -347,6 +350,22 @@ service firebase.storage {
                     placeholder="1:12345:web:abcde"
                     value={firebaseConfig.appId || ''}
                     onChange={(e) => setFirebaseConfigState({ ...firebaseConfig, appId: e.target.value })}
+                  />
+                </div>
+
+                <div className="md:col-span-2 mt-2 pt-4 border-t border-white/5">
+                  <label className="block text-[10px] font-bold tracking-wider uppercase text-amber-500/80 mb-2">
+                    🔥 Альтернативная загрузка фото (ImgBB API Key, необязательно)
+                  </label>
+                  <p className="text-[10px] text-zinc-500 mb-3 leading-relaxed">
+                    Если в Firebase Storage требуется платный тариф (Blaze), вы можете бесплатно загружать фото через <a href="https://api.imgbb.com/" target="_blank" rel="noreferrer" className="text-indigo-400 hover:underline">ImgBB API</a>. Вставьте API ключ ниже, и он будет использоваться вместо Firebase Storage.
+                  </p>
+                  <input
+                    type="text"
+                    className="w-full bg-black/60 border border-amber-500/20 rounded-xl px-4 py-2.5 text-xs font-mono text-white focus:outline-none focus:border-amber-500/50 transition-colors placeholder-zinc-600"
+                    placeholder="Ваш ImgBB API Key (например: 7a8b9c...)"
+                    value={firebaseConfig.imgbbApiKey || ''}
+                    onChange={(e) => setFirebaseConfigState({ ...firebaseConfig, imgbbApiKey: e.target.value })}
                   />
                 </div>
               </div>

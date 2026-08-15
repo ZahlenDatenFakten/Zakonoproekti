@@ -13,6 +13,7 @@ export interface FirebaseConfig {
   storageBucket?: string;
   messagingSenderId?: string;
   appId?: string;
+  imgbbApiKey?: string;
   isConnected: boolean;
 }
 
@@ -37,6 +38,7 @@ export function getStoredFirebaseConfig(): FirebaseConfig {
       storageBucket: envBucket,
       messagingSenderId: envSenderId,
       appId: envAppId,
+      imgbbApiKey: '',
       isConnected: true
     };
   }
@@ -57,6 +59,7 @@ export function getStoredFirebaseConfig(): FirebaseConfig {
           storageBucket: (parsed.storageBucket || '').trim(),
           messagingSenderId: (parsed.messagingSenderId || '').trim(),
           appId: (parsed.appId || '').trim(),
+          imgbbApiKey: (parsed.imgbbApiKey || '').trim(),
           isConnected: parsed.isConnected !== undefined ? parsed.isConnected : Boolean(apiKey && projectId)
         };
       }
@@ -74,6 +77,7 @@ export function getStoredFirebaseConfig(): FirebaseConfig {
     storageBucket: '',
     messagingSenderId: '',
     appId: '',
+    imgbbApiKey: '',
     isConnected: false
   };
 }

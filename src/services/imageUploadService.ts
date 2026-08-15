@@ -3,8 +3,30 @@ import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from 'fire
 import { getSupabaseClient, getStoredDbConfig as getSupabaseConfig } from './supabaseClient';
 
 export async function uploadImage(file: File): Promise<string> {
-  // Check Firebase first
   const fbConfig = getStoredFirebaseConfig();
+
+  // 1. Check ImgBB First (Alternative fallback to bypass Firebase Storage completely)
+  if (fbConfig.imgbbApiKey) {
+    const formData = new FormData();
+    formData.append('image', file);
+    
+    try {
+      const response = await fetch(`https://api.imgbb.com/1/upload?key=${fbConfig.imgbbApiKey}`, {
+        method: 'POST',
+        body: formData,
+      });
+      const data = await response.json();
+      if (data.success && data.data && data.data.url) {
+        return data.data.url;
+      }
+      throw new Error(data.error?.message || 'Неизвестная ошибка ImgBB');
+    } catch (err: any) {
+      console.error('ImgBB upload failed:', err);
+      throw new Error('Ошибка ImgBB: ' + err.message);
+    }
+  }
+
+  // 2. Check Firebase Storage
   if (fbConfig.isConnected && fbConfig.storageBucket) {
     const app = getFirebaseApp();
     if (app) {
