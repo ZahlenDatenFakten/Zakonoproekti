@@ -192,6 +192,7 @@ export const BillEditor: React.FC<BillEditorProps> = ({
     let statusReason = bill.statusReason || '';
 
     if (newApproveCount >= 2) {
+      newStatus = 'under_review';
       statusReason = `Одобрен Законодательной Комиссией (${newApproveCount}/3). Ожидает решения Администрации.`;
     } else if (newRejectCount >= 2) {
       newStatus = 'rejected';
@@ -722,7 +723,7 @@ export const BillEditor: React.FC<BillEditorProps> = ({
               </div>
             </div>
 
-            {bill.status === 'under_review' && (() => {
+            {['under_review', 'rejected', 'needs_revision'].includes(bill.status) && !bill.federalVerdict && (() => {
               const myVote = (user.officialRole === 'prosecutor' ? votes.prosecutor : user.officialRole === 'judge' ? votes.judge : votes.governor);
               return (
                 <div className="flex gap-2 mt-4">
