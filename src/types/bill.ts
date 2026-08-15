@@ -66,6 +66,12 @@ export interface AuditLogEntry {
   hash: string;
 }
 
+export interface BillAttachment {
+  id: string;
+  beforeUrl?: string;
+  afterUrl?: string;
+}
+
 export interface Bill {
   id: string;
   title: string;
@@ -82,7 +88,7 @@ export interface Bill {
   votes?: CommissionVotes;
   federalVerdict?: FederalGovernmentVerdict;
   sha256Hash?: string; // Криптографический отпечаток целостности документа
-  attachments?: string[];
+  attachments?: BillAttachment[];
   createdAt: string;
   updatedAt: string;
   viewCount: number;
