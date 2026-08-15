@@ -30,9 +30,8 @@ export const DbConfigModal: React.FC<DbConfigModalProps> = ({ config, onUpdateCo
   const [testResult, setTestResult] = useState<{ success?: boolean; message?: string; details?: string } | null>(null);
   const [copiedLink, setCopiedLink] = useState(false);
 
-  const handleSaveFirebase = async () => {
-    const isConn = Boolean(firebaseConfig.apiKey.trim() && firebaseConfig.projectId.trim());
-    const updated = {
+  const getUpdatedFirebaseConfig = () => {
+    return {
       ...firebaseConfig,
       apiKey: firebaseConfig.apiKey.trim(),
       projectId: firebaseConfig.projectId.trim(),
@@ -42,8 +41,30 @@ export const DbConfigModal: React.FC<DbConfigModalProps> = ({ config, onUpdateCo
       messagingSenderId: (firebaseConfig.messagingSenderId || '').trim(),
       appId: (firebaseConfig.appId || '').trim(),
       imgbbApiKey: (firebaseConfig.imgbbApiKey || '').trim(),
-      isConnected: isConn
+      isConnected: Boolean(firebaseConfig.apiKey.trim() && firebaseConfig.projectId.trim())
     };
+  };
+
+  const handleSaveFirebaseLocal = async () => {
+    const updated = getUpdatedFirebaseConfig();
+    try {
+      // Just save to localStorage
+      localStorage.setItem('legaldraft_firebase_config_v1', JSON.stringify(updated));
+      await alert({
+        title: 'Сохранено локально',
+        message: 'Настройки применены для вашего браузера. (Чтобы применить для всех, используйте глобальное сохранение на сервере или Vercel Env Vars).',
+        variant: 'success'
+      });
+      onClose();
+      // Force reload to apply new config across the app
+      window.location.reload();
+    } catch (err: any) {
+      await alert({ title: 'Ошибка', message: err.message, variant: 'error' });
+    }
+  };
+
+  const handleSaveFirebaseServer = async () => {
+    const updated = getUpdatedFirebaseConfig();
     
     // Only prompt for token if we actually want to save to the server
     const token = await prompt({
@@ -477,12 +498,33 @@ service firebase.storage {
               Отключить базу
             </button>
           </div>
-          <button 
-            onClick={activeTab === 'firebase' ? handleSaveFirebase : handleSaveSupabase} 
-            className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-extrabold rounded-xl shadow-lg shadow-indigo-500/20 border border-indigo-400/30 active:scale-95 transition-all"
-          >
-            Сохранить и Подключить
-          </button>
+          <div className="flex gap-2">
+            {activeTab === 'firebase' ? (
+              <>
+                <button 
+                  onClick={handleSaveFirebaseLocal} 
+                  className="px-6 py-2.5 bg-zinc-800 hover:bg-zinc-700 text-white text-sm font-extrabold rounded-xl border border-white/10 active:scale-95 transition-all"
+                  title="Сохранить только для себя"
+                >
+                  Сохранить локально
+                </button>
+                <button 
+                  onClick={handleSaveFirebaseServer} 
+                  className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-extrabold rounded-xl shadow-lg shadow-indigo-500/20 border border-indigo-400/30 active:scale-95 transition-all"
+                  title="Требует Admin Token, работает только на VPS/Docker"
+                >
+                  Сохранить для всех
+                </button>
+              </>
+            ) : (
+              <button 
+                onClick={handleSaveSupabase} 
+                className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-extrabold rounded-xl shadow-lg shadow-indigo-500/20 border border-indigo-400/30 active:scale-95 transition-all"
+              >
+                Сохранить локально
+              </button>
+            )}
+          </div>
         </div>
 
       </motion.div>
