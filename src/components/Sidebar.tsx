@@ -42,8 +42,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
           className="w-10 h-10 object-contain drop-shadow-[0_0_10px_rgba(99,102,241,0.3)]"
         />
         <div>
-          <h1 className="text-sm font-bold text-white tracking-wide">STATE OS</h1>
-          <p className="text-[10px] font-mono text-zinc-400">SAN ANDREAS GOV</p>
+          <h1 className="text-sm font-bold text-white tracking-wide uppercase">Система</h1>
+          <p className="text-[10px] font-mono text-zinc-400 uppercase tracking-widest">Законопроектов</p>
         </div>
       </div>
 
