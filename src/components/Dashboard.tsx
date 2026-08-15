@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import type { Bill, BillStatus, UserProfile } from '../types/bill';
 import { isSystemAdmin } from '../services/securityService';
 import { 
@@ -11,7 +11,9 @@ import {
   Layers,
   Trash2,
   FileText,
-  CheckCircle2
+  CheckCircle2,
+  SlidersHorizontal,
+  Check
 } from 'lucide-react';
 import { cn } from '../utils/cn';
 
@@ -33,6 +35,12 @@ export const Dashboard: React.FC<DashboardProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState<'all' | 'my' | 'active' | 'approved'>('all');
   const [searchQuery, setSearchQuery] = useState('');
+  
+  // Advanced Filters
+  const [showFilters, setShowFilters] = useState(false);
+  const [filterStatuses, setFilterStatuses] = useState<BillStatus[]>([]);
+  const [filterVote, setFilterVote] = useState<'all' | 'voted' | 'not_voted'>('all');
+  const [sortOrder, setSortOrder] = useState<'newest' | 'oldest'>('newest');
 
   const currentFullName = `${user.firstName} ${user.lastName}`.trim();
 
@@ -80,8 +88,31 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
         return true;
       })
-      .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
-  }, [visibleBills, activeTab, searchQuery, currentFullName]);
+      .filter((b) => {
+        // Advanced Status Filter
+        if (filterStatuses.length > 0 && !filterStatuses.includes(b.status)) {
+          return false;
+        }
+
+        // Advanced Vote Filter
+        if (filterVote !== 'all') {
+          const isCommission = ['prosecutor', 'judge', 'governor'].includes(user.officialRole);
+          const hasVoted = isCommission && b.votes?.[user.officialRole as 'prosecutor'|'judge'|'governor'];
+          const hasAdminVerdict = user.officialRole === 'admin' && b.federalVerdict;
+          const alreadyVoted = hasVoted || hasAdminVerdict;
+
+          if (filterVote === 'voted' && !alreadyVoted) return false;
+          if (filterVote === 'not_voted' && alreadyVoted) return false;
+        }
+
+        return true;
+      })
+      .sort((a, b) => {
+        const timeA = new Date(a.updatedAt).getTime();
+        const timeB = new Date(b.updatedAt).getTime();
+        return sortOrder === 'newest' ? timeB - timeA : timeA - timeB;
+      });
+  }, [visibleBills, activeTab, searchQuery, currentFullName, filterStatuses, filterVote, sortOrder, user]);
 
   const formatDate = (isoStr: string) => {
     const d = new Date(isoStr);
@@ -231,18 +262,155 @@ export const Dashboard: React.FC<DashboardProps> = ({
           })}
         </div>
 
-        {/* SEARCH INPUT */}
-        <div className="relative w-full md:w-80 shrink-0">
-          <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-500" />
-          <input 
-            type="text" 
-            placeholder="Поиск (название, автор, номер)..." 
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-black/60 border border-white/10 rounded-xl py-2 pl-10 pr-4 text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/50 transition-all duration-200"
-          />
+        {/* SEARCH & FILTER BUTTON */}
+        <div className="relative w-full md:w-80 shrink-0 flex gap-2">
+          <div className="relative flex-1">
+            <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-500" />
+            <input 
+              type="text" 
+              placeholder="Поиск (название, автор)..." 
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full bg-black/60 border border-white/10 rounded-xl py-2 pl-10 pr-4 text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/50 transition-all duration-200"
+            />
+          </div>
+          <button
+            onClick={() => setShowFilters(!showFilters)}
+            className={cn(
+              "flex items-center justify-center w-10 h-10 rounded-xl border transition-all duration-200",
+              showFilters || filterStatuses.length > 0 || filterVote !== 'all' || sortOrder !== 'newest'
+                ? "bg-indigo-500/20 border-indigo-500/40 text-indigo-400 shadow-[0_0_15px_rgba(99,102,241,0.2)]"
+                : "bg-black/60 border-white/10 text-zinc-400 hover:text-white hover:bg-white/5"
+            )}
+            title="Расширенные фильтры"
+          >
+            <SlidersHorizontal size={18} />
+          </button>
         </div>
       </div>
+
+      {/* ADVANCED FILTERS PANEL */}
+      <AnimatePresence>
+        {showFilters && (
+          <motion.div
+            initial={{ opacity: 0, height: 0, marginTop: 0 }}
+            animate={{ opacity: 1, height: 'auto', marginTop: 16 }}
+            exit={{ opacity: 0, height: 0, marginTop: 0 }}
+            className="overflow-hidden"
+          >
+            <div className="p-5 bg-white/[0.02] backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl shadow-black/50 grid grid-cols-1 md:grid-cols-3 gap-6">
+              
+              {/* Status Filter */}
+              <div className="space-y-3">
+                <h4 className="text-[10px] font-extrabold uppercase tracking-widest text-zinc-500">По статусу акта</h4>
+                <div className="flex flex-col gap-2">
+                  {(['draft', 'under_review', 'needs_revision', 'approved', 'rejected'] as BillStatus[]).map(status => {
+                    const isChecked = filterStatuses.includes(status);
+                    const labels: Record<string, string> = {
+                      draft: 'Черновик',
+                      under_review: 'На рассмотрении',
+                      needs_revision: 'Доработка',
+                      approved: 'Вступил в силу',
+                      rejected: 'Отклонен'
+                    };
+                    return (
+                      <label key={status} className="flex items-center gap-3 cursor-pointer group">
+                        <div className={cn(
+                          "w-4 h-4 rounded-md border flex items-center justify-center transition-all",
+                          isChecked ? "bg-indigo-500 border-indigo-500 text-white" : "bg-black/40 border-white/20 group-hover:border-indigo-400/50"
+                        )}>
+                          {isChecked && <Check size={12} strokeWidth={3} />}
+                        </div>
+                        <span className={cn("text-xs font-medium transition-colors", isChecked ? "text-white" : "text-zinc-400 group-hover:text-zinc-300")}>
+                          {labels[status]}
+                        </span>
+                        <input 
+                          type="checkbox" 
+                          className="hidden"
+                          checked={isChecked}
+                          onChange={() => {
+                            if (isChecked) {
+                              setFilterStatuses(filterStatuses.filter(s => s !== status));
+                            } else {
+                              setFilterStatuses([...filterStatuses, status]);
+                            }
+                          }}
+                        />
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Vote Status Filter */}
+              <div className="space-y-3">
+                <h4 className="text-[10px] font-extrabold uppercase tracking-widest text-zinc-500">Участие в голосовании</h4>
+                <div className="flex flex-col gap-2">
+                  {[
+                    { id: 'all', label: 'Показывать все' },
+                    { id: 'voted', label: '✅ Я уже проголосовал' },
+                    { id: 'not_voted', label: '⏳ Ожидают моего голоса' }
+                  ].map(opt => {
+                    const isSelected = filterVote === opt.id;
+                    return (
+                      <button
+                        key={opt.id}
+                        onClick={() => setFilterVote(opt.id as any)}
+                        className={cn(
+                          "text-left px-3 py-2 rounded-lg text-xs font-medium transition-all",
+                          isSelected ? "bg-indigo-500/20 text-indigo-300 border border-indigo-500/30" : "bg-transparent text-zinc-400 hover:bg-white/5 border border-transparent"
+                        )}
+                      >
+                        {opt.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Sorting Filter */}
+              <div className="space-y-3">
+                <h4 className="text-[10px] font-extrabold uppercase tracking-widest text-zinc-500">Сортировка</h4>
+                <div className="flex bg-black/40 p-1 rounded-xl border border-white/10">
+                  <button
+                    onClick={() => setSortOrder('newest')}
+                    className={cn(
+                      "flex-1 py-2 text-xs font-bold rounded-lg transition-all",
+                      sortOrder === 'newest' ? "bg-white/10 text-white shadow-sm" : "text-zinc-500 hover:text-white"
+                    )}
+                  >
+                    Сначала новые
+                  </button>
+                  <button
+                    onClick={() => setSortOrder('oldest')}
+                    className={cn(
+                      "flex-1 py-2 text-xs font-bold rounded-lg transition-all",
+                      sortOrder === 'oldest' ? "bg-white/10 text-white shadow-sm" : "text-zinc-500 hover:text-white"
+                    )}
+                  >
+                    Сначала старые
+                  </button>
+                </div>
+                
+                {/* Reset Filters */}
+                {(filterStatuses.length > 0 || filterVote !== 'all' || sortOrder !== 'newest') && (
+                  <button
+                    onClick={() => {
+                      setFilterStatuses([]);
+                      setFilterVote('all');
+                      setSortOrder('newest');
+                    }}
+                    className="w-full mt-4 py-2 text-xs font-bold text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 rounded-lg transition-colors border border-dashed border-rose-500/30"
+                  >
+                    Сбросить фильтры
+                  </button>
+                )}
+              </div>
+
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* BILLS LIST */}
       <motion.div 
