@@ -9,8 +9,7 @@ import {
   ShieldCheck,
   Moon,
   Sun,
-  Database,
-  Plus
+  Database
 } from 'lucide-react';
 
 interface HeaderProps {
@@ -30,7 +29,6 @@ export const Header: React.FC<HeaderProps> = ({
   currentView,
   onNavigate,
   onToggleTheme,
-  onOpenNewBill,
   onOpenSettings,
   onOpenDbConfig
 }) => {
@@ -39,35 +37,35 @@ export const Header: React.FC<HeaderProps> = ({
   return (
     <header style={{ 
       background: 'var(--bg-glass)', 
-      backdropFilter: 'blur(20px)',
-      WebkitBackdropFilter: 'blur(20px)',
+      backdropFilter: 'blur(16px)',
+      WebkitBackdropFilter: 'blur(16px)',
       borderBottom: '1px solid var(--border-subtle)',
       position: 'sticky',
       top: 0,
       zIndex: 50
     }}>
       <div style={{ 
-        maxWidth: '1360px', 
+        maxWidth: '1240px', 
         margin: '0 auto', 
-        padding: '10px 24px', 
+        padding: '8px 20px', 
         display: 'flex', 
         alignItems: 'center', 
         justifyContent: 'space-between',
         flexWrap: 'nowrap',
-        gap: '16px'
+        gap: '12px'
       }}>
         
-        {/* BRAND / STATE SEAL */}
+        {/* BRAND */}
         <div 
           onClick={() => onNavigate('dashboard')} 
-          style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer', flexShrink: 0 }}
+          style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', flexShrink: 0 }}
         >
           <img 
             src="/logo.png" 
-            alt="State of San Andreas Seal" 
+            alt="State Seal" 
             style={{ 
-              width: '38px', 
-              height: '38px', 
+              width: '32px', 
+              height: '32px', 
               aspectRatio: '1 / 1',
               objectFit: 'contain',
               flexShrink: 0
@@ -75,15 +73,15 @@ export const Header: React.FC<HeaderProps> = ({
           />
 
           <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <h1 style={{ fontSize: '0.95rem', fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '0.02em', lineHeight: 1.2, margin: 0, whiteSpace: 'nowrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <h1 style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '0.02em', lineHeight: 1.2, margin: 0, whiteSpace: 'nowrap' }}>
                 ГОСУДАРСТВЕННЫЙ РЕЕСТР
               </h1>
-              <span className="decree-stamp" style={{ padding: '1px 6px', fontSize: '0.62rem' }}>
+              <span className="decree-stamp" style={{ padding: '1px 5px', fontSize: '0.6rem' }}>
                 SA GOV
               </span>
             </div>
-            <p style={{ fontSize: '0.68rem', color: 'var(--text-muted)', lineHeight: 1.2, margin: '2px 0 0 0', fontFamily: 'var(--font-mono)', whiteSpace: 'nowrap' }}>
+            <p style={{ fontSize: '0.64rem', color: 'var(--text-muted)', lineHeight: 1.2, margin: '1px 0 0 0', fontFamily: 'var(--font-mono)', whiteSpace: 'nowrap' }}>
               LEGISLATURE • STATE OF SAN ANDREAS
             </p>
           </div>
@@ -94,7 +92,7 @@ export const Header: React.FC<HeaderProps> = ({
           display: 'flex', 
           gap: '2px', 
           background: 'var(--bg-input)', 
-          padding: '3px', 
+          padding: '2px', 
           borderRadius: 'var(--radius-pill)', 
           border: '1px solid var(--border-subtle)',
           flexShrink: 0
@@ -103,16 +101,15 @@ export const Header: React.FC<HeaderProps> = ({
             onClick={() => onNavigate('dashboard')}
             className="btn btn-pill"
             style={{
-              fontSize: '0.8rem',
-              fontWeight: 600,
-              padding: '6px 16px',
+              fontSize: '0.78rem',
+              fontWeight: 500,
+              padding: '5px 14px',
               border: 'none',
-              background: currentView === 'dashboard' ? 'var(--primary-gradient)' : 'transparent',
-              color: currentView === 'dashboard' ? '#ffffff' : 'var(--text-secondary)',
-              boxShadow: currentView === 'dashboard' ? '0 2px 10px var(--primary-glow)' : 'none'
+              background: currentView === 'dashboard' ? 'var(--bg-surface-active)' : 'transparent',
+              color: currentView === 'dashboard' ? 'var(--text-primary)' : 'var(--text-muted)'
             }}
           >
-            <LayoutDashboard size={14} /> Реестр актов
+            <LayoutDashboard size={13} /> Реестр актов
           </button>
 
           {isAdmin && (
@@ -120,99 +117,85 @@ export const Header: React.FC<HeaderProps> = ({
               onClick={() => onNavigate('admin_workspace')}
               className="btn btn-pill"
               style={{
-                fontSize: '0.8rem',
-                fontWeight: 600,
-                padding: '6px 16px',
+                fontSize: '0.78rem',
+                fontWeight: 500,
+                padding: '5px 14px',
                 border: 'none',
-                background: currentView === 'admin_workspace' ? 'var(--primary-gradient)' : 'transparent',
-                color: currentView === 'admin_workspace' ? '#ffffff' : 'var(--text-secondary)',
-                boxShadow: currentView === 'admin_workspace' ? '0 2px 10px var(--primary-glow)' : 'none'
+                background: currentView === 'admin_workspace' ? 'var(--bg-surface-active)' : 'transparent',
+                color: currentView === 'admin_workspace' ? 'var(--text-primary)' : 'var(--text-muted)'
               }}
             >
-              <ShieldCheck size={14} /> Администрация
+              <ShieldCheck size={13} /> Администрация
             </button>
           )}
         </nav>
 
-        {/* RIGHT CONTROLS: NEW BILL & USER BADGE */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+        {/* RIGHT CONTROLS: USER & TOOLS */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
           
-          <button 
-            onClick={onOpenNewBill}
-            className="btn btn-primary btn-pill"
-            style={{ padding: '7px 16px', fontSize: '0.8rem', fontWeight: 600 }}
-          >
-            <Plus size={14} /> Внести проект
-          </button>
-
           {/* PROFILE BADGE */}
           <div 
             onClick={onOpenSettings}
             style={{ 
               display: 'flex', 
               alignItems: 'center', 
-              gap: '8px', 
-              padding: '4px 10px 4px 5px', 
+              gap: '6px', 
+              padding: '3px 8px 3px 4px', 
               borderRadius: 'var(--radius-pill)', 
               background: 'var(--bg-surface-elevated)', 
               border: '1px solid var(--border-subtle)',
               cursor: 'pointer',
-              transition: 'all 0.18s ease',
-              maxWidth: '220px'
+              maxWidth: '200px'
             }}
             title={`${user.firstName} ${user.lastName} (${OFFICIAL_ROLE_LABELS[user.officialRole] || 'Гражданин'})`}
           >
             <div style={{
-              width: '26px', height: '26px', borderRadius: '50%',
-              background: 'var(--primary-gradient)', 
+              width: '24px', height: '24px', borderRadius: '50%',
+              background: 'var(--bg-surface-active)', 
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               flexShrink: 0
             }}>
-              <User size={13} color="#ffffff" />
+              <User size={12} color="var(--text-accent)" />
             </div>
             <div style={{ overflow: 'hidden' }}>
-              <div style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-primary)', lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-primary)', lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                 {user.firstName} {user.lastName}
               </div>
-              <div style={{ fontSize: '0.64rem', color: 'var(--text-accent)', lineHeight: 1.2, fontFamily: 'var(--font-mono)', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)', lineHeight: 1.1, fontFamily: 'var(--font-mono)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                 {OFFICIAL_ROLE_LABELS[user.officialRole] || 'Гражданин'}
               </div>
             </div>
           </div>
 
-          <div style={{ width: '1px', height: '18px', background: 'var(--border-subtle)', margin: '0 2px' }} />
-
           {/* SYSTEM ICONS */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
-            {isAdmin && onOpenDbConfig && (
-              <button 
-                className="btn btn-ghost" 
-                onClick={onOpenDbConfig} 
-                style={{ padding: '7px', borderRadius: 'var(--radius-pill)' }} 
-                title="Облачная база данных (Доступно Администратору)"
-              >
-                <Database size={15} color="var(--text-accent)" />
-              </button>
-            )}
-
+          {isAdmin && onOpenDbConfig && (
             <button 
-              onClick={onToggleTheme} 
-              className="btn btn-ghost" 
-              style={{ padding: '7px', borderRadius: 'var(--radius-pill)' }} 
-              title="Переключить тему"
+              className="btn btn-ghost btn-icon" 
+              onClick={onOpenDbConfig} 
+              style={{ width: '30px', height: '30px' }} 
+              title="База данных"
             >
-              {theme === 'dark' ? <Moon size={15} color="var(--text-accent)" /> : <Sun size={15} color="var(--primary)" />}
+              <Database size={14} color="var(--text-muted)" />
             </button>
+          )}
 
-            <button 
-              className="btn btn-ghost" 
-              onClick={onOpenSettings} 
-              style={{ padding: '7px', borderRadius: 'var(--radius-pill)' }} 
-              title="Настройки профиля"
-            >
-              <Settings size={15} color="var(--text-secondary)" />
-            </button>
-          </div>
+          <button 
+            onClick={onToggleTheme} 
+            className="btn btn-ghost btn-icon" 
+            style={{ width: '30px', height: '30px' }} 
+            title="Тема"
+          >
+            {theme === 'dark' ? <Moon size={14} color="var(--text-muted)" /> : <Sun size={14} color="var(--text-muted)" />}
+          </button>
+
+          <button 
+            className="btn btn-ghost btn-icon" 
+            onClick={onOpenSettings} 
+            style={{ width: '30px', height: '30px' }} 
+            title="Настройки профиля"
+          >
+            <Settings size={14} color="var(--text-muted)" />
+          </button>
 
         </div>
       </div>
