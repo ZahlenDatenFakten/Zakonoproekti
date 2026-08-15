@@ -264,13 +264,22 @@ export const DbConfigModal: React.FC<DbConfigModalProps> = ({ config, onUpdateCo
               </div>
 
               {/* Rules Guidance Alert */}
-              <div className="p-4 bg-indigo-500/10 border border-indigo-500/20 rounded-xl">
-                <p className="text-xs text-indigo-200/80 leading-relaxed font-medium mb-2">
-                  💡 <strong className="text-indigo-300">Важная настройка в Firebase Console:</strong><br />
-                  В разделе <strong>Firestore Database ➔ Rules</strong> укажите:
-                </p>
-                <div className="bg-black/60 border border-white/5 rounded-lg p-2 font-mono text-xs text-indigo-400">
-                  allow read, write: if true;
+              <div className="p-4 bg-indigo-500/10 border border-indigo-500/20 rounded-xl space-y-3">
+                <div>
+                  <p className="text-[11px] text-indigo-200/80 leading-relaxed font-medium mb-1">
+                    💡 <strong className="text-indigo-300">В Firebase Console ➔ Firestore Database ➔ Rules</strong> укажите:
+                  </p>
+                  <div className="bg-black/60 border border-white/5 rounded-lg p-2 font-mono text-[10px] text-indigo-400">
+                    allow read, write: if true;
+                  </div>
+                </div>
+                <div>
+                  <p className="text-[11px] text-indigo-200/80 leading-relaxed font-medium mb-1">
+                    💡 <strong className="text-indigo-300">В Firebase Console ➔ Storage ➔ Rules</strong> укажите:
+                  </p>
+                  <div className="bg-black/60 border border-white/5 rounded-lg p-2 font-mono text-[10px] text-indigo-400">
+                    allow read, write: if true;
+                  </div>
                 </div>
               </div>
 
@@ -305,6 +314,19 @@ export const DbConfigModal: React.FC<DbConfigModalProps> = ({ config, onUpdateCo
                     placeholder="https://app-rtdb.firebaseio.com"
                     value={firebaseConfig.databaseURL || ''}
                     onChange={(e) => setFirebaseConfigState({ ...firebaseConfig, databaseURL: e.target.value })}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold tracking-wider uppercase text-zinc-500 mb-2 flex items-center justify-between">
+                    <span>Storage Bucket (для фото):</span>
+                  </label>
+                  <input
+                    type="text"
+                    className="w-full bg-black/60 border border-white/10 rounded-xl px-4 py-2.5 text-xs font-mono text-white focus:outline-none focus:border-indigo-500/50 transition-colors placeholder-zinc-600"
+                    placeholder="my-project.appspot.com"
+                    value={firebaseConfig.storageBucket || ''}
+                    onChange={(e) => setFirebaseConfigState({ ...firebaseConfig, storageBucket: e.target.value })}
                   />
                 </div>
 
