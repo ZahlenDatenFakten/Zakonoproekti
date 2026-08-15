@@ -237,8 +237,8 @@ export const App: React.FC = () => {
       const saved = await saveBill(newBill);
       setBills(prev => [saved, ...prev.filter(b => b.id !== saved.id)]);
       setSelectedBill(saved);
-    } catch (e) {
-      console.error('Error saving new bill:', e);
+    } catch (err: any) {
+      addToast('error', err.message || 'Ошибка при сохранении нового законопроекта в облако');
     }
   };
 
@@ -276,10 +276,14 @@ export const App: React.FC = () => {
   };
 
   const handleSaveBill = async (updatedBill: Bill) => {
-    const saved = await saveBill(updatedBill);
-    setSelectedBill(saved);
-    setBills((prev) => [saved, ...prev.filter((b) => b.id !== saved.id)]);
-    await loadData();
+    try {
+      const saved = await saveBill(updatedBill);
+      setSelectedBill(saved);
+      setBills((prev) => [saved, ...prev.filter((b) => b.id !== saved.id)]);
+      await loadData();
+    } catch (err: any) {
+      addToast('error', err.message || 'Ошибка при синхронизации базы данных');
+    }
   };
 
   const handleDeleteBill = async (billId: string) => {

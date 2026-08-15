@@ -185,8 +185,9 @@ export async function saveBill(bill: Bill): Promise<Bill> {
   // 2. Asynchronously sync to Firebase Firestore Cloud
   try {
     await saveBillToFirebase(updatedBill);
-  } catch (err) {
+  } catch (err: any) {
     console.warn('Firebase save warning:', err);
+    throw err; // Re-throw so UI can show the error toast
   }
 
   // 3. Asynchronously sync to Supabase Cloud DB if connected

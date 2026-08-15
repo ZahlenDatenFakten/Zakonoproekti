@@ -197,8 +197,12 @@ export async function saveBillToFirebase(bill: Bill): Promise<boolean> {
       await setDoc(docRef, updatedBill, { merge: true });
       savedSuccess = true;
     }
-  } catch (err) {
+  } catch (err: any) {
     console.warn('Firebase Firestore save error:', err);
+    if (err?.message?.includes('permission') || err?.code?.includes('permission')) {
+      throw new Error('Firebase Firestore: Отказано в доступе (Permission Denied). Установите правила "allow read, write: if true;"');
+    }
+    throw new Error(`Firebase Firestore ошибка: ${err?.message || 'Неизвестная ошибка'}`);
   }
 
   // 2. Save to Realtime Database if databaseURL is configured
@@ -212,8 +216,12 @@ export async function saveBillToFirebase(bill: Bill): Promise<boolean> {
         savedSuccess = true;
       }
     }
-  } catch (err) {
+  } catch (err: any) {
     console.warn('Firebase RealtimeDB save error:', err);
+    if (err?.message?.includes('permission') || err?.code?.includes('permission') || err?.message?.includes('denied')) {
+      throw new Error('Firebase Realtime DB: Отказано в доступе (Permission Denied). Установите ".read": true, ".write": true в правилах.');
+    }
+    throw new Error(`Firebase Realtime DB ошибка: ${err?.message || 'Неизвестная ошибка'}`);
   }
 
   return savedSuccess;
