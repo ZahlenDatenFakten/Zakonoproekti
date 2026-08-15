@@ -399,23 +399,35 @@ export async function deleteBillFromFirebase(billId: string): Promise<boolean> {
   const app = getFirebaseApp();
   if (!app) return false;
 
+  const withTimeout = <T>(promise: Promise<T>, ms = 5000): Promise<T> => {
+    let timeoutId: any;
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timeoutId = setTimeout(() => reject(new Error('Timeout')), ms);
+    });
+    return Promise.race([promise, timeoutPromise]).finally(() => clearTimeout(timeoutId));
+  };
+
+  const tasks: Promise<any>[] = [];
+
   try {
-    const rtdb = getDatabase(app);
-    if (rtdb) {
-      await remove(ref(rtdb, 'bills/' + billId));
+    const config = getStoredFirebaseConfig();
+    if (config.databaseURL) {
+      const rtdb = getDatabase(app);
+      if (rtdb) {
+        tasks.push(withTimeout(remove(ref(rtdb, 'bills/' + billId))));
+      }
     }
-  } catch {
-    // ignore
-  }
+  } catch {}
 
   try {
     const firestore = getFirestore(app);
     if (firestore) {
-      await deleteDoc(doc(firestore, 'bills', billId));
+      tasks.push(withTimeout(deleteDoc(doc(firestore, 'bills', billId))));
     }
-  } catch {
-    // ignore
-  }
+  } catch {}
+
+  // Wait for all deletions to finish or timeout, independently of each other
+  await Promise.allSettled(tasks);
 
   return true;
 }
