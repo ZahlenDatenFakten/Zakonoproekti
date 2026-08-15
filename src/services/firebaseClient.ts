@@ -26,21 +26,36 @@ export function getStoredFirebaseConfig(): FirebaseConfig {
   const envSenderId = (import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '').trim();
   const envAppId = (import.meta.env.VITE_FIREBASE_APP_ID || '').trim();
 
+  // 1. Priority to ENV variables
+  if (envApiKey && envProjectId) {
+    return {
+      apiKey: envApiKey,
+      authDomain: envAuthDomain,
+      projectId: envProjectId,
+      databaseURL: envDbUrl,
+      storageBucket: envBucket,
+      messagingSenderId: envSenderId,
+      appId: envAppId,
+      isConnected: true
+    };
+  }
+
+  // 2. Fallback to localStorage
   const saved = localStorage.getItem(FIREBASE_CONFIG_KEY);
   if (saved) {
     try {
       const parsed = JSON.parse(saved);
       if (parsed && typeof parsed === 'object') {
-        const apiKey = (parsed.apiKey || envApiKey).trim();
-        const projectId = (parsed.projectId || envProjectId).trim();
+        const apiKey = (parsed.apiKey || '').trim();
+        const projectId = (parsed.projectId || '').trim();
         return {
           apiKey,
-          authDomain: (parsed.authDomain || envAuthDomain).trim(),
+          authDomain: (parsed.authDomain || '').trim(),
           projectId,
-          databaseURL: (parsed.databaseURL || envDbUrl).trim(),
-          storageBucket: (parsed.storageBucket || envBucket).trim(),
-          messagingSenderId: (parsed.messagingSenderId || envSenderId).trim(),
-          appId: (parsed.appId || envAppId).trim(),
+          databaseURL: (parsed.databaseURL || '').trim(),
+          storageBucket: (parsed.storageBucket || '').trim(),
+          messagingSenderId: (parsed.messagingSenderId || '').trim(),
+          appId: (parsed.appId || '').trim(),
           isConnected: parsed.isConnected !== undefined ? parsed.isConnected : Boolean(apiKey && projectId)
         };
       }
@@ -49,16 +64,16 @@ export function getStoredFirebaseConfig(): FirebaseConfig {
     }
   }
 
-  const hasEnv = Boolean(envApiKey && envProjectId);
+  // 3. Fallback to empty config
   return {
-    apiKey: envApiKey,
-    authDomain: envAuthDomain,
-    projectId: envProjectId,
-    databaseURL: envDbUrl,
-    storageBucket: envBucket,
-    messagingSenderId: envSenderId,
-    appId: envAppId,
-    isConnected: hasEnv
+    apiKey: '',
+    authDomain: '',
+    projectId: '',
+    databaseURL: '',
+    storageBucket: '',
+    messagingSenderId: '',
+    appId: '',
+    isConnected: false
   };
 }
 
