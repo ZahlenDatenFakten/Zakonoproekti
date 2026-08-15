@@ -602,23 +602,33 @@ export const BillEditor: React.FC<BillEditorProps> = ({
 
                   {/* TAB 2: DIFF */}
                   {activeTab === 'diff' && (
-                    <div className="p-5 text-sm leading-relaxed min-h-[160px]">
-                      {diff.unifiedFormatted.length > 0 ? (
-                        <div className="whitespace-pre-wrap font-sans">
-                          {diff.unifiedFormatted.map((token: any, i: number) => {
-                            if (typeof token === 'string') return <span key={i} className="text-zinc-300">{token}</span>;
-                            if (token?.type === 'added') {
-                              return <span key={i} className="bg-emerald-500/20 text-emerald-400 px-1 py-0.5 rounded font-medium">{token.value}</span>;
-                            }
-                            if (token?.type === 'removed') {
-                              return <span key={i} className="bg-rose-500/20 text-rose-400 px-1 py-0.5 rounded font-medium line-through">{token.value}</span>;
-                            }
-                            return null;
-                          })}
+                    <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-white/10 flex-1">
+                      {/* Original (Was) */}
+                      <div className="flex flex-col">
+                        <div className="flex items-center justify-between px-4 py-2 bg-rose-500/5 border-b border-white/10">
+                          <span className="text-[10px] font-mono font-bold text-rose-400 uppercase tracking-wider">Действующий текст (с удаленными)</span>
                         </div>
-                      ) : (
-                        <div className="text-zinc-500 italic">Текст статьи не заполнен.</div>
-                      )}
+                        <div className="w-full flex-1 bg-transparent p-4 text-sm leading-relaxed min-h-[160px] whitespace-pre-wrap font-sans">
+                          {diff.wasFormatted.length > 0 ? (
+                            <>{diff.wasFormatted}</>
+                          ) : (
+                            <span className="text-zinc-500 italic">Текст статьи не заполнен.</span>
+                          )}
+                        </div>
+                      </div>
+                      {/* New (Became) */}
+                      <div className="flex flex-col">
+                        <div className="flex items-center justify-between px-4 py-2 bg-emerald-500/5 border-b border-white/10">
+                          <span className="text-[10px] font-mono font-bold text-emerald-400 uppercase tracking-wider">Новая редакция (с добавленными)</span>
+                        </div>
+                        <div className="w-full flex-1 bg-transparent p-4 text-sm leading-relaxed min-h-[160px] whitespace-pre-wrap font-sans">
+                          {diff.becameFormatted.length > 0 ? (
+                            <>{diff.becameFormatted}</>
+                          ) : (
+                            <span className="text-zinc-500 italic">Текст статьи не заполнен.</span>
+                          )}
+                        </div>
+                      </div>
                     </div>
                   )}
 

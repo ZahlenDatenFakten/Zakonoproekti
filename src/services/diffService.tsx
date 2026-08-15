@@ -18,7 +18,7 @@ export interface DiffResult {
 
 /**
  * High-precision Longest Common Subsequence (LCS) Legal Diff Engine
- * Produces clean inline additions (+ emerald highlight) and deletions (- ruby line-through)
+ * Produces clean inline additions and deletions.
  */
 export function computeWordDiff(wasText: string, becameText: string): DiffResult {
   const cleanWas = wasText || '';
@@ -88,7 +88,7 @@ export function computeWordDiff(wasText: string, becameText: string): DiffResult
       const node = (
         <span
           key={`del_${idx}`}
-          className="diff-token-removed"
+          className="text-rose-500 font-bold"
           title="Исключаемый текст (-)"
         >
           {token.value}
@@ -101,7 +101,7 @@ export function computeWordDiff(wasText: string, becameText: string): DiffResult
       const node = (
         <span
           key={`add_${idx}`}
-          className="diff-token-added"
+          className="text-emerald-500 font-bold"
           title="Вносимый текст (+)"
         >
           {token.value}
@@ -110,9 +110,9 @@ export function computeWordDiff(wasText: string, becameText: string): DiffResult
       becameFormatted.push(node);
       unifiedFormatted.push(node);
     } else {
-      const sameNodeWas = <span key={`sw_${idx}`} style={{ color: 'var(--text-primary)' }}>{token.value}</span>;
-      const sameNodeBec = <span key={`sb_${idx}`} style={{ color: 'var(--text-primary)' }}>{token.value}</span>;
-      const sameNodeUni = <span key={`su_${idx}`} style={{ color: 'var(--text-primary)' }}>{token.value}</span>;
+      const sameNodeWas = <span key={`sw_${idx}`} className="text-zinc-300">{token.value}</span>;
+      const sameNodeBec = <span key={`sb_${idx}`} className="text-zinc-300">{token.value}</span>;
+      const sameNodeUni = <span key={`su_${idx}`} className="text-zinc-300">{token.value}</span>;
       wasFormatted.push(sameNodeWas);
       becameFormatted.push(sameNodeBec);
       unifiedFormatted.push(sameNodeUni);

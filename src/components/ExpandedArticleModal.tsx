@@ -165,28 +165,37 @@ export const ExpandedArticleModal: React.FC<ExpandedArticleModalProps> = ({
 
             </div>
           ) : (
-            /* PROTOCOL UNIFIED DIFF VIEW */
-            <div className="flex-1 bg-white/[0.02] border border-white/10 rounded-2xl p-6 overflow-y-auto">
-              <div className="text-[10px] font-mono font-bold text-zinc-500 uppercase tracking-wider mb-6 pb-4 border-b border-white/10">
-                Полный сравнительный протокол изменений
+            /* PROTOCOL PARALLEL DIFF VIEW */
+            <div className="flex-1 grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-white/10 min-h-0 bg-white/[0.02] border border-white/10 rounded-2xl overflow-hidden">
+              {/* Original (Was) */}
+              <div className="flex flex-col">
+                <div className="flex items-center justify-between px-5 py-3 bg-rose-500/5 border-b border-white/10 shrink-0">
+                  <span className="text-[10px] font-mono font-bold text-rose-400 uppercase tracking-wider">
+                    Действующий текст (с удаленными)
+                  </span>
+                </div>
+                <div className="flex-1 w-full bg-transparent p-5 text-sm leading-loose whitespace-pre-wrap font-sans overflow-y-auto">
+                  {diff.wasFormatted.length > 0 ? (
+                    <>{diff.wasFormatted}</>
+                  ) : (
+                    <span className="text-zinc-600 italic">Текст статьи не заполнен.</span>
+                  )}
+                </div>
               </div>
-              <div className="text-sm leading-loose">
-                {diff.unifiedFormatted.length > 0 ? (
-                  <div className="whitespace-pre-wrap font-sans">
-                    {diff.unifiedFormatted.map((token: any, i: number) => {
-                      if (typeof token === 'string') return <span key={i} className="text-zinc-300">{token}</span>;
-                      if (token.type === 'added') {
-                        return <span key={i} className="bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded-md font-medium">{token.value}</span>;
-                      }
-                      if (token.type === 'removed') {
-                        return <span key={i} className="bg-rose-500/20 text-rose-400 px-1.5 py-0.5 rounded-md font-medium line-through">{token.value}</span>;
-                      }
-                      return null;
-                    })}
-                  </div>
-                ) : (
-                  <div className="text-zinc-600 italic">Текст статьи не заполнен.</div>
-                )}
+              {/* New (Became) */}
+              <div className="flex flex-col">
+                <div className="flex items-center justify-between px-5 py-3 bg-emerald-500/5 border-b border-white/10 shrink-0">
+                  <span className="text-[10px] font-mono font-bold text-emerald-400 uppercase tracking-wider">
+                    Новая редакция (с добавленными)
+                  </span>
+                </div>
+                <div className="flex-1 w-full bg-transparent p-5 text-sm leading-loose whitespace-pre-wrap font-sans overflow-y-auto">
+                  {diff.becameFormatted.length > 0 ? (
+                    <>{diff.becameFormatted}</>
+                  ) : (
+                    <span className="text-zinc-600 italic">Текст статьи не заполнен.</span>
+                  )}
+                </div>
               </div>
             </div>
           )}
