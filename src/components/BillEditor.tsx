@@ -653,7 +653,6 @@ export const BillEditor: React.FC<BillEditorProps> = ({
               </div>
               <div className="min-w-0">
                 <div className="text-sm font-bold text-white truncate">{bill.author}</div>
-                <div className="text-[10px] font-mono text-zinc-400 uppercase tracking-wider">{bill.authorRole || 'Инициатор'}</div>
               </div>
             </div>
 
