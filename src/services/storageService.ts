@@ -1,7 +1,7 @@
 import type { Bill, UserProfile, BillComment } from '../types/bill';
 import { INITIAL_USER } from './mockData';
 import { getStoredDbConfig, getSupabaseClient } from './supabaseClient';
-import { saveBillToFirebase, fetchBillsFromFirebase, deleteBillFromFirebase } from './firebaseClient';
+import { saveBillToFirebase, fetchBillsFromFirebase, deleteBillFromFirebase, subscribeToFirebaseBills } from './firebaseClient';
 
 const STORAGE_KEY = 'legaldraft_bills_v3_clean';
 const USER_KEY = 'legaldraft_user_v3';
@@ -106,6 +106,48 @@ export async function fetchAllBills(): Promise<Bill[]> {
 
   const merged = Array.from(billMap.values());
   return merged.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+}
+
+/**
+ * Real-time continuous live listener
+ */
+export function subscribeToAllBills(callback: (bills: Bill[]) => void): () => void {
+  const unsubscribeFb = subscribeToFirebaseBills((cloudBills) => {
+    let localBills: Bill[] = [];
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      try {
+        localBills = JSON.parse(saved);
+      } catch {
+        localBills = [];
+      }
+    }
+
+    const billMap = new Map<string, Bill>();
+
+    cloudBills.forEach((b) => {
+      if (b && b.author && !b.author.includes('Северов')) {
+        billMap.set(b.id, b);
+      }
+    });
+
+    localBills.forEach((b) => {
+      if (b && b.author && !b.author.includes('Северов')) {
+        const existing = billMap.get(b.id);
+        if (!existing || new Date(b.updatedAt).getTime() >= new Date(existing.updatedAt).getTime()) {
+          billMap.set(b.id, b);
+        }
+      }
+    });
+
+    const merged = Array.from(billMap.values()).sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
+    callback(merged);
+  });
+
+  return () => {
+    if (unsubscribeFb) unsubscribeFb();
+  };
 }
 
 export async function saveBill(bill: Bill): Promise<Bill> {

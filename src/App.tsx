@@ -6,9 +6,11 @@ import {
   saveBill, 
   deleteBill, 
   getUserProfile, 
-  saveUserProfile
+  saveUserProfile,
+  subscribeToAllBills
 } from './services/storageService';
-import { getStoredDbConfig } from './services/supabaseClient';
+import { getStoredDbConfig, saveDbConfig } from './services/supabaseClient';
+import { saveFirebaseConfig } from './services/firebaseClient';
 import { isSystemAdmin } from './services/securityService';
 import { Header } from './components/Header';
 import { Dashboard } from './components/Dashboard';
@@ -107,9 +109,47 @@ export const App: React.FC = () => {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   };
 
-  // Initial Data Fetch
+  // Initial Data Fetch & Continuous Live Realtime Auto-Sync
   useEffect(() => {
+    // 1. Check for shared DB configuration token in URL (?db_sync=...)
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      const dbSyncToken = urlParams.get('db_sync');
+      if (dbSyncToken) {
+        const decoded = JSON.parse(decodeURIComponent(escape(atob(dbSyncToken))));
+        if (decoded && decoded.type === 'firebase') {
+          saveFirebaseConfig(decoded.config);
+          addToast('success', 'База данных Firebase успешно подключена по ссылке синхронизации!');
+        } else if (decoded && decoded.type === 'supabase') {
+          saveDbConfig(decoded.config);
+          setDbConfig(decoded.config);
+          addToast('success', 'База данных Supabase успешно подключена по ссылке синхронизации!');
+        }
+        urlParams.delete('db_sync');
+        const cleanUrl = window.location.pathname + (urlParams.toString() ? '?' + urlParams.toString() : '');
+        window.history.replaceState({}, '', cleanUrl);
+      }
+    } catch (err) {
+      console.warn('DB Sync URL parse warning:', err);
+    }
+
     loadData();
+
+    // 2. Realtime continuous live listener (Firestore onSnapshot / Realtime DB)
+    const unsubscribe = subscribeToAllBills((incomingBills) => {
+      setBills(incomingBills);
+    });
+
+    // 3. Safety background polling every 4 seconds to guarantee mirror-like synchronization
+    const pollInterval = setInterval(async () => {
+      const latest = await fetchAllBills();
+      setBills(latest);
+    }, 4000);
+
+    return () => {
+      if (unsubscribe) unsubscribe();
+      clearInterval(pollInterval);
+    };
   }, []);
 
   const loadData = async () => {

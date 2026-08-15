@@ -1,6 +1,6 @@
-import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getFirestore, collection, doc, setDoc, getDocs, deleteDoc } from 'firebase/firestore';
-import { getDatabase, ref, set, get, remove } from 'firebase/database';
+import { initializeApp, getApps } from 'firebase/app';
+import { getFirestore, collection, doc, setDoc, getDocs, deleteDoc, onSnapshot, getDoc } from 'firebase/firestore';
+import { getDatabase, ref, set, get, remove, onValue } from 'firebase/database';
 import type { Bill } from '../types/bill';
 import type { StateLaw } from '../data/stateLaws';
 
@@ -18,23 +18,47 @@ export interface FirebaseConfig {
 const FIREBASE_CONFIG_KEY = 'legaldraft_firebase_config_v1';
 
 export function getStoredFirebaseConfig(): FirebaseConfig {
+  const envApiKey = (import.meta.env.VITE_FIREBASE_API_KEY || '').trim();
+  const envProjectId = (import.meta.env.VITE_FIREBASE_PROJECT_ID || '').trim();
+  const envAuthDomain = (import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || '').trim();
+  const envDbUrl = (import.meta.env.VITE_FIREBASE_DATABASE_URL || '').trim();
+  const envBucket = (import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || '').trim();
+  const envSenderId = (import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '').trim();
+  const envAppId = (import.meta.env.VITE_FIREBASE_APP_ID || '').trim();
+
   const saved = localStorage.getItem(FIREBASE_CONFIG_KEY);
   if (saved) {
     try {
-      return JSON.parse(saved);
+      const parsed = JSON.parse(saved);
+      if (parsed && typeof parsed === 'object') {
+        const apiKey = (parsed.apiKey || envApiKey).trim();
+        const projectId = (parsed.projectId || envProjectId).trim();
+        return {
+          apiKey,
+          authDomain: (parsed.authDomain || envAuthDomain).trim(),
+          projectId,
+          databaseURL: (parsed.databaseURL || envDbUrl).trim(),
+          storageBucket: (parsed.storageBucket || envBucket).trim(),
+          messagingSenderId: (parsed.messagingSenderId || envSenderId).trim(),
+          appId: (parsed.appId || envAppId).trim(),
+          isConnected: parsed.isConnected !== undefined ? parsed.isConnected : Boolean(apiKey && projectId)
+        };
+      }
     } catch {
       // ignore
     }
   }
+
+  const hasEnv = Boolean(envApiKey && envProjectId);
   return {
-    apiKey: '',
-    authDomain: '',
-    projectId: '',
-    databaseURL: '',
-    storageBucket: '',
-    messagingSenderId: '',
-    appId: '',
-    isConnected: false
+    apiKey: envApiKey,
+    authDomain: envAuthDomain,
+    projectId: envProjectId,
+    databaseURL: envDbUrl,
+    storageBucket: envBucket,
+    messagingSenderId: envSenderId,
+    appId: envAppId,
+    isConnected: hasEnv
   };
 }
 
@@ -42,27 +66,114 @@ export function saveFirebaseConfig(config: FirebaseConfig): void {
   localStorage.setItem(FIREBASE_CONFIG_KEY, JSON.stringify(config));
 }
 
-export function getFirebaseApp() {
-  const config = getStoredFirebaseConfig();
+export function getFirebaseApp(customConfig?: FirebaseConfig) {
+  const config = customConfig || getStoredFirebaseConfig();
   if (!config.isConnected || !config.apiKey || (!config.projectId && !config.databaseURL)) {
     return null;
   }
 
   try {
-    return !getApps().length
-      ? initializeApp({
-          apiKey: config.apiKey,
-          authDomain: config.authDomain,
-          projectId: config.projectId,
-          databaseURL: config.databaseURL,
-          storageBucket: config.storageBucket,
-          messagingSenderId: config.messagingSenderId,
-          appId: config.appId
-        })
-      : getApp();
+    const existingApps = getApps();
+    if (existingApps.length > 0) {
+      return existingApps[0];
+    }
+    return initializeApp({
+      apiKey: config.apiKey,
+      authDomain: config.authDomain,
+      projectId: config.projectId,
+      databaseURL: config.databaseURL,
+      storageBucket: config.storageBucket,
+      messagingSenderId: config.messagingSenderId,
+      appId: config.appId
+    });
   } catch (err) {
     console.warn('Firebase init error:', err);
     return null;
+  }
+}
+
+/**
+ * Diagnostic test tool to verify Firebase credentials, connectivity, and Read/Write rules
+ */
+export async function testFirebaseConnection(customConfig?: FirebaseConfig): Promise<{ success: boolean; message: string; details?: string }> {
+  const config = customConfig || getStoredFirebaseConfig();
+  if (!config.apiKey || (!config.projectId && !config.databaseURL)) {
+    return {
+      success: false,
+      message: 'Не заполнены обязательные поля (API Key и Project ID).',
+      details: 'Скопируйте конфигурацию из Firebase Console -> Project Settings.'
+    };
+  }
+
+  try {
+    const app = getFirebaseApp({ ...config, isConnected: true });
+    if (!app) {
+      return { success: false, message: 'Не удалось инициализировать Firebase SDK.' };
+    }
+
+    let writePassed = false;
+    let readPassed = false;
+
+    // Test Firestore
+    if (config.projectId) {
+      const firestore = getFirestore(app);
+      const testDocRef = doc(firestore, '_system_health', 'ping_' + Date.now());
+      await setDoc(testDocRef, { timestamp: new Date().toISOString(), test: true });
+      writePassed = true;
+
+      const snap = await getDoc(testDocRef);
+      if (snap.exists()) {
+        readPassed = true;
+      }
+      try {
+        await deleteDoc(testDocRef);
+      } catch {}
+    }
+
+    // Test Realtime Database if configured
+    if (config.databaseURL) {
+      const rtdb = getDatabase(app);
+      const testRef = ref(rtdb, '_system_health/ping');
+      await set(testRef, { timestamp: new Date().toISOString(), test: true });
+      writePassed = true;
+      const snap = await get(testRef);
+      if (snap.exists()) {
+        readPassed = true;
+      }
+    }
+
+    if (writePassed || readPassed) {
+      return {
+        success: true,
+        message: 'Соединение установлено! Запись и чтение работают штатно.'
+      };
+    }
+
+    return {
+      success: false,
+      message: 'База данных не ответила на проверочный запрос.'
+    };
+  } catch (err: any) {
+    const errStr = err?.message || String(err);
+    if (errStr.includes('permission-denied') || errStr.includes('Missing or insufficient permissions')) {
+      return {
+        success: false,
+        message: 'Ошибка прав доступа (Permission Denied).',
+        details: 'В консоли Firebase перейдите в Firestore Database -> вкладка Rules и установите: allow read, write: if true; (после чего нажмите Publish).'
+      };
+    }
+    if (errStr.includes('invalid-api-key') || errStr.includes('API key not valid')) {
+      return {
+        success: false,
+        message: 'Неверный API Key.',
+        details: 'Проверьте правильность строки apiKey.'
+      };
+    }
+    return {
+      success: false,
+      message: 'Ошибка при проверке соединения.',
+      details: errStr
+    };
   }
 }
 
@@ -162,6 +273,84 @@ export async function fetchBillsFromFirebase(): Promise<Bill[] | null> {
   }
 
   return null;
+}
+
+/**
+ * Realtime Live Listener for Firebase Firestore & Realtime DB
+ * Automatically notifies when any user creates, modifies, or deletes a bill
+ */
+export function subscribeToFirebaseBills(callback: (bills: Bill[]) => void): (() => void) | null {
+  const app = getFirebaseApp();
+  if (!app) return null;
+
+  const unsubscribers: Array<() => void> = [];
+
+  // 1. Firestore Realtime Snapshot
+  try {
+    const firestore = getFirestore(app);
+    if (firestore) {
+      const unsubFirestore = onSnapshot(
+        collection(firestore, 'bills'),
+        (snapshot) => {
+          const list: Bill[] = [];
+          snapshot.forEach((docSnap) => {
+            const data = docSnap.data() as Bill;
+            if (data && data.id) {
+              list.push(data);
+            }
+          });
+          if (list.length > 0) {
+            callback(list.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()));
+          }
+        },
+        (err) => {
+          console.warn('Firestore snapshot listener error:', err);
+        }
+      );
+      unsubscribers.push(unsubFirestore);
+    }
+  } catch (err) {
+    console.warn('Firestore listener setup error:', err);
+  }
+
+  // 2. Realtime DB Snapshot if configured
+  try {
+    const config = getStoredFirebaseConfig();
+    if (config.databaseURL) {
+      const rtdb = getDatabase(app);
+      if (rtdb) {
+        const billsRef = ref(rtdb, 'bills');
+        const unsubRtdb = onValue(
+          billsRef,
+          (snapshot) => {
+            if (snapshot.exists()) {
+              const val = snapshot.val();
+              const list: Bill[] = Object.values(val);
+              if (list.length > 0) {
+                callback(list.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()));
+              }
+            }
+          },
+          (err) => {
+            console.warn('RealtimeDB listener error:', err);
+          }
+        );
+        unsubscribers.push(unsubRtdb);
+      }
+    }
+  } catch (err) {
+    console.warn('RealtimeDB listener setup error:', err);
+  }
+
+  if (unsubscribers.length === 0) return null;
+
+  return () => {
+    unsubscribers.forEach((unsub) => {
+      try {
+        unsub();
+      } catch {}
+    });
+  };
 }
 
 export async function deleteBillFromFirebase(billId: string): Promise<boolean> {
