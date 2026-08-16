@@ -37,9 +37,6 @@ EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=3s --retries=3 \
   CMD wget --quiet --tries=1 --spider http://localhost:3000/ || exit 1
 
-# Run as non-root user for security
-USER node
-
 ENV PORT=3000
 
 CMD ["node", "server.js"]
