@@ -32,15 +32,14 @@ RUN touch config.json && \
     chown node:node config.json && \
     chmod 666 config.json
 
-EXPOSE 80
+EXPOSE 3000
 
 HEALTHCHECK --interval=30s --timeout=3s --retries=3 \
-  CMD wget --quiet --tries=1 --spider http://localhost/ || exit 1
+  CMD wget --quiet --tries=1 --spider http://localhost:3000/ || exit 1
 
 # Run as non-root user for security
 USER node
 
-# We use PORT 80 internally
-ENV PORT=80
+ENV PORT=3000
 
 CMD ["node", "server.js"]
