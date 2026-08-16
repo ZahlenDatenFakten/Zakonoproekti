@@ -264,7 +264,7 @@ export const App: React.FC = () => {
     setReturnView(origin);
     localStorage.setItem('legaldraft_return_view', origin);
     setSelectedBill(bill);
-    setCurrentPermission('edit');
+    setCurrentPermission('read');
     setCurrentView('editor');
     localStorage.setItem('legaldraft_active_bill_id', bill.id);
     localStorage.setItem('legaldraft_current_view', 'editor');

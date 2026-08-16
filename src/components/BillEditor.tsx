@@ -69,7 +69,7 @@ export const BillEditor: React.FC<BillEditorProps> = ({
   const isAuthor = !bill.author || bill.author.trim().toLowerCase() === currentFullName.toLowerCase() || bill.author.trim() === currentFullName || isSystemAdmin(user);
   const isAdmin = isSystemAdmin(user);
   const isOfficial = user.isOfficialVerified && (user.officialRole === 'governor' || user.officialRole === 'prosecutor' || user.officialRole === 'judge');
-  const canEdit = permission === 'edit' || isAuthor || isAdmin || (isOfficial && bill.status !== 'approved');
+  const canEdit = permission === 'edit' || isAuthor || isAdmin;
   const canDelete = isAuthor || isAdmin;
 
   // Auto-close menu on outside click
@@ -831,7 +831,7 @@ export const BillEditor: React.FC<BillEditorProps> = ({
               billId={bill.id}
               user={user}
               comments={bill.comments || []}
-              canComment={!isReadOnly}
+              canComment={!isReadOnly && (canEdit || isOfficial)}
               onAddComment={(updatedComments) => handleFieldChange('comments', updatedComments)}
             />
           </div>
