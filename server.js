@@ -154,7 +154,7 @@ if (fs.existsSync(distPath)) {
   app.use(express.static(distPath));
 
   // Catch-all route for SPA navigation
-  app.get('*', (req, res, next) => {
+  app.get('/{*path}', (req, res, next) => {
     // Exclude /api routes from catch-all
     if (req.path.startsWith('/api/')) {
       return next();
