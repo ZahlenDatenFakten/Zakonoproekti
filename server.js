@@ -49,8 +49,8 @@ app.post('/api/upload', upload.single('image'), (req, res) => {
   res.json({ success: true, url: fileUrl });
 });
 
-// Catch-all route to serve index.html for React Router / SPA
-app.get('*', (req, res) => {
+// Catch-all route to serve index.html for React Router / SPA (Express 4 & 5 compatible)
+app.use((req, res) => {
   res.sendFile(path.join(__dirname, 'dist', 'index.html'));
 });
 
