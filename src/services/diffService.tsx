@@ -20,7 +20,7 @@ export interface DiffResult {
  * High-precision Longest Common Subsequence (LCS) Legal Diff Engine
  * Produces clean inline additions and deletions.
  */
-export function computeWordDiff(wasText: string, becameText: string): DiffResult {
+export function computeWordDiff(wasText: string, becameText: string, forPrint: boolean = false): DiffResult {
   const cleanWas = wasText || '';
   const cleanBecame = becameText || '';
 
@@ -88,7 +88,8 @@ export function computeWordDiff(wasText: string, becameText: string): DiffResult
       const node = (
         <span
           key={`del_${idx}`}
-          className="text-rose-500 font-bold"
+          className={forPrint ? "font-bold" : "text-rose-500 font-bold line-through px-0.5"}
+          style={forPrint ? { backgroundColor: '#fee2e2', color: '#991b1b', textDecoration: 'line-through', padding: '0 2px', borderRadius: '2px' } : undefined}
           title="Исключаемый текст (-)"
         >
           {token.value}
@@ -101,7 +102,8 @@ export function computeWordDiff(wasText: string, becameText: string): DiffResult
       const node = (
         <span
           key={`add_${idx}`}
-          className="text-emerald-500 font-bold"
+          className={forPrint ? "font-bold" : "text-emerald-500 font-bold px-0.5"}
+          style={forPrint ? { backgroundColor: '#dcfce7', color: '#166534', padding: '0 2px', borderRadius: '2px' } : undefined}
           title="Вносимый текст (+)"
         >
           {token.value}
@@ -110,9 +112,9 @@ export function computeWordDiff(wasText: string, becameText: string): DiffResult
       becameFormatted.push(node);
       unifiedFormatted.push(node);
     } else {
-      const sameNodeWas = <span key={`sw_${idx}`} className="text-zinc-300">{token.value}</span>;
-      const sameNodeBec = <span key={`sb_${idx}`} className="text-zinc-300">{token.value}</span>;
-      const sameNodeUni = <span key={`su_${idx}`} className="text-zinc-300">{token.value}</span>;
+      const sameNodeWas = <span key={`sw_${idx}`} className={forPrint ? "" : "text-zinc-300"} style={forPrint ? { color: '#166534' } : undefined}>{token.value}</span>;
+      const sameNodeBec = <span key={`sb_${idx}`} className={forPrint ? "" : "text-zinc-300"} style={forPrint ? { color: '#166534' } : undefined}>{token.value}</span>;
+      const sameNodeUni = <span key={`su_${idx}`} className={forPrint ? "" : "text-zinc-300"} style={forPrint ? { color: '#166534' } : undefined}>{token.value}</span>;
       wasFormatted.push(sameNodeWas);
       becameFormatted.push(sameNodeBec);
       unifiedFormatted.push(sameNodeUni);

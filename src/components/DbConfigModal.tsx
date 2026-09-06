@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import type { DbConfig } from '../types/bill';
 import { saveDbConfig, resetSupabaseClient, testSupabaseConnection } from '../services/supabaseClient';
 import { getStoredFirebaseConfig, testFirebaseConnection, saveFirebaseConfigToServer } from '../services/firebaseClient';
 import type { FirebaseConfig } from '../services/firebaseClient';
 import { Database, X, Flame, ShieldAlert, CheckCircle2, AlertTriangle, Copy, Check, RefreshCw } from 'lucide-react';
 import { useDialog } from '../contexts/DialogContext';
-import { cn } from '../utils/cn';
+import { R, ft, label, mono, shadow, chip, btnAccent, btnOutline, btnDanger } from '../lib/ui';
 
 interface DbConfigModalProps {
   config: DbConfig;
@@ -48,15 +48,13 @@ export const DbConfigModal: React.FC<DbConfigModalProps> = ({ config, onUpdateCo
   const handleSaveFirebaseLocal = async () => {
     const updated = getUpdatedFirebaseConfig();
     try {
-      // Just save to localStorage
       localStorage.setItem('legaldraft_firebase_config_v1', JSON.stringify(updated));
       await alert({
         title: 'Сохранено локально',
-        message: 'Настройки применены для вашего браузера. (Чтобы применить для всех, используйте глобальное сохранение на сервере или Vercel Env Vars).',
+        message: 'Настройки применены для вашего браузера.',
         variant: 'success'
       });
       onClose();
-      // Force reload to apply new config across the app
       window.location.reload();
     } catch (err: any) {
       await alert({ title: 'Ошибка', message: err.message, variant: 'error' });
@@ -66,14 +64,13 @@ export const DbConfigModal: React.FC<DbConfigModalProps> = ({ config, onUpdateCo
   const handleSaveFirebaseServer = async () => {
     const updated = getUpdatedFirebaseConfig();
     
-    // Only prompt for token if we actually want to save to the server
     const token = await prompt({
       title: 'Авторизация Администратора',
-      message: 'Для применения этих настроек для всех пользователей требуется Admin Token сервера.\nЕсли вы его не знаете, проверьте консоль (логи docker) вашего сервера.',
+      message: 'Для применения этих настроек для всех пользователей требуется Admin Token сервера.',
       placeholder: 'Введите Admin Token'
     });
     
-    if (token === null) return; // User cancelled
+    if (token === null) return;
     
     try {
       await saveFirebaseConfigToServer(updated, token);
@@ -107,44 +104,61 @@ export const DbConfigModal: React.FC<DbConfigModalProps> = ({ config, onUpdateCo
   const handleTestFirebase = async () => {
     setIsTesting(true);
     setTestResult(null);
-    const res = await testFirebaseConnection({ ...firebaseConfig, isConnected: true });
-    setIsTesting(false);
-    setTestResult(res);
+    try {
+      const res = await testFirebaseConnection(getUpdatedFirebaseConfig());
+      setTestResult(res);
+    } catch (err: any) {
+      setTestResult({
+        success: false,
+        message: 'Ошибка при проверке Firebase: ' + err.message
+      });
+    } finally {
+      setIsTesting(false);
+    }
   };
 
   const handleTestSupabase = async () => {
     setIsTesting(true);
     setTestResult(null);
-    const res = await testSupabaseConnection({ supabaseUrl: url.trim(), supabaseAnonKey: key.trim(), isConnected: true });
-    setIsTesting(false);
-    setTestResult(res);
+    try {
+      const res = await testSupabaseConnection({
+        supabaseUrl: url.trim(),
+        supabaseAnonKey: key.trim(),
+        isConnected: true
+      });
+      setTestResult(res);
+    } catch (err: any) {
+      setTestResult({
+        success: false,
+        message: 'Ошибка при проверке Supabase: ' + err.message
+      });
+    } finally {
+      setIsTesting(false);
+    }
   };
 
   const handleCopyShareableLink = () => {
     try {
-      let payload = {};
+      let payload: any = {};
       if (activeTab === 'firebase') {
+        const updated = getUpdatedFirebaseConfig();
         payload = {
           type: 'firebase',
-          config: {
-            apiKey: firebaseConfig.apiKey.trim(),
-            projectId: firebaseConfig.projectId.trim(),
-            authDomain: (firebaseConfig.authDomain || '').trim(),
-            databaseURL: (firebaseConfig.databaseURL || '').trim(),
-            storageBucket: (firebaseConfig.storageBucket || '').trim(),
-            messagingSenderId: (firebaseConfig.messagingSenderId || '').trim(),
-            appId: (firebaseConfig.appId || '').trim(),
-            imgbbApiKey: (firebaseConfig.imgbbApiKey || '').trim(),
-            isConnected: true
+          fb: {
+            apiKey: updated.apiKey,
+            projectId: updated.projectId,
+            authDomain: updated.authDomain,
+            databaseURL: updated.databaseURL,
+            storageBucket: updated.storageBucket,
+            appId: updated.appId
           }
         };
       } else {
         payload = {
           type: 'supabase',
-          config: {
-            supabaseUrl: url.trim(),
-            supabaseAnonKey: key.trim(),
-            isConnected: true
+          sb: {
+            url: url.trim(),
+            key: key.trim()
           }
         };
       }
@@ -193,7 +207,6 @@ export const DbConfigModal: React.FC<DbConfigModalProps> = ({ config, onUpdateCo
         });
       }
     } else {
-      // Supabase is client-side only based on local storage anyway
       const emptyConfig = { supabaseUrl: '', supabaseAnonKey: '', isConnected: false };
       saveDbConfig(emptyConfig);
       resetSupabaseClient();
@@ -208,61 +221,88 @@ export const DbConfigModal: React.FC<DbConfigModalProps> = ({ config, onUpdateCo
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 9999,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 16,
+        background: 'rgba(10, 9, 8, 0.7)',
+        backdropFilter: 'blur(6px)',
+      }}
+    >
       <motion.div 
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        className="absolute inset-0 bg-black/80 backdrop-blur-sm"
-        onClick={onClose}
-      />
-      <motion.div 
-        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+        initial={{ opacity: 0, scale: 0.96, y: 15 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.95, y: 20 }}
-        className="relative w-full max-w-3xl bg-[#0C0D12] border border-white/10 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+        exit={{ opacity: 0, scale: 0.96, y: 15 }}
+        style={{
+          width: '100%',
+          maxWidth: 680,
+          maxHeight: '90vh',
+          background: R.bgPanel,
+          border: ft.strong,
+          borderRadius: 2,
+          boxShadow: shadow.panel,
+          overflow: 'hidden',
+          display: 'flex',
+          flexDirection: 'column',
+        }}
       >
-        
         {/* Header */}
-        <div className="p-5 border-b border-white/10 bg-white/[0.02] flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center">
-              <Database size={20} />
+        <div
+          style={{
+            padding: '14px 20px',
+            borderBottom: ft.hair,
+            background: R.bgElevated,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ width: 32, height: 32, display: 'grid', placeItems: 'center', background: R.accentSubtle, color: R.accent, borderRadius: 2 }}>
+              <Database size={16} />
             </div>
             <div>
-              <h3 className="text-lg font-bold text-white">Облачная База Данных</h3>
-              <p className="text-[10px] font-mono text-zinc-500 uppercase tracking-wider">
+              <h3 style={{ fontSize: 14, fontWeight: 800, color: R.text, margin: 0 }}>
+                Облачная база данных
+              </h3>
+              <div style={{ fontSize: 10.5, fontFamily: mono, color: R.textMuted, marginTop: 1, textTransform: 'uppercase' }}>
                 Автосинхронизация проектов
-              </p>
+              </div>
             </div>
           </div>
           <button 
             onClick={onClose} 
-            className="w-8 h-8 flex items-center justify-center rounded-xl bg-transparent hover:bg-white/5 text-zinc-400 hover:text-white transition-colors"
+            style={{
+              background: 'none',
+              border: 'none',
+              color: R.textMuted,
+              cursor: 'pointer',
+              display: 'grid',
+              placeItems: 'center',
+              padding: 4,
+            }}
           >
             <X size={18} />
           </button>
         </div>
 
-        <div className="p-6 overflow-y-auto custom-scrollbar">
-          
-          {/* Database Selection Tabs */}
-          <div className="flex gap-2 p-1 bg-black/60 border border-white/10 rounded-xl mb-6">
+        <div style={{ padding: 20, overflowY: 'auto' }} className="rt-scroll">
+          {/* Tabs */}
+          <div style={{ display: 'flex', gap: 6, marginBottom: 18 }}>
             <button
               onClick={() => { setActiveTab('firebase'); setTestResult(null); }}
-              className={cn(
-                "flex-1 py-2 text-sm font-bold rounded-lg transition-all",
-                activeTab === 'firebase' ? "bg-white/10 text-white shadow-sm" : "text-zinc-500 hover:text-zinc-300 hover:bg-white/5"
-              )}
+              style={chip(activeTab === 'firebase')}
             >
-              🔥 Firebase Cloud Firestore
+              🔥 Firebase Firestore
             </button>
             <button
               onClick={() => { setActiveTab('supabase'); setTestResult(null); }}
-              className={cn(
-                "flex-1 py-2 text-sm font-bold rounded-lg transition-all",
-                activeTab === 'supabase' ? "bg-white/10 text-white shadow-sm" : "text-zinc-500 hover:text-zinc-300 hover:bg-white/5"
-              )}
+              style={chip(activeTab === 'supabase')}
             >
               ⚡ Supabase PostgreSQL
             </button>
@@ -270,270 +310,190 @@ export const DbConfigModal: React.FC<DbConfigModalProps> = ({ config, onUpdateCo
 
           {/* TAB 1: Firebase Firestore */}
           {activeTab === 'firebase' && (
-            <div className="space-y-6">
-              <div className={cn(
-                "p-4 rounded-xl border flex flex-col gap-2 transition-colors",
-                firebaseConfig.isConnected ? "bg-emerald-500/10 border-emerald-500/20" : "bg-white/[0.02] border-white/10"
-              )}>
-                <div className={cn(
-                  "flex items-center gap-2 text-sm font-bold",
-                  firebaseConfig.isConnected ? "text-emerald-400" : "text-white"
-                )}>
-                  {firebaseConfig.isConnected ? <CheckCircle2 size={16} /> : <Flame size={16} className="text-amber-400" />}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div
+                style={{
+                  padding: 14,
+                  background: firebaseConfig.isConnected ? R.successSubtle : R.bgInput,
+                  border: `1px solid ${firebaseConfig.isConnected ? R.success : 'var(--rt-line)'}`,
+                  borderRadius: 2,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 4,
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 700, color: firebaseConfig.isConnected ? R.success : R.text }}>
+                  {firebaseConfig.isConnected ? <CheckCircle2 size={16} /> : <Flame size={16} color={R.warning} />}
                   {firebaseConfig.isConnected ? 'Синхронизация Firebase активна' : 'Облачное хранилище Firebase Firestore'}
                 </div>
-                <p className="text-xs font-mono text-zinc-400">
+                <div style={{ fontSize: 12, color: R.textMuted, lineHeight: 1.4 }}>
                   Законопроекты и поправки мгновенно отправляются в Firebase и зеркально отображаются у всех подключенных пользователей.
-                </p>
-              </div>
-
-              {/* Rules Guidance Alert */}
-              <div className="p-4 bg-indigo-500/10 border border-indigo-500/20 rounded-xl space-y-3">
-                <div>
-                  <p className="text-[11px] text-indigo-200/80 leading-relaxed font-medium mb-1">
-                    💡 <strong className="text-indigo-300">В Firebase Console ➔ Firestore Database ➔ Rules</strong> укажите:
-                  </p>
-                  <div className="bg-black/60 border border-white/5 rounded-lg p-2 font-mono text-[10px] text-indigo-400 whitespace-pre-wrap">
-{`rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-    match /{document=**} {
-      allow read, write: if true;
-    }
-  }
-}`}
-                  </div>
-                </div>
-                <div>
-                  <p className="text-[11px] text-indigo-200/80 leading-relaxed font-medium mb-1">
-                    💡 <strong className="text-indigo-300">В Firebase Console ➔ Storage ➔ Rules</strong> укажите (более безопасно):
-                  </p>
-                  <div className="bg-black/60 border border-white/5 rounded-lg p-2 font-mono text-[10px] text-indigo-400 whitespace-pre-wrap">
-{`rules_version = '2';
-service firebase.storage {
-  match /b/{bucket}/o {
-    match /uploads/{imageId} {
-      allow read: if true;
-      allow write: if request.resource.size < 15 * 1024 * 1024
-                   && request.resource.contentType.matches('image/.*');
-    }
-  }
-}`}
-                  </div>
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div>
-                  <label className="block text-[10px] font-bold tracking-wider uppercase text-zinc-500 mb-2">API Key (apiKey):</label>
+                  <label style={{ ...label, display: 'block', marginBottom: 4 }}>API Key (apiKey):</label>
                   <input
                     type="text"
-                    className="w-full bg-black/60 border border-white/10 rounded-xl px-4 py-2.5 text-xs font-mono text-white focus:outline-none focus:border-indigo-500/50 transition-colors placeholder-zinc-600"
                     placeholder="AIzaSy..."
                     value={firebaseConfig.apiKey}
                     onChange={(e) => setFirebaseConfigState({ ...firebaseConfig, apiKey: e.target.value })}
+                    style={{ width: '100%', height: 34, padding: '0 10px', fontSize: 12, fontFamily: mono, background: R.bgInput, border: ft.edge, color: R.text, borderRadius: 2 }}
                   />
                 </div>
 
                 <div>
-                  <label className="block text-[10px] font-bold tracking-wider uppercase text-zinc-500 mb-2">Project ID (projectId):</label>
+                  <label style={{ ...label, display: 'block', marginBottom: 4 }}>Project ID (projectId):</label>
                   <input
                     type="text"
-                    className="w-full bg-black/60 border border-white/10 rounded-xl px-4 py-2.5 text-xs font-mono text-white focus:outline-none focus:border-indigo-500/50 transition-colors placeholder-zinc-600"
                     placeholder="my-zakonoproekti-app"
                     value={firebaseConfig.projectId}
                     onChange={(e) => setFirebaseConfigState({ ...firebaseConfig, projectId: e.target.value })}
+                    style={{ width: '100%', height: 34, padding: '0 10px', fontSize: 12, fontFamily: mono, background: R.bgInput, border: ft.edge, color: R.text, borderRadius: 2 }}
                   />
                 </div>
 
                 <div>
-                  <label className="block text-[10px] font-bold tracking-wider uppercase text-zinc-500 mb-2">Realtime DB URL (необязательно):</label>
+                  <label style={{ ...label, display: 'block', marginBottom: 4 }}>Storage Bucket:</label>
                   <input
                     type="text"
-                    className="w-full bg-black/60 border border-white/10 rounded-xl px-4 py-2.5 text-xs font-mono text-white focus:outline-none focus:border-indigo-500/50 transition-colors placeholder-zinc-600"
-                    placeholder="https://app-rtdb.firebaseio.com"
-                    value={firebaseConfig.databaseURL || ''}
-                    onChange={(e) => setFirebaseConfigState({ ...firebaseConfig, databaseURL: e.target.value })}
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[10px] font-bold tracking-wider uppercase text-zinc-500 mb-2 flex items-center justify-between">
-                    <span>Storage Bucket (для фото):</span>
-                  </label>
-                  <input
-                    type="text"
-                    className="w-full bg-black/60 border border-white/10 rounded-xl px-4 py-2.5 text-xs font-mono text-white focus:outline-none focus:border-indigo-500/50 transition-colors placeholder-zinc-600"
-                    placeholder="my-project.appspot.com"
+                    placeholder="my-app.appspot.com"
                     value={firebaseConfig.storageBucket || ''}
                     onChange={(e) => setFirebaseConfigState({ ...firebaseConfig, storageBucket: e.target.value })}
+                    style={{ width: '100%', height: 34, padding: '0 10px', fontSize: 12, fontFamily: mono, background: R.bgInput, border: ft.edge, color: R.text, borderRadius: 2 }}
                   />
                 </div>
 
                 <div>
-                  <label className="block text-[10px] font-bold tracking-wider uppercase text-zinc-500 mb-2">App ID (appId, необязательно):</label>
+                  <label style={{ ...label, display: 'block', marginBottom: 4 }}>App ID:</label>
                   <input
                     type="text"
-                    className="w-full bg-black/60 border border-white/10 rounded-xl px-4 py-2.5 text-xs font-mono text-white focus:outline-none focus:border-indigo-500/50 transition-colors placeholder-zinc-600"
-                    placeholder="1:12345:web:abcde"
+                    placeholder="1:123456789:web:..."
                     value={firebaseConfig.appId || ''}
                     onChange={(e) => setFirebaseConfigState({ ...firebaseConfig, appId: e.target.value })}
-                  />
-                </div>
-
-                <div className="md:col-span-2 mt-2 pt-4 border-t border-white/5">
-                  <label className="block text-[10px] font-bold tracking-wider uppercase text-amber-500/80 mb-2">
-                    🔥 Альтернативная загрузка фото (ImgBB API Key, необязательно)
-                  </label>
-                  <p className="text-[10px] text-zinc-500 mb-3 leading-relaxed">
-                    Если в Firebase Storage требуется платный тариф (Blaze), вы можете бесплатно загружать фото через <a href="https://api.imgbb.com/" target="_blank" rel="noreferrer" className="text-indigo-400 hover:underline">ImgBB API</a>. Вставьте API ключ ниже, и он будет использоваться вместо Firebase Storage.
-                  </p>
-                  <input
-                    type="text"
-                    className="w-full bg-black/60 border border-amber-500/20 rounded-xl px-4 py-2.5 text-xs font-mono text-white focus:outline-none focus:border-amber-500/50 transition-colors placeholder-zinc-600"
-                    placeholder="Ваш ImgBB API Key (например: 7a8b9c...)"
-                    value={firebaseConfig.imgbbApiKey || ''}
-                    onChange={(e) => setFirebaseConfigState({ ...firebaseConfig, imgbbApiKey: e.target.value })}
+                    style={{ width: '100%', height: 34, padding: '0 10px', fontSize: 12, fontFamily: mono, background: R.bgInput, border: ft.edge, color: R.text, borderRadius: 2 }}
                   />
                 </div>
               </div>
             </div>
           )}
 
-          {/* TAB 2: Supabase Postgres */}
+          {/* TAB 2: Supabase */}
           {activeTab === 'supabase' && (
-            <div className="space-y-6">
-              <div className="flex flex-col gap-4">
-                <div>
-                  <label className="block text-[10px] font-bold tracking-wider uppercase text-zinc-500 mb-2">Supabase Project URL:</label>
-                  <input
-                    type="text"
-                    className="w-full bg-black/60 border border-white/10 rounded-xl px-4 py-2.5 text-xs font-mono text-white focus:outline-none focus:border-indigo-500/50 transition-colors placeholder-zinc-600"
-                    placeholder="https://xyzxyz.supabase.co"
-                    value={url}
-                    onChange={(e) => setUrl(e.target.value)}
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[10px] font-bold tracking-wider uppercase text-zinc-500 mb-2">Supabase Anon Public API Key:</label>
-                  <input
-                    type="password"
-                    className="w-full bg-black/60 border border-white/10 rounded-xl px-4 py-2.5 text-xs font-mono text-white focus:outline-none focus:border-indigo-500/50 transition-colors placeholder-zinc-600"
-                    placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6..."
-                    value={key}
-                    onChange={(e) => setKey(e.target.value)}
-                  />
-                </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div>
+                <label style={{ ...label, display: 'block', marginBottom: 6 }}>Supabase URL:</label>
+                <input
+                  type="text"
+                  placeholder="https://xyzcompany.supabase.co"
+                  value={url}
+                  onChange={(e) => setUrl(e.target.value)}
+                  style={{ width: '100%', height: 36, padding: '0 10px', fontSize: 13, fontFamily: mono, background: R.bgInput, border: ft.edge, color: R.text, borderRadius: 2 }}
+                />
               </div>
 
-              {/* RLS / Sharing Guidance */}
-              <div className="p-4 bg-indigo-500/10 border border-indigo-500/20 rounded-xl">
-                <p className="text-xs text-indigo-200/80 leading-relaxed font-medium mb-2">
-                  💡 <strong className="text-indigo-300">База данных настраивается прямо здесь, без <code>.env</code>!</strong><br />
-                  Вам не нужно создавать файлы конфигурации на вашем сервере (VPS). Просто введите ключи сюда, нажмите «Сохранить» и поделитесь ссылкой с коллегами.
-                </p>
-                <p className="text-xs text-indigo-200/80 leading-relaxed font-medium">
-                  <em>Важно:</em> В Supabase → <strong>Table Editor → bills → RLS</strong> отключите политики (или добавьте политику: <code className="bg-black/60 border border-white/5 rounded p-0.5 text-indigo-400">allow all for anon</code>), чтобы другие пользователи могли читать и писать данные.
-                </p>
+              <div>
+                <label style={{ ...label, display: 'block', marginBottom: 6 }}>Supabase Anon Key:</label>
+                <input
+                  type="password"
+                  placeholder="eyJh..."
+                  value={key}
+                  onChange={(e) => setKey(e.target.value)}
+                  style={{ width: '100%', height: 36, padding: '0 10px', fontSize: 13, fontFamily: mono, background: R.bgInput, border: ft.edge, color: R.text, borderRadius: 2 }}
+                />
               </div>
             </div>
           )}
 
-          {/* DIAGNOSTIC RESULT BOX */}
-          <AnimatePresence>
-            {testResult && (
-              <motion.div 
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                exit={{ opacity: 0, height: 0 }}
-                className={cn(
-                  "mt-6 p-4 rounded-xl border flex flex-col gap-2 overflow-hidden",
-                  testResult.success ? "bg-emerald-500/10 border-emerald-500/20" : "bg-rose-500/10 border-rose-500/20"
-                )}
-              >
-                <div className={cn(
-                  "flex items-center gap-2 text-sm font-bold",
-                  testResult.success ? "text-emerald-400" : "text-rose-400"
-                )}>
-                  {testResult.success ? <CheckCircle2 size={16} /> : <AlertTriangle size={16} />}
-                  {testResult.message}
+          {/* Test Results Display */}
+          {testResult && (
+            <div
+              style={{
+                marginTop: 14,
+                padding: 12,
+                borderRadius: 2,
+                background: testResult.success ? R.successSubtle : R.dangerSubtle,
+                border: `1px solid ${testResult.success ? R.success : R.dangerBorder}`,
+                color: testResult.success ? R.success : R.danger,
+                fontSize: 12,
+              }}
+            >
+              <div style={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>
+                {testResult.success ? <CheckCircle2 size={16} /> : <AlertTriangle size={16} />}
+                {testResult.message}
+              </div>
+              {testResult.details && (
+                <div style={{ fontSize: 11, fontFamily: mono, marginTop: 4, color: R.textSecondary }}>
+                  {testResult.details}
                 </div>
-                {testResult.details && (
-                  <div className="text-xs font-mono text-zinc-400 leading-relaxed">
-                    {testResult.details}
-                  </div>
-                )}
-              </motion.div>
-            )}
-          </AnimatePresence>
+              )}
+            </div>
+          )}
 
-          {/* ACTION BUTTONS: TEST CONNECTION & SHAREABLE LINK */}
-          <div className="flex flex-col sm:flex-row gap-3 mt-6">
+          {/* Action buttons */}
+          <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
             <button
               onClick={activeTab === 'firebase' ? handleTestFirebase : handleTestSupabase}
               disabled={isTesting}
-              className="flex-1 flex justify-center items-center gap-2 py-2.5 bg-white/[0.04] hover:bg-white/[0.08] text-white text-xs font-bold rounded-xl border border-white/10 transition-colors disabled:opacity-50"
+              style={{ ...btnOutline, flex: '1 1 0', height: 34, fontSize: 12 }}
             >
-              {isTesting ? <RefreshCw size={14} className="animate-spin" /> : <ShieldAlert size={14} />}
-              {isTesting ? 'Проверка...' : '🧪 Проверить подключение'}
+              {isTesting ? <RefreshCw size={14} className="rt-spin" /> : <ShieldAlert size={14} />}
+              {isTesting ? 'Проверка...' : 'Проверить подключение'}
             </button>
 
             <button
               onClick={handleCopyShareableLink}
-              className="flex-1 flex justify-center items-center gap-2 py-2.5 bg-white/[0.04] hover:bg-white/[0.08] text-white text-xs font-bold rounded-xl border border-white/10 transition-colors"
+              style={{ ...btnOutline, flex: '1 1 0', height: 34, fontSize: 12 }}
             >
-              {copiedLink ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
-              {copiedLink ? '✓ Ссылка скопирована!' : '🔗 Ссылка для коллег'}
+              {copiedLink ? <Check size={14} color={R.success} /> : <Copy size={14} />}
+              {copiedLink ? 'Ссылка скопирована!' : 'Ссылка для коллег'}
             </button>
           </div>
-
         </div>
 
-        <div className="p-5 border-t border-white/10 bg-white/[0.02] flex items-center justify-between gap-4">
-          <div className="flex gap-4">
+        {/* Footer */}
+        <div
+          style={{
+            padding: '12px 20px',
+            borderTop: ft.hair,
+            background: R.bgElevated,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+          }}
+        >
+          <button 
+            onClick={handleDisconnect}
+            style={{ ...btnDanger, height: 34, fontSize: 12 }}
+          >
+            Отключить базу
+          </button>
+
+          <div style={{ display: 'flex', gap: 8 }}>
             <button 
               onClick={onClose} 
-              className="px-6 py-2.5 bg-transparent hover:bg-white/5 text-zinc-400 hover:text-white text-sm font-bold rounded-xl transition-colors"
+              style={{ ...btnOutline, height: 34, fontSize: 12 }}
             >
               Отмена
             </button>
-            <button 
-              onClick={handleDisconnect}
-              className="px-6 py-2.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 text-sm font-bold rounded-xl border border-rose-500/20 transition-colors"
-            >
-              Отключить базу
-            </button>
-          </div>
-          <div className="flex gap-2">
-            {activeTab === 'firebase' ? (
-              <>
-                <button 
-                  onClick={handleSaveFirebaseLocal} 
-                  className="px-6 py-2.5 bg-zinc-800 hover:bg-zinc-700 text-white text-sm font-extrabold rounded-xl border border-white/10 active:scale-95 transition-all"
-                  title="Сохранить только для себя"
-                >
-                  Сохранить локально
-                </button>
-                <button 
-                  onClick={handleSaveFirebaseServer} 
-                  className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-extrabold rounded-xl shadow-lg shadow-indigo-500/20 border border-indigo-400/30 active:scale-95 transition-all"
-                  title="Требует Admin Token, работает только на VPS/Docker"
-                >
-                  Сохранить для всех
-                </button>
-              </>
-            ) : (
-              <button 
-                onClick={handleSaveSupabase} 
-                className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-extrabold rounded-xl shadow-lg shadow-indigo-500/20 border border-indigo-400/30 active:scale-95 transition-all"
+            {activeTab === 'firebase' && (
+              <button
+                onClick={handleSaveFirebaseServer}
+                style={{ ...btnOutline, height: 34, fontSize: 12, color: R.accent, borderColor: R.accentBorder }}
+                title="Применить конфигурацию на сервере для всех пользователей"
               >
-                Сохранить локально
+                На сервер
               </button>
             )}
+            <button 
+              onClick={activeTab === 'firebase' ? handleSaveFirebaseLocal : handleSaveSupabase} 
+              style={{ ...btnAccent, height: 34, fontSize: 12 }}
+            >
+              Сохранить
+            </button>
           </div>
         </div>
-
       </motion.div>
     </div>
   );

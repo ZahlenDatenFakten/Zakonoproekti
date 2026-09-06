@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { motion } from 'framer-motion';
 import type { Bill, AccessLink, AccessPermission } from '../types/bill';
 import { CustomSelect } from './CustomSelect';
 import { X, Copy, Check, Link as LinkIcon, Shield, Trash2, Plus } from 'lucide-react';
+import { R, ft, shadow, mono, btnAccent, btnOutline, fieldLabel } from '../lib/ui';
+import { ConfirmModal } from './ConfirmModal';
 
 interface AccessModalProps {
   bill: Bill;
@@ -14,6 +15,7 @@ export const AccessModal: React.FC<AccessModalProps> = ({ bill, onUpdateBill, on
   const [newLabel, setNewLabel] = useState('');
   const [newPermission, setNewPermission] = useState<AccessPermission>('read');
   const [copiedToken, setCopiedToken] = useState<string | null>(null);
+  const [confirmDeleteLinkId, setConfirmDeleteLinkId] = useState<string | null>(null);
 
   const handleCreateLink = () => {
     const token = 'link_' + Math.random().toString(36).substring(2, 10);
@@ -21,8 +23,8 @@ export const AccessModal: React.FC<AccessModalProps> = ({ bill, onUpdateBill, on
       id: 'st_' + Date.now(),
       token,
       permission: newPermission,
-      label: newLabel || (newPermission === 'read' ? 'Ссылка читателя' : 'Ссылка соавтора'),
-      createdAt: new Date().toISOString()
+      label: newLabel.trim() || (newPermission === 'read' ? 'Ссылка читателя' : 'Ссылка соавтора'),
+      createdAt: new Date().toISOString(),
     };
 
     const updatedTokens = [...(bill.shareTokens || []), newLink];
@@ -48,141 +50,303 @@ export const AccessModal: React.FC<AccessModalProps> = ({ bill, onUpdateBill, on
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <motion.div 
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        className="absolute inset-0 bg-black/80 backdrop-blur-sm"
-        onClick={onClose}
-      />
-      <motion.div 
-        initial={{ opacity: 0, scale: 0.95, y: 20 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.95, y: 20 }}
-        className="relative w-full max-w-2xl bg-[#0C0D12] border border-white/10 rounded-2xl shadow-2xl overflow-hidden flex flex-col"
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(20, 18, 17, 0.65)',
+        backdropFilter: 'blur(3px)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 16,
+        zIndex: 100,
+        animation: 'rtFade .12s ease',
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          width: 580,
+          maxWidth: '100%',
+          maxHeight: 'calc(100vh - 32px)',
+          display: 'flex',
+          flexDirection: 'column',
+          background: R.bgPanel,
+          border: ft.strong,
+          boxShadow: shadow.panel,
+          animation: 'rtIn .18s ease',
+        }}
       >
-        
         {/* Header */}
-        <div className="p-5 border-b border-white/10 bg-white/[0.02] flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center">
-              <Shield size={20} />
+        <header
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '14px 18px',
+            borderBottom: ft.strong,
+            background: R.bgPanel,
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div
+              style={{
+                width: 28,
+                height: 28,
+                background: R.accentSubtle,
+                border: `1px solid ${R.accentBorder}`,
+                color: R.accent,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <Shield size={16} />
             </div>
             <div>
-              <h3 className="text-lg font-bold text-white">Ссылки управления доступом</h3>
-              <p className="text-[10px] font-mono text-zinc-500 uppercase tracking-wider max-w-[300px] truncate">
+              <h3 style={{ fontSize: 16, fontWeight: 800, color: R.text }}>
+                Ссылки управления доступом
+              </h3>
+              <div
+                style={{
+                  fontSize: 11,
+                  fontFamily: mono,
+                  color: R.textMuted,
+                  maxWidth: 340,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+              >
                 {bill.targetLaw || bill.title}
-              </p>
+              </div>
             </div>
           </div>
-          <button 
-            onClick={onClose} 
-            className="w-8 h-8 flex items-center justify-center rounded-xl bg-transparent hover:bg-white/5 text-zinc-400 hover:text-white transition-colors"
+
+          <button
+            onClick={onClose}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: 28,
+              height: 28,
+              color: R.textMuted,
+              background: 'transparent',
+              border: 'none',
+              cursor: 'pointer',
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = R.bgElevated)}
+            onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
           >
-            <X size={18} />
+            <X size={16} />
           </button>
-        </div>
+        </header>
 
-        <div className="p-6">
+        {/* Content */}
+        <div className="rt-scroll" style={{ padding: 18, overflowY: 'auto', flex: 1 }}>
           {/* Generate New Link Form */}
-          <div className="bg-white/[0.02] border border-white/10 rounded-xl p-5 mb-6 shadow-lg shadow-black/20">
-            <h4 className="text-[10px] font-mono font-bold text-indigo-400 uppercase tracking-wider mb-4">
+          <div
+            style={{
+              background: R.bgSubtle,
+              border: ft.edge,
+              padding: 16,
+              marginBottom: 18,
+            }}
+          >
+            <div
+              style={{
+                fontSize: 11,
+                fontFamily: mono,
+                fontWeight: 700,
+                color: R.accent,
+                textTransform: 'uppercase',
+                letterSpacing: '0.06em',
+                marginBottom: 12,
+              }}
+            >
               Сгенерировать токен доступа
-            </h4>
+            </div>
 
-            <div className="flex flex-col gap-4 mb-5">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 14 }}>
               <div>
-                <label className="block text-[10px] font-bold tracking-wider uppercase text-zinc-400 mb-2">
-                  Наименование ключа доступа:
-                </label>
+                <label style={fieldLabel}>Наименование ключа доступа</label>
                 <input
                   type="text"
-                  className="w-full bg-black/60 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-indigo-500/50 transition-colors placeholder-zinc-600"
+                  style={{
+                    width: '100%',
+                    background: R.bgInput,
+                    border: ft.edge,
+                    padding: '8px 12px',
+                    fontSize: 13,
+                    color: R.text,
+                    outline: 'none',
+                  }}
                   placeholder="Например: Ссылка для эксперта..."
                   value={newLabel}
                   onChange={(e) => setNewLabel(e.target.value)}
+                  onFocus={(e) => (e.currentTarget.style.borderColor = R.accent)}
+                  onBlur={(e) => (e.currentTarget.style.borderColor = R.border)}
                 />
               </div>
 
               <div>
-                <label className="block text-[10px] font-bold tracking-wider uppercase text-zinc-400 mb-2">
-                  Права доступа:
-                </label>
-                {/* Fallback to custom select or just simple native select for now to avoid custom styling issues, but let's keep CustomSelect and we'll fix it if needed */}
+                <label style={fieldLabel}>Права доступа</label>
                 <CustomSelect
                   options={[
-                    { value: 'read', label: '👁️ Читатель (Просмотр + Оценка)' },
-                    { value: 'edit', label: '✏️ Соавтор (Полное редактирование)' }
+                    { value: 'read', label: 'Читатель (Просмотр и оценка)' },
+                    { value: 'edit', label: 'Соавтор (Полное редактирование)' },
                   ]}
                   value={newPermission}
                   onChange={(val) => setNewPermission(val as AccessPermission)}
-                  width="100%"
                 />
               </div>
             </div>
 
-            <button 
-              onClick={handleCreateLink} 
-              className="w-full flex items-center justify-center gap-2 py-3 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-extrabold rounded-xl shadow-lg shadow-indigo-500/20 border border-indigo-400/30 active:scale-95 transition-all"
+            <button
+              type="button"
+              onClick={handleCreateLink}
+              style={{
+                ...btnAccent,
+                width: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 8,
+              }}
             >
-              <Plus size={16} /> Выпустить токен доступа
+              <Plus size={15} /> Выпустить токен доступа
             </button>
           </div>
 
           {/* Active Links */}
-          <h4 className="text-[10px] font-mono font-bold text-zinc-500 uppercase tracking-wider mb-3">
+          <div
+            style={{
+              fontSize: 11,
+              fontFamily: mono,
+              fontWeight: 700,
+              color: R.textMuted,
+              textTransform: 'uppercase',
+              letterSpacing: '0.06em',
+              marginBottom: 10,
+            }}
+          >
             Активные токен-ссылки ({bill.shareTokens?.length || 0})
-          </h4>
+          </div>
 
-          {(!bill.shareTokens || bill.shareTokens.length === 0) ? (
-            <div className="py-10 text-center flex flex-col items-center justify-center">
-              <LinkIcon size={32} className="text-zinc-600 mb-3 opacity-50" />
-              <p className="text-xs font-mono text-zinc-500 uppercase tracking-wider">
+          {!bill.shareTokens || bill.shareTokens.length === 0 ? (
+            <div
+              style={{
+                padding: '24px 16px',
+                textAlign: 'center',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                border: ft.edge,
+                background: R.bgSubtle,
+              }}
+            >
+              <LinkIcon size={24} style={{ color: R.textMuted, marginBottom: 8, opacity: 0.5 }} />
+              <span style={{ fontSize: 12, fontFamily: mono, color: R.textMuted }}>
                 Активных токенов не найдено
-              </p>
+              </span>
             </div>
           ) : (
-            <div className="flex flex-col gap-3 max-h-[240px] overflow-y-auto pr-2 custom-scrollbar">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 220, overflowY: 'auto' }} className="rt-scroll">
               {bill.shareTokens.map((link) => {
                 const fullUrl = getFullShareUrl(link.token, link.permission);
                 const isCopied = copiedToken === link.token;
 
                 return (
-                  <div key={link.id} className="bg-black/40 border border-white/10 rounded-xl p-4">
-                    <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
-                      <div className="flex items-center gap-2 font-bold text-sm text-white">
-                        <LinkIcon size={14} className="text-indigo-400" />
-                        {link.label}
+                  <div
+                    key={link.id}
+                    style={{
+                      background: R.bgInput,
+                      border: ft.edge,
+                      padding: '10px 12px',
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        marginBottom: 8,
+                        gap: 8,
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700, color: R.text }}>
+                        <LinkIcon size={13} style={{ color: R.accent }} />
+                        <span>{link.label}</span>
                       </div>
 
-                      <span className="px-2.5 py-1 rounded-full bg-white/[0.04] border border-white/10 text-[10px] font-mono font-bold text-indigo-300 uppercase tracking-wider">
-                        {link.permission === 'edit' ? '✏️ Редактор' : '👁️ Читатель'}
+                      <span
+                        style={{
+                          fontSize: 11,
+                          fontFamily: mono,
+                          color: link.permission === 'edit' ? R.accent : R.textMuted,
+                          background: R.bgElevated,
+                          padding: '2px 8px',
+                          border: ft.edge,
+                        }}
+                      >
+                        {link.permission === 'edit' ? 'Редактор' : 'Читатель'}
                       </span>
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                       <input
                         type="text"
                         readOnly
                         value={fullUrl}
-                        className="flex-1 min-w-0 bg-white/[0.02] border border-white/10 rounded-xl px-3 py-2 text-xs font-mono text-zinc-400 focus:outline-none"
+                        style={{
+                          flex: 1,
+                          minWidth: 0,
+                          background: R.bgSubtle,
+                          border: ft.edge,
+                          padding: '6px 8px',
+                          fontSize: 11,
+                          fontFamily: mono,
+                          color: R.textMuted,
+                          outline: 'none',
+                        }}
                       />
 
                       <button
+                        type="button"
                         onClick={() => handleCopy(fullUrl, link.token)}
-                        className="flex items-center gap-1.5 px-3 py-2 bg-white/[0.04] hover:bg-white/[0.08] text-zinc-300 text-xs font-bold rounded-xl border border-white/10 transition-colors"
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 6,
+                          padding: '6px 10px',
+                          background: R.bgElevated,
+                          color: isCopied ? '#34d399' : R.text,
+                          border: ft.edge,
+                          fontSize: 12,
+                          cursor: 'pointer',
+                        }}
                       >
-                        {isCopied ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
-                        <span>{isCopied ? 'Скоп.' : 'Копия'}</span>
+                        {isCopied ? <Check size={13} /> : <Copy size={13} />}
+                        <span>{isCopied ? 'Скопировано' : 'Копия'}</span>
                       </button>
 
                       <button
-                        onClick={() => handleDeleteLink(link.id)}
-                        className="p-2 bg-transparent hover:bg-rose-500/10 text-rose-500 rounded-xl border border-transparent hover:border-rose-500/20 transition-colors"
-                        title="Отозвать токен"
+                        type="button"
+                        onClick={() => setConfirmDeleteLinkId(link.id)}
+                        data-tooltip="Отозвать ссылку доступа"
+                        style={{
+                          padding: '6px 8px',
+                          background: 'transparent',
+                          color: '#f87171',
+                          border: ft.edge,
+                          cursor: 'pointer',
+                        }}
                       >
-                        <Trash2 size={16} />
+                        <Trash2 size={14} />
                       </button>
                     </div>
                   </div>
@@ -192,16 +356,34 @@ export const AccessModal: React.FC<AccessModalProps> = ({ bill, onUpdateBill, on
           )}
         </div>
 
-        <div className="p-5 border-t border-white/10 bg-white/[0.02] flex justify-end">
-          <button 
-            onClick={onClose} 
-            className="px-6 py-2.5 bg-white/[0.04] hover:bg-white/[0.08] text-white text-sm font-bold rounded-xl border border-white/10 transition-colors"
-          >
+        {/* Footer */}
+        <footer
+          style={{
+            padding: '12px 18px',
+            borderTop: ft.strong,
+            background: R.bgPanel,
+            display: 'flex',
+            justifyContent: 'flex-end',
+          }}
+        >
+          <button type="button" onClick={onClose} style={btnOutline}>
             Закрыть
           </button>
-        </div>
+        </footer>
+      </div>
 
-      </motion.div>
+      {confirmDeleteLinkId && (
+        <ConfirmModal
+          title="Отозвать ссылку доступа?"
+          message="Пользователи, использующие данную ссылку или токен, мгновенно потеряют доступ к законопроекту."
+          confirmLabel="Отозвать"
+          onConfirm={() => {
+            handleDeleteLink(confirmDeleteLinkId);
+            setConfirmDeleteLinkId(null);
+          }}
+          onCancel={() => setConfirmDeleteLinkId(null)}
+        />
+      )}
     </div>
   );
 };

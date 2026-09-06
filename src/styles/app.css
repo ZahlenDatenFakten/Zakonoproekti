@@ -1,0 +1,234 @@
+/*
+ * Application-level styles
+ */
+
+.rt-app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+/* ---------- top bar ---------- */
+
+.rt-topbar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 0 16px;
+  height: 52px;
+  background: var(--rt-panel);
+  border-bottom: 1px solid var(--rt-line);
+  flex: 0 0 auto;
+}
+
+.rt-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 800;
+  letter-spacing: -0.015em;
+  font-size: 15px;
+  color: var(--rt-fg);
+  text-decoration: none;
+}
+
+.rt-brand span {
+  color: var(--rt-acc);
+}
+
+.rt-brand:hover {
+  color: var(--rt-fg);
+}
+
+.rt-spacer {
+  flex: 1 1 auto;
+}
+
+/* ---------- toolbar ---------- */
+
+.rt-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: var(--rt-bg);
+  border-bottom: 1px solid var(--rt-line);
+  overflow-x: auto;
+  flex: 0 0 auto;
+}
+
+.rt-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px;
+  font-size: 13px;
+  font-weight: 700;
+  border: 1px solid var(--rt-line);
+  background: var(--rt-input);
+  color: var(--rt-fg-2);
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+  cursor: pointer;
+  border-radius: 2px;
+}
+
+.rt-btn:hover:not(:disabled) {
+  border-color: var(--rt-line-strong);
+  color: var(--rt-fg);
+  background: var(--rt-elev);
+}
+
+.rt-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.rt-btn--acc {
+  background: var(--rt-acc);
+  border-color: var(--rt-acc);
+  color: var(--rt-on-acc);
+  font-weight: 800;
+}
+
+.rt-btn--acc:hover:not(:disabled) {
+  background: var(--rt-acc-hover);
+  border-color: var(--rt-acc-hover);
+  color: var(--rt-on-acc);
+}
+
+.rt-btn--danger {
+  color: var(--rt-danger);
+  border-color: var(--rt-danger-line);
+  background: var(--rt-danger-soft);
+}
+
+.rt-btn--danger:hover:not(:disabled) {
+  background: var(--rt-danger);
+  color: #ffffff;
+}
+
+.rt-input {
+  height: 34px;
+  padding: 0 10px;
+  font-size: 13px;
+  background: var(--rt-input);
+  border: 1px solid var(--rt-line);
+  color: var(--rt-fg);
+  border-radius: 2px;
+  transition: border-color 0.12s;
+}
+
+.rt-input:focus {
+  border-color: var(--rt-acc);
+  outline: none;
+}
+
+.rt-count {
+  font-size: 12px;
+  color: var(--rt-mut);
+  white-space: nowrap;
+  font-family: var(--font-mono, monospace);
+}
+
+/* ---------- toast ---------- */
+
+.rt-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  z-index: 100;
+  padding: 10px 16px;
+  font-size: 13px;
+  font-weight: 700;
+  border: 1px solid var(--rt-line-strong);
+  background: var(--rt-elev);
+  color: var(--rt-fg);
+  box-shadow: 0 12px 32px rgba(20, 18, 17, 0.28);
+  animation: rtToastIn 0.22s ease both;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-radius: 2px;
+}
+
+.rt-toast--out {
+  animation: rtToastOut 0.22s ease both;
+}
+
+.rt-toast--err {
+  background: var(--rt-danger-soft);
+  border-color: var(--rt-danger-line);
+  color: var(--rt-danger);
+}
+
+.rt-toast--ok {
+  background: var(--rt-success-soft);
+  border-color: var(--rt-success);
+  color: var(--rt-success);
+}
+
+/* ---------- modal dialogs ---------- */
+
+.rt-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(10, 9, 8, 0.7);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  animation: rtFade 0.12s ease both;
+}
+
+.rt-dialog {
+  width: min(720px, 100%);
+  max-height: 88vh;
+  overflow-y: auto;
+  background: var(--rt-panel);
+  border: 1px solid var(--rt-line);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.4);
+  animation: rtIn 0.16s ease both;
+  border-radius: 2px;
+}
+
+.rt-dialog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--rt-line);
+  background: var(--rt-elev);
+}
+
+.rt-dialog-body {
+  padding: 20px;
+}
+
+.rt-dialog-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 14px 20px;
+  border-top: 1px solid var(--rt-line);
+  background: var(--rt-panel);
+}
+
+/* ---------- status bar ---------- */
+
+.rt-statusbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 28px;
+  padding: 0 16px;
+  flex: 0 0 auto;
+  background: var(--rt-panel);
+  border-top: 1px solid var(--rt-line);
+  font-size: 12px;
+  color: var(--rt-mut);
+}

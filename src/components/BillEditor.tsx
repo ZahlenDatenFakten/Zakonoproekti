@@ -4,32 +4,35 @@ import type { Bill, ComparisonRow, AccessPermission, UserProfile, BillStatus, Vo
 import { CommentsSection } from './CommentsSection';
 import { ExpandedArticleModal } from './ExpandedArticleModal';
 import { ImageUploader } from './ImageUploader';
+import { ConfirmModal } from './ConfirmModal';
 import { isSystemAdmin } from '../services/securityService';
 import { computeWordDiff } from '../services/diffService';
+import { BillPrintView } from './BillPrintView';
+// @ts-ignore
+import html2pdf from 'html2pdf.js';
 import { 
   ArrowLeft, 
-  Share2, 
+  Share2, Download, 
   Plus, 
   Trash2, 
   CheckCircle2, 
-  RotateCcw,
   Maximize2,
   Send,
   MessageSquare,
   ShieldCheck,
   Check,
-  X,
   Copy,
   UserCheck,
   Crown,
   FileText,
-  Sparkles,
   MoreVertical,
   Edit3,
   Columns,
-  Image as ImageIcon
+  Image as ImageIcon,
+  AlertTriangle
 } from 'lucide-react';
-import { cn } from '../utils/cn';
+import { R, ft, label, mono, btnAccent, btnOutline, btnDanger } from '../lib/ui';
+import { Popover, MenuItem } from './Primitives';
 
 interface BillEditorProps {
   bill: Bill;
@@ -62,6 +65,8 @@ export const BillEditor: React.FC<BillEditorProps> = ({
 
   // Admin verdict form state
   const [adminVerdictReason, setAdminVerdictReason] = useState('');
+  const [isEditingAdminVerdict, setIsEditingAdminVerdict] = useState(false);
+  const [confirmDeleteArticleId, setConfirmDeleteArticleId] = useState<string | null>(null);
 
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -164,6 +169,35 @@ export const BillEditor: React.FC<BillEditorProps> = ({
     onToast('success', 'Законопроект передан на рассмотрение Комиссии');
   };
 
+  const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
+  const handleDownloadPDF = async () => {
+    const element = document.getElementById('pdf-content-container');
+    if (!element) return;
+    
+    setIsDownloadingPdf(true);
+    onToast('info', 'Генерация PDF начата, пожалуйста, подождите...');
+    
+    const decreeStamp = bill.id ? `SA-${bill.id.replace(/\D/g, '').slice(-4) || '0042'}` : 'Draft';
+    
+    const opt = {
+      margin:       0,
+      filename:     `Bill_${decreeStamp}.pdf`,
+      image:        { type: 'jpeg' as const, quality: 0.98 },
+      html2canvas:  { scale: 2, useCORS: true, logging: false },
+      jsPDF:        { unit: 'in', format: 'a4', orientation: 'portrait' as const }
+    };
+
+    try {
+      await html2pdf().set(opt).from(element).save();
+      onToast('success', 'PDF успешно скачан!');
+    } catch (error) {
+      console.error('PDF Generation Error:', error);
+      onToast('error', 'Не удалось сгенерировать PDF.');
+    } finally {
+      setIsDownloadingPdf(false);
+    }
+  };
+
   const votes = bill.votes || {};
   const approvedVotesCount = [votes.prosecutor, votes.judge, votes.governor].filter((v) => v === 'approved').length;
   const rejectedVotesCount = [votes.prosecutor, votes.judge, votes.governor].filter((v) => v === 'rejected').length;
@@ -186,79 +220,80 @@ export const BillEditor: React.FC<BillEditorProps> = ({
     const voteRole = role === 'admin' ? 'governor' : role;
     const updatedVotes = { ...votes, [voteRole]: decision };
 
-    const newApproveCount = [updatedVotes.prosecutor, updatedVotes.judge, updatedVotes.governor].filter((v) => v === 'approved').length;
-    const newRejectCount = [updatedVotes.prosecutor, updatedVotes.judge, updatedVotes.governor].filter((v) => v === 'rejected').length;
-    const newRevisionCount = [updatedVotes.prosecutor, updatedVotes.judge, updatedVotes.governor].filter((v) => v === 'needs_revision').length;
-
     let newStatus = bill.status;
-    let statusReason = bill.statusReason || '';
+    let newStatusReason = bill.statusReason;
 
-    if (newApproveCount >= 2) {
+    const newApproved = [updatedVotes.prosecutor, updatedVotes.judge, updatedVotes.governor].filter((v) => v === 'approved').length;
+    const newRejected = [updatedVotes.prosecutor, updatedVotes.judge, updatedVotes.governor].filter((v) => v === 'rejected').length;
+
+    if (newApproved >= 2) {
       newStatus = 'under_review';
-      statusReason = `Одобрен Законодательной Комиссией (${newApproveCount}/3). Ожидает решения Администрации.`;
-    } else if (newRejectCount >= 2) {
+      newStatusReason = 'Одобрен Законодательной Комиссией. Ожидает решения Федерального Правительства.';
+    } else if (newRejected >= 2) {
       newStatus = 'rejected';
-      statusReason = `Отклонен Законодательной Комиссией (${newRejectCount}/3).`;
-    } else if (newRevisionCount >= 2) {
-      newStatus = 'needs_revision';
-      statusReason = `Отправлен на доработку Законодательной Комиссией.`;
-    } else {
-      newStatus = 'under_review';
-      statusReason = `На рассмотрении Законодательной Комиссии.`;
+      newStatusReason = 'Отклонен большинством голосов Законодательной Комиссии.';
     }
 
-    const updatedBill: Bill = {
+    const updated: Bill = {
       ...bill,
       votes: updatedVotes,
       status: newStatus,
-      statusReason
+      statusReason: newStatusReason,
+      updatedAt: new Date().toISOString()
     };
 
-    setBill(updatedBill);
-    await onSave(updatedBill);
-    onToast('success', `Ваш голос записан в реестр`);
+    setBill(updated);
+    await onSave(updated);
+    onToast('success', `Ваш голос (${decision === 'approved' ? 'ЗА' : decision === 'rejected' ? 'ПРОТИВ' : 'НА ДОРАБОТКУ'}) учтен`);
   };
 
-  const handleExecuteAdminVerdict = async (decision: VoteDecision) => {
+  const handleExecuteAdminVerdict = async (decision: 'approved' | 'rejected' | 'needs_revision') => {
     if (!isAdmin) {
-      onToast('error', 'Только Системный Администратор выносит вердикт 2-го этапа.');
+      onToast('error', 'Только Федеральное Правительство может выносить окончательный вердикт.');
       return;
     }
 
-    if ((decision === 'rejected' || decision === 'needs_revision') && !adminVerdictReason.trim()) {
-      onToast('error', 'Укажите обоснование вердикта.');
+    const trimmedReason = adminVerdictReason.trim();
+    if ((decision === 'rejected' || decision === 'needs_revision') && !trimmedReason) {
+      onToast('error', 'Пожалуйста, укажите причину вердикта для автора и Законодательной Комиссии.');
       return;
     }
 
-    const note = adminVerdictReason.trim() || 'Официально утверждено Федеральным Правительством.';
+    const defaultReason = decision === 'approved'
+      ? 'Законопроект проверен, утвержден Федеральным Правительством и готов к внесению.'
+      : decision === 'needs_revision'
+      ? 'Законопроект отправлен на доработку. Ознакомьтесь с замечаниями.'
+      : 'Законопроект отклонен Федеральным Правительством.';
 
     const verdict: FederalGovernmentVerdict = {
       status: decision,
-      reason: note,
+      reason: trimmedReason || defaultReason,
       updatedAt: new Date().toISOString(),
-      adminName: `${user.firstName} ${user.lastName}`
+      adminName: `${user.firstName} ${user.lastName}`.trim() || 'Федеральное Правительство'
     };
 
     let officialStatusReason = '';
     if (decision === 'approved') {
-      officialStatusReason = 'Утвержден Федеральным Правительством и вступил в силу.';
+      officialStatusReason = 'Утвержден Федеральным Правительством. Ожидает внесения в реестр.';
     } else if (decision === 'rejected') {
-      officialStatusReason = 'Отклонен Федеральным Правительством на 2-м этапе.';
+      officialStatusReason = `Отклонен Федеральным Правительством: ${verdict.reason}`;
     } else {
-      officialStatusReason = 'Отправлен на доработку Федеральным Правительством.';
+      officialStatusReason = `Отправлен на доработку: ${verdict.reason}`;
     }
 
     const updated: Bill = {
       ...bill,
       status: decision,
       statusReason: officialStatusReason,
-      federalVerdict: verdict
+      federalVerdict: verdict,
+      updatedAt: new Date().toISOString()
     };
 
     setBill(updated);
     await onSave(updated);
     setAdminVerdictReason('');
-    onToast('success', `Вердикт вынесен: ${decision === 'approved' ? 'Утверждено' : decision === 'rejected' ? 'Отклонено' : 'На доработку'}`);
+    setIsEditingAdminVerdict(false);
+    onToast('success', `Вердикт вынесен: ${decision === 'approved' ? 'Утверждено' : decision === 'rejected' ? 'Отклонено' : 'Направлено на доработку'}`);
   };
 
   const handleEnactLaws = async () => {
@@ -277,33 +312,103 @@ export const BillEditor: React.FC<BillEditorProps> = ({
     switch (status) {
       case 'approved':
         return (
-          <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-[10px] font-extrabold uppercase tracking-wider text-emerald-400">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]" /> Вступил в силу
+          <span
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 5,
+              padding: '3px 8px',
+              fontSize: 11,
+              fontWeight: 700,
+              background: R.successSubtle,
+              color: R.success,
+              border: `1px solid ${R.success}`,
+              borderRadius: 2,
+            }}
+          >
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: R.success }} />
+            Вступил в силу
           </span>
         );
       case 'rejected':
         return (
-          <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-rose-500/10 border border-rose-500/20 text-[10px] font-extrabold uppercase tracking-wider text-rose-400">
-            <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.8)]" /> Отклонен
+          <span
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 5,
+              padding: '3px 8px',
+              fontSize: 11,
+              fontWeight: 700,
+              background: R.dangerSubtle,
+              color: R.danger,
+              border: `1px solid ${R.dangerBorder}`,
+              borderRadius: 2,
+            }}
+          >
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: R.danger }} />
+            Отклонен
           </span>
         );
       case 'needs_revision':
         return (
-          <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-[10px] font-extrabold uppercase tracking-wider text-amber-400">
-            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.8)] animate-pulse" /> Доработка
+          <span
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 5,
+              padding: '3px 8px',
+              fontSize: 11,
+              fontWeight: 700,
+              background: R.accentSubtle,
+              color: R.accentText,
+              border: `1px solid ${R.accentBorder}`,
+              borderRadius: 2,
+            }}
+          >
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: R.accent }} />
+            Доработка
           </span>
         );
       case 'under_review':
         return (
-          <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-[10px] font-extrabold uppercase tracking-wider text-blue-400">
-            <span className="w-1.5 h-1.5 rounded-full bg-blue-400 shadow-[0_0_8px_rgba(96,165,250,0.8)] animate-pulse" /> {isStage1Passed ? '2-й этап (Администрация)' : '1-й этап (Комиссия)'}
+          <span
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 5,
+              padding: '3px 8px',
+              fontSize: 11,
+              fontWeight: 700,
+              background: R.warningSubtle,
+              color: R.warning,
+              border: `1px solid ${R.warning}`,
+              borderRadius: 2,
+            }}
+          >
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: R.warning }} />
+            {isStage1Passed ? '2-й этап (Администрация)' : '1-й этап (Комиссия)'}
           </span>
         );
       case 'draft':
       default:
         return (
-          <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-zinc-500/10 border border-zinc-500/20 text-[10px] font-extrabold uppercase tracking-wider text-zinc-400">
-            <span className="w-1.5 h-1.5 rounded-full bg-zinc-500" /> Черновик
+          <span
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 5,
+              padding: '3px 8px',
+              fontSize: 11,
+              fontWeight: 600,
+              background: R.bgElevated,
+              color: R.textMuted,
+              border: ft.edge,
+              borderRadius: 2,
+            }}
+          >
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: R.textMuted }} />
+            Черновик
           </span>
         );
     }
@@ -311,328 +416,763 @@ export const BillEditor: React.FC<BillEditorProps> = ({
 
   const formatDecreeNumber = (id: string) => {
     const numericId = id.replace(/\D/g, '').slice(-4) || '0042';
-    return `АКТ № SA-${numericId}`;
+    return `SA-${numericId}`;
   };
 
   const isReadOnly = bill.status === 'approved' || bill.status === 'rejected';
 
-  // Animation Variants
-  const fadeUp = {
-    hidden: { opacity: 0, y: 15 },
-    show: { opacity: 1, y: 0, transition: { type: "spring" as const, stiffness: 300, damping: 30 } }
-  };
-
   return (
-    <div className="flex flex-col min-h-screen bg-transparent">
+    <div style={{ maxWidth: 1180, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 20 }}>
       
-      {/* ZEN TOP BAR */}
-      <div className="sticky top-0 z-40 h-16 bg-[#090B10]/80 backdrop-blur-xl border-b border-white/10 flex items-center justify-between px-6 -mt-8 -mx-8 mb-8 shadow-xl">
+      {/* Sticky Top Bar */}
+      <div
+        style={{
+          position: 'sticky',
+          top: 0,
+          zIndex: 30,
+          height: 54,
+          background: R.bgPanel,
+          borderBottom: ft.edge,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '0 16px',
+          margin: '-32px -32px 12px -32px',
+          boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
+        }}
+      >
         {/* Left: Back + Identity + Status */}
-        <div className="flex items-center gap-4 min-w-0">
-          <button 
-            onClick={onBack} 
-            className="flex items-center gap-2 px-3 py-1.5 rounded-xl hover:bg-white/5 text-sm font-medium text-zinc-300 transition-colors"
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
+          <button
+            onClick={onBack}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              height: 32,
+              padding: '0 10px',
+              fontSize: 13,
+              fontWeight: 700,
+              color: R.text,
+              background: R.bgInput,
+              border: ft.edge,
+              borderRadius: 2,
+              cursor: 'pointer',
+            }}
           >
-            <ArrowLeft size={16} /> {returnView === 'admin_workspace' ? 'Администрация' : 'Реестр'}
+            <ArrowLeft size={14} />
+            <span>{returnView === 'admin_workspace' ? 'Администрация' : 'Реестр'}</span>
           </button>
           
-          <div className="w-px h-5 bg-white/10" />
+          <div style={{ width: 1, height: 20, background: R.border }} />
 
-          <span className="px-2 py-0.5 rounded-md bg-indigo-500/10 border border-indigo-500/20 text-[11px] font-mono font-bold text-indigo-300 uppercase tracking-wider shrink-0">
+          <span
+            style={{
+              fontFamily: mono,
+              fontSize: 11,
+              fontWeight: 700,
+              padding: '2px 6px',
+              background: R.bgInput,
+              border: ft.hair,
+              color: R.textMuted,
+              borderRadius: 2,
+            }}
+          >
             {formatDecreeNumber(bill.id)}
           </span>
 
-          <h2 className="text-sm font-bold text-white truncate max-w-sm">
+          <h2
+            style={{
+              fontSize: 14,
+              fontWeight: 800,
+              color: R.text,
+              margin: 0,
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              maxWidth: 320,
+            }}
+          >
             {bill.targetLaw || 'Новый законопроект'}
           </h2>
 
-          <div className="hidden sm:block">
+          <div style={{ display: 'flex', alignItems: 'center' }}>
             {getStatusBadge(bill.status)}
           </div>
         </div>
 
         {/* Right: Actions */}
-        <div className="flex items-center gap-3 shrink-0">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
           <AnimatePresence>
             {isSavedNotice && (
-              <motion.span 
+              <motion.span
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.9 }}
-                className="flex items-center gap-1.5 text-xs font-mono text-zinc-400 mr-2"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 4,
+                  fontSize: 11,
+                  fontFamily: mono,
+                  color: R.success,
+                  marginRight: 6,
+                }}
               >
-                <Check size={14} className="text-emerald-400" /> Сохранено
+                <Check size={12} /> Сохранено
               </motion.span>
             )}
           </AnimatePresence>
 
           {bill.status === 'draft' && canEdit && (
-            <button 
-              onClick={handlePublish} 
-              className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-extrabold rounded-xl shadow-lg shadow-indigo-500/20 border border-indigo-400/30 active:scale-95 transition-all"
+            <button
+              onClick={handlePublish}
+              style={{ ...btnAccent, height: 32, fontSize: 12 }}
             >
-              <Send size={14} /> Опубликовать
+              <Send size={13} /> Опубликовать
             </button>
           )}
 
           {isAdmin && bill.status === 'under_review' && (
-            <button 
-              onClick={() => handleExecuteAdminVerdict('approved')} 
-              className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-extrabold rounded-xl shadow-lg shadow-emerald-500/20 border border-emerald-400/30 active:scale-95 transition-all"
+            <button
+              onClick={() => handleExecuteAdminVerdict('approved')}
+              style={{ ...btnAccent, height: 32, fontSize: 12 }}
             >
-              <CheckCircle2 size={14} /> Одобрить вердикт
+              <CheckCircle2 size={13} /> Одобрить вердикт
             </button>
           )}
 
           {bill.status === 'approved' && !bill.statusReason?.includes('внесены в законодательную базу') && (
-            <button 
-              onClick={handleEnactLaws} 
-              className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-extrabold rounded-xl shadow-lg shadow-indigo-500/20 border border-indigo-400/30 active:scale-95 transition-all"
+            <button
+              onClick={handleEnactLaws}
+              style={{ ...btnAccent, height: 32, fontSize: 12 }}
             >
-              <FileText size={14} /> Внести в законы
+              <FileText size={13} /> Внести в законы
             </button>
           )}
 
           {canDelete && (
-            <button 
-              onClick={() => { if (onDelete) onDelete(bill.id); }} 
-              className="flex items-center gap-2 px-4 py-2 bg-transparent hover:bg-rose-500/10 text-rose-400 text-sm font-bold rounded-xl border border-rose-500/30 transition-colors"
+            <button
+              onClick={() => { if (onDelete) onDelete(bill.id); }}
+              style={{ ...btnDanger, height: 32, fontSize: 12 }}
             >
-              <Trash2 size={14} /> Удалить
+              <Trash2 size={13} /> Удалить
             </button>
           )}
 
-          <div ref={menuRef} className="relative">
-            <button 
+          <div ref={menuRef} style={{ position: 'relative' }}>
+            <button
               onClick={() => setShowMoreMenu((prev) => !prev)}
-              className="w-9 h-9 flex items-center justify-center rounded-xl bg-white/[0.04] hover:bg-white/[0.08] text-zinc-300 border border-white/10 transition-colors"
+              style={{
+                width: 32,
+                height: 32,
+                display: 'grid',
+                placeItems: 'center',
+                background: R.bgInput,
+                border: ft.edge,
+                borderRadius: 2,
+                color: R.text,
+                cursor: 'pointer',
+              }}
             >
-              <MoreVertical size={16} />
+              <MoreVertical size={15} />
             </button>
 
             <AnimatePresence>
               {showMoreMenu && (
-                <motion.div 
-                  initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                  className="absolute right-0 top-full mt-2 w-48 bg-[#0C0D12] border border-white/10 rounded-2xl shadow-2xl p-1 z-50 overflow-hidden"
+                <Popover
+                  style={{
+                    position: 'absolute',
+                    top: 'calc(100% + 4px)',
+                    right: 0,
+                    width: 220,
+                    zIndex: 50,
+                  }}
                 >
-                  <button 
+                  <MenuItem
+                    icon={Download}
+                    label={isDownloadingPdf ? "Скачивание..." : "Скачать в PDF"}
+                    onClick={() => {
+                      setShowMoreMenu(false);
+                      handleDownloadPDF();
+                    }}
+                  />
+                  <MenuItem
+                    icon={Share2}
+                    label="Поделиться ссылкой"
                     onClick={() => {
                       setShowMoreMenu(false);
                       onShare(bill);
                     }}
-                    className="w-full flex items-center gap-3 px-3 py-2 text-sm font-medium text-zinc-300 hover:text-white hover:bg-white/5 rounded-xl transition-colors"
-                  >
-                    <Share2 size={16} /> Ссылка доступа
-                  </button>
-                </motion.div>
+                  />
+                  {bill.forumUrl && (
+                    <MenuItem
+                      icon={Share2}
+                      label="Тема на форуме"
+                      onClick={() => {
+                        setShowMoreMenu(false);
+                        window.open(bill.forumUrl, '_blank');
+                      }}
+                    />
+                  )}
+                </Popover>
               )}
             </AnimatePresence>
           </div>
         </div>
       </div>
 
-      {/* MAIN WORKSPACE LAYOUT */}
-      <div className="grid grid-cols-1 xl:grid-cols-[1fr_340px] gap-6 max-w-[1400px] mx-auto w-full pb-20">
+      {/* IN-UI SECTION ROLL NAVIGATION (Быстрый скролл по разделам акта) */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6,
+          marginBottom: 16,
+          padding: '8px 12px',
+          background: R.bgPanel,
+          border: ft.edge,
+          borderRadius: 2,
+          overflowX: 'auto',
+          flexWrap: 'wrap',
+        }}
+      >
+        <span style={{ fontSize: 10.5, fontFamily: mono, color: R.textMuted, textTransform: 'uppercase', marginRight: 4, letterSpacing: '0.04em' }}>
+          Навигация:
+        </span>
+        <button
+          type="button"
+          onClick={() => document.getElementById('section-target-law')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+          style={{ ...btnOutline, height: 26, fontSize: 11, padding: '0 8px' }}
+        >
+          Нормативный акт
+        </button>
+        <button
+          type="button"
+          onClick={() => document.getElementById('section-articles')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+          style={{ ...btnOutline, height: 26, fontSize: 11, padding: '0 8px' }}
+        >
+          Статьи ({bill.comparisons.length})
+        </button>
+        <button
+          type="button"
+          onClick={() => document.getElementById('section-photos')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+          style={{ ...btnOutline, height: 26, fontSize: 11, padding: '0 8px' }}
+        >
+          Фотоматериалы
+        </button>
+        {bill.federalVerdict && (
+          <button
+            type="button"
+            onClick={() => document.getElementById('section-federal-verdict')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+            style={{ ...btnOutline, height: 26, fontSize: 11, padding: '0 8px', color: R.accentText, borderColor: R.accentBorder }}
+          >
+            👑 Вердикт ФП
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={() => document.getElementById('section-comments')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+          style={{ ...btnOutline, height: 26, fontSize: 11, padding: '0 8px' }}
+        >
+          Обсуждение ({bill.comments?.length || 0})
+        </button>
+      </div>
+
+      {/* FEDERAL GOVERNMENT VERDICT BANNER (Visible to Author, Legislative Commission, and Admins) */}
+      {bill.federalVerdict && (
+        <div
+          id="section-federal-verdict"
+          style={{
+            marginBottom: 24,
+            background: bill.federalVerdict.status === 'approved'
+              ? 'rgba(34, 197, 94, 0.07)'
+              : bill.federalVerdict.status === 'needs_revision'
+              ? 'rgba(234, 179, 8, 0.09)'
+              : 'rgba(239, 68, 68, 0.09)',
+            border: `1px solid ${
+              bill.federalVerdict.status === 'approved'
+                ? 'rgba(34, 197, 94, 0.35)'
+                : bill.federalVerdict.status === 'needs_revision'
+                ? 'rgba(234, 179, 8, 0.35)'
+                : 'rgba(239, 68, 68, 0.35)'
+            }`,
+            borderLeft: `5px solid ${
+              bill.federalVerdict.status === 'approved'
+                ? '#22c55e'
+                : bill.federalVerdict.status === 'needs_revision'
+                ? '#eab308'
+                : '#ef4444'
+            }`,
+            borderRadius: 2,
+            padding: '16px 20px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 12,
+            boxShadow: '0 2px 10px rgba(0,0,0,0.14)'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div
+                style={{
+                  width: 34,
+                  height: 34,
+                  borderRadius: 2,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  background: bill.federalVerdict.status === 'approved'
+                    ? 'rgba(34, 197, 94, 0.16)'
+                    : bill.federalVerdict.status === 'needs_revision'
+                    ? 'rgba(234, 179, 8, 0.18)'
+                    : 'rgba(239, 68, 68, 0.18)',
+                }}
+              >
+                <Crown
+                  size={20}
+                  color={
+                    bill.federalVerdict.status === 'approved'
+                      ? '#22c55e'
+                      : bill.federalVerdict.status === 'needs_revision'
+                      ? '#eab308'
+                      : '#ef4444'
+                  }
+                />
+              </div>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: 13, fontWeight: 800, color: R.text, textTransform: 'uppercase', letterSpacing: '0.02em' }}>
+                    Решение Федерального Правительства
+                  </span>
+                  <span
+                    style={{
+                      fontFamily: mono,
+                      fontSize: 10.5,
+                      fontWeight: 800,
+                      padding: '2px 8px',
+                      borderRadius: 2,
+                      textTransform: 'uppercase',
+                      background: bill.federalVerdict.status === 'approved'
+                        ? 'rgba(34, 197, 94, 0.2)'
+                        : bill.federalVerdict.status === 'needs_revision'
+                        ? 'rgba(234, 179, 8, 0.2)'
+                        : 'rgba(239, 68, 68, 0.2)',
+                      color: bill.federalVerdict.status === 'approved'
+                        ? '#22c55e'
+                        : bill.federalVerdict.status === 'needs_revision'
+                        ? '#eab308'
+                        : '#ef4444',
+                      border: `1px solid ${
+                        bill.federalVerdict.status === 'approved'
+                          ? 'rgba(34, 197, 94, 0.4)'
+                          : bill.federalVerdict.status === 'needs_revision'
+                          ? 'rgba(234, 179, 8, 0.4)'
+                          : 'rgba(239, 68, 68, 0.4)'
+                      }`
+                    }}
+                  >
+                    {bill.federalVerdict.status === 'approved'
+                      ? (bill.status === 'approved' && bill.statusReason?.includes('внесен') ? '✓ ВНЕСЕН В ЗАКОНОДАТЕЛЬСТВО' : 'ОДОБРЕНО ФЕДЕРАЛЬНЫМ ПРАВИТЕЛЬСТВОМ')
+                      : bill.federalVerdict.status === 'needs_revision'
+                      ? 'ОТПРАВЛЕНО НА ДОРАБОТКУ (ТРЕБУЮТСЯ ПРАВКИ)'
+                      : 'ОТКЛОНЕНО ФЕДЕРАЛЬНЫМ ПРАВИТЕЛЬСТВОМ'}
+                  </span>
+                </div>
+                <div style={{ fontSize: 11, color: R.textMuted, marginTop: 3, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                  <span>
+                    Уполномоченное лицо: <strong style={{ color: R.textSecondary }}>{bill.federalVerdict.adminName || 'Федеральное Правительство'}</strong>
+                  </span>
+                  {bill.federalVerdict.updatedAt && (
+                    <span style={{ fontFamily: mono }}>
+                      {new Date(bill.federalVerdict.updatedAt).toLocaleString('ru-RU', { dateStyle: 'long', timeStyle: 'short' })}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {isAdmin && (
+              <button
+                type="button"
+                onClick={() => {
+                  setIsEditingAdminVerdict((prev) => !prev);
+                  if (!isEditingAdminVerdict && bill.federalVerdict) {
+                    setAdminVerdictReason(bill.federalVerdict.reason || '');
+                  }
+                }}
+                style={{
+                  ...btnOutline,
+                  height: 28,
+                  fontSize: 11,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 5,
+                  padding: '0 10px'
+                }}
+              >
+                <Edit3 size={12} />
+                {isEditingAdminVerdict ? 'Отмена изменения' : 'Изменить вердикт'}
+              </button>
+            )}
+          </div>
+
+          {/* Reasoning Quote Box */}
+          <div
+            style={{
+              background: R.bgPanel,
+              border: ft.edge,
+              borderRadius: 2,
+              padding: '12px 14px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 5
+            }}
+          >
+            <div style={{ fontSize: 10, fontFamily: mono, fontWeight: 700, color: R.textMuted, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              Официальное обоснование / Замечания для автора и специальной комиссии:
+            </div>
+            <div
+              style={{
+                fontSize: 13,
+                lineHeight: 1.5,
+                color: R.text,
+                whiteSpace: 'pre-wrap',
+                fontWeight: 500
+              }}
+            >
+              {bill.federalVerdict.reason || 'Обоснование не указано.'}
+            </div>
+          </div>
+
+          {bill.federalVerdict.status === 'needs_revision' && isAuthor && (
+            <div style={{ fontSize: 12, color: R.textSecondary, display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(234, 179, 8, 0.08)', padding: '6px 10px', borderRadius: 2 }}>
+              <AlertTriangle size={14} color="#eab308" style={{ flexShrink: 0 }} />
+              <span>
+                <strong>Указание автору:</strong> Ознакомьтесь с замечаниями выше и внесите необходимые правки в статьи законопроекта.
+              </span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Main Grid: Left editor (articles & metadata), Right sidebar (voting, author, comments) */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 320px', gap: 24, alignItems: 'start' }}>
         
-        {/* LEFT COLUMN: DOCUMENT CONTENT */}
-        <motion.div variants={fadeUp} initial="hidden" animate="show" className="flex flex-col gap-6 min-w-0">
+        {/* LEFT COLUMN: Metadata & Articles */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
           
-          {/* LAW METADATA */}
-          <div className="bg-white/[0.02] backdrop-blur-xl border border-white/10 rounded-2xl p-6 shadow-2xl shadow-black/50">
-            <div className="mb-5">
-              <label className="block text-[11px] font-bold tracking-wider uppercase text-zinc-400 mb-2">
-                Наименование целевого закона / нормативного акта
-              </label>
-              <input 
-                type="text" 
+          {/* Metadata Card */}
+          <div
+            id="section-target-law"
+            style={{
+              background: R.bgPanel,
+              border: ft.edge,
+              borderRadius: 2,
+              padding: 20,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 14,
+            }}
+          >
+            <div>
+              <label style={{ ...label, display: 'block', marginBottom: 6 }}>Целевой нормативно-правовой акт</label>
+              <input
+                type="text"
                 value={bill.targetLaw}
                 onChange={(e) => handleFieldChange('targetLaw', e.target.value)}
                 disabled={!canEdit || isReadOnly}
-                className="w-full bg-black/60 border border-white/10 rounded-xl px-4 py-3 text-white font-bold focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/50 transition-all placeholder-zinc-600 disabled:opacity-50"
-                placeholder="Например: Уголовный кодекс Штата San Andreas (УК)"
+                style={{
+                  width: '100%',
+                  height: 38,
+                  padding: '0 12px',
+                  fontSize: 14,
+                  fontWeight: 700,
+                  background: R.bgInput,
+                  border: ft.edge,
+                  color: R.text,
+                  borderRadius: 2,
+                  outline: 'none',
+                }}
+                placeholder="Например: Уголовный Кодекс Штата San Andreas"
               />
             </div>
 
             <div>
-              <label className="block text-[11px] font-bold tracking-wider uppercase text-zinc-400 mb-2">
-                Пояснительная записка к законопроекту
-              </label>
-              <textarea 
+              <label style={{ ...label, display: 'block', marginBottom: 6 }}>Пояснительная записка</label>
+              <textarea
                 value={bill.explanatoryNote}
                 onChange={(e) => handleFieldChange('explanatoryNote', e.target.value)}
                 disabled={!canEdit || isReadOnly}
-                className="w-full min-h-[100px] bg-black/60 border border-white/10 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/50 transition-all placeholder-zinc-600 resize-y disabled:opacity-50"
-                placeholder="Краткое обоснование необходимости и целей внесения поправок..."
+                style={{
+                  width: '100%',
+                  minHeight: 84,
+                  padding: '10px 12px',
+                  fontSize: 13,
+                  background: R.bgInput,
+                  border: ft.edge,
+                  color: R.text,
+                  borderRadius: 2,
+                  outline: 'none',
+                  resize: 'vertical',
+                }}
+                placeholder="Краткое обоснование необходимости внесения поправок..."
               />
             </div>
           </div>
 
-          {/* ARTICLES HEADER */}
-          <div className="flex items-center justify-between pt-2">
-            <div className="flex items-center gap-3">
-              <h3 className="text-lg font-bold text-white">Статьи законопроекта</h3>
-              <span className="px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-400 text-xs font-mono font-bold border border-indigo-500/20">
+          {/* Articles Header */}
+          <div id="section-articles" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <h3 style={{ fontSize: 16, fontWeight: 800, color: R.text, margin: 0 }}>
+                Статьи законопроекта
+              </h3>
+              <span style={{ fontFamily: mono, fontSize: 11, padding: '2px 8px', background: R.accentSubtle, color: R.accent, border: `1px solid ${R.accentBorder}`, borderRadius: 2 }}>
                 {bill.comparisons.length}
               </span>
             </div>
 
             {canEdit && !isReadOnly && (
-              <button 
-                onClick={addComparisonRow} 
-                className="flex items-center gap-2 px-4 py-2 bg-white/[0.04] hover:bg-white/[0.08] text-zinc-300 text-sm font-bold rounded-xl border border-white/10 transition-colors"
+              <button
+                onClick={addComparisonRow}
+                style={{ ...btnOutline, height: 32, fontSize: 12 }}
               >
-                <Plus size={16} /> Добавить статью
+                <Plus size={14} /> Добавить статью
               </button>
             )}
           </div>
 
-          {/* ARTICLES LIST */}
-          <div className="flex flex-col gap-6">
+          {/* Articles List */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             {bill.comparisons.map((row, index) => {
               const diff = computeWordDiff(row.wasContent, row.becameContent);
               const activeTab = activeTabMap[row.id] || 'editor';
 
               return (
-                <div key={row.id} className="bg-white/[0.02] backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl shadow-black/50 overflow-hidden flex flex-col">
-                  
-                  {/* ARTICLE CARD HEADER */}
-                  <div className="bg-black/40 px-4 py-3 border-b border-white/10 flex flex-wrap items-center justify-between gap-4">
-                    <div className="flex items-center gap-3 flex-1 min-w-[240px]">
-                      <span className="text-xs font-mono font-bold text-zinc-500">§{index + 1}</span>
-                      <input 
-                        type="text" 
+                <div
+                  key={row.id}
+                  style={{
+                    background: R.bgPanel,
+                    border: ft.edge,
+                    borderRadius: 2,
+                    overflow: 'hidden',
+                    display: 'flex',
+                    flexDirection: 'column',
+                  }}
+                >
+                  {/* Article Card Header */}
+                  <div
+                    style={{
+                      background: R.bgElevated,
+                      padding: '10px 14px',
+                      borderBottom: ft.hair,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: 12,
+                      flexWrap: 'wrap',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: '1 1 260px' }}>
+                      <span style={{ fontFamily: mono, fontSize: 12, fontWeight: 700, color: R.textMuted }}>
+                        §{index + 1}
+                      </span>
+                      <input
+                        type="text"
                         value={row.articleTitle}
                         onChange={(e) => updateComparisonRow(row.id, 'articleTitle', e.target.value)}
                         disabled={!canEdit || isReadOnly}
-                        className="flex-1 max-w-sm bg-transparent border-none text-white text-sm font-bold placeholder-zinc-600 focus:outline-none focus:ring-0 px-2 py-1"
-                        placeholder="Статья 1. Наименование..."
+                        style={{
+                          flex: '1 1 auto',
+                          maxWidth: 380,
+                          background: 'transparent',
+                          border: 'none',
+                          fontSize: 13,
+                          fontWeight: 700,
+                          color: R.text,
+                          outline: 'none',
+                        }}
+                        placeholder="Статья 1. Наименование статьи..."
                       />
                     </div>
 
-                    <div className="flex items-center gap-2">
-                      {/* Tabs */}
-                      <div className="flex items-center gap-1 bg-black/60 p-1 rounded-xl border border-white/10">
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      {/* Editor vs Diff Tabs */}
+                      <div style={{ display: 'flex', background: R.bgInput, border: ft.hair, borderRadius: 2, padding: 2 }}>
                         <button
                           onClick={() => setActiveTabMap((prev) => ({ ...prev, [row.id]: 'editor' }))}
-                          className={cn(
-                            "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all",
-                            activeTab === 'editor' ? "bg-white/10 text-white" : "text-zinc-500 hover:text-zinc-300"
-                          )}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 4,
+                            padding: '4px 8px',
+                            fontSize: 11,
+                            fontWeight: 700,
+                            background: activeTab === 'editor' ? R.accent : 'transparent',
+                            color: activeTab === 'editor' ? R.onAccent : R.textSecondary,
+                            border: 'none',
+                            cursor: 'pointer',
+                            borderRadius: 2,
+                          }}
                         >
-                          <Edit3 size={14} /> Редактор
+                          <Edit3 size={12} /> Редактор
                         </button>
                         <button
                           onClick={() => setActiveTabMap((prev) => ({ ...prev, [row.id]: 'diff' }))}
-                          className={cn(
-                            "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all",
-                            activeTab === 'diff' ? "bg-white/10 text-white" : "text-zinc-500 hover:text-zinc-300"
-                          )}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 4,
+                            padding: '4px 8px',
+                            fontSize: 11,
+                            fontWeight: 700,
+                            background: activeTab === 'diff' ? R.accent : 'transparent',
+                            color: activeTab === 'diff' ? R.onAccent : R.textSecondary,
+                            border: 'none',
+                            cursor: 'pointer',
+                            borderRadius: 2,
+                          }}
                         >
-                          <Columns size={14} /> Сравнение {diff.stats.totalChanges > 0 && `(${diff.stats.totalChanges})`}
+                          <Columns size={12} /> Сравнение
                         </button>
                       </div>
 
-                      {/* Micro actions */}
                       {canEdit && !isReadOnly && (
-                        <button 
+                        <button
                           onClick={() => copyWasToBecame(row.id)}
-                          className="w-8 h-8 flex items-center justify-center rounded-xl bg-transparent hover:bg-white/5 text-zinc-500 hover:text-white transition-colors"
-                          title="Скопировать исходный текст"
+                          title="Скопировать исходный текст в новую редакцию"
+                          style={{
+                            width: 28,
+                            height: 28,
+                            display: 'grid',
+                            placeItems: 'center',
+                            background: 'transparent',
+                            border: 'none',
+                            color: R.textMuted,
+                            cursor: 'pointer',
+                          }}
                         >
-                          <Copy size={14} />
+                          <Copy size={13} />
                         </button>
                       )}
 
-                      <button 
+                      <button
                         onClick={() => setExpandedRow(row)}
-                        className="w-8 h-8 flex items-center justify-center rounded-xl bg-transparent hover:bg-white/5 text-zinc-500 hover:text-white transition-colors"
                         title="На весь экран"
+                        style={{
+                          width: 28,
+                          height: 28,
+                          display: 'grid',
+                          placeItems: 'center',
+                          background: 'transparent',
+                          border: 'none',
+                          color: R.textMuted,
+                          cursor: 'pointer',
+                        }}
                       >
-                        <Maximize2 size={14} />
+                        <Maximize2 size={13} />
                       </button>
 
                       {canEdit && !isReadOnly && bill.comparisons.length > 1 && (
-                        <button 
-                          onClick={() => removeComparisonRow(row.id)}
-                          className="w-8 h-8 flex items-center justify-center rounded-xl bg-transparent hover:bg-rose-500/10 text-rose-500 transition-colors"
-                          title="Удалить статью"
+                        <button
+                          onClick={() => setConfirmDeleteArticleId(row.id)}
+                          data-tooltip="Удалить статью"
+                          style={{
+                            width: 28,
+                            height: 28,
+                            display: 'grid',
+                            placeItems: 'center',
+                            background: 'transparent',
+                            border: 'none',
+                            color: R.danger,
+                            cursor: 'pointer',
+                          }}
                         >
-                          <Trash2 size={14} />
+                          <Trash2 size={13} />
                         </button>
                       )}
                     </div>
                   </div>
 
-                  {/* TAB 1: PARALLEL SPLIT EDITOR */}
+                  {/* TAB 1: Editor */}
                   {activeTab === 'editor' && (
-                    <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-white/10 flex-1">
-                      {/* Original */}
-                      <div className="flex flex-col">
-                        <div className="flex items-center justify-between px-4 py-2 bg-white/[0.02] border-b border-white/10">
-                          <span className="text-[10px] font-mono font-bold text-zinc-500 uppercase tracking-wider">Действующий текст</span>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', minHeight: 180 }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', borderRight: ft.hair }}>
+                        <div style={{ padding: '6px 12px', background: R.bg, borderBottom: ft.hair, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                          <span style={{ ...label, fontSize: 9.5 }}>Действующий текст</span>
                           {canEdit && !isReadOnly && (
                             <button
                               onClick={() => updateComparisonRow(row.id, 'wasContent', '[Ранее статья в законе отсутствовала]')}
-                              className="flex items-center gap-1 text-[10px] font-bold text-indigo-400 hover:text-indigo-300 uppercase tracking-wider"
+                              style={{ fontSize: 10, fontFamily: mono, fontWeight: 700, color: R.accentText, background: 'none', border: 'none', cursor: 'pointer' }}
                             >
-                              <Sparkles size={12} /> Ранее не было
+                              + Ранее не было
                             </button>
                           )}
                         </div>
-                        <textarea 
+                        <textarea
                           value={row.wasContent}
                           onChange={(e) => updateComparisonRow(row.id, 'wasContent', e.target.value)}
                           disabled={!canEdit || isReadOnly}
-                          className="w-full flex-1 bg-transparent border-none text-zinc-300 p-4 text-sm leading-relaxed focus:outline-none resize-none min-h-[160px]"
-                          placeholder="Исходный текст..."
+                          style={{
+                            width: '100%',
+                            flex: '1 1 auto',
+                            padding: 12,
+                            background: R.bgInput,
+                            border: 'none',
+                            fontSize: 13,
+                            color: R.textSecondary,
+                            outline: 'none',
+                            resize: 'none',
+                            lineHeight: 1.5,
+                          }}
+                          placeholder="Исходный текст статьи..."
                         />
                       </div>
-                      {/* New */}
-                      <div className="flex flex-col">
-                        <div className="flex items-center justify-between px-4 py-2 bg-white/[0.02] border-b border-white/10">
-                          <span className="text-[10px] font-mono font-bold text-zinc-500 uppercase tracking-wider">Новая редакция</span>
+
+                      <div style={{ display: 'flex', flexDirection: 'column' }}>
+                        <div style={{ padding: '6px 12px', background: R.bg, borderBottom: ft.hair }}>
+                          <span style={{ ...label, fontSize: 9.5 }}>Новая редакция</span>
                         </div>
-                        <textarea 
+                        <textarea
                           value={row.becameContent}
                           onChange={(e) => updateComparisonRow(row.id, 'becameContent', e.target.value)}
                           disabled={!canEdit || isReadOnly}
-                          className="w-full flex-1 bg-transparent border-none text-white p-4 text-sm leading-relaxed focus:outline-none resize-none min-h-[160px]"
-                          placeholder="Предлагаемая редакция..."
+                          style={{
+                            width: '100%',
+                            flex: '1 1 auto',
+                            padding: 12,
+                            background: R.bgInput,
+                            border: 'none',
+                            fontSize: 13,
+                            color: R.text,
+                            outline: 'none',
+                            resize: 'none',
+                            lineHeight: 1.5,
+                          }}
+                          placeholder="Предлагаемая редакция статьи..."
                         />
                       </div>
                     </div>
                   )}
 
-                  {/* TAB 2: DIFF */}
+                  {/* TAB 2: Diff */}
                   {activeTab === 'diff' && (
-                    <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-white/10 flex-1">
-                      {/* Original (Was) */}
-                      <div className="flex flex-col">
-                        <div className="flex items-center justify-between px-4 py-2 bg-rose-500/5 border-b border-white/10">
-                          <span className="text-[10px] font-mono font-bold text-rose-400 uppercase tracking-wider">Действующий текст (с удаленными)</span>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', minHeight: 180 }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', borderRight: ft.hair }}>
+                        <div style={{ padding: '6px 12px', background: R.bg, borderBottom: ft.hair }}>
+                          <span style={{ ...label, fontSize: 9.5, color: R.danger }}>Действующий текст</span>
                         </div>
-                        <div className="w-full flex-1 bg-transparent p-4 text-sm leading-relaxed min-h-[160px] whitespace-pre-wrap font-sans">
-                          {diff.wasFormatted.length > 0 ? (
-                            <>{diff.wasFormatted}</>
-                          ) : (
-                            <span className="text-zinc-500 italic">Текст статьи не заполнен.</span>
-                          )}
+                        <div style={{ padding: 12, fontSize: 13, color: R.text, lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
+                          {diff.wasFormatted.length > 0 ? diff.wasFormatted : <span style={{ color: R.textMuted }}>Текст не заполнен</span>}
                         </div>
                       </div>
-                      {/* New (Became) */}
-                      <div className="flex flex-col">
-                        <div className="flex items-center justify-between px-4 py-2 bg-emerald-500/5 border-b border-white/10">
-                          <span className="text-[10px] font-mono font-bold text-emerald-400 uppercase tracking-wider">Новая редакция (с добавленными)</span>
+
+                      <div style={{ display: 'flex', flexDirection: 'column' }}>
+                        <div style={{ padding: '6px 12px', background: R.bg, borderBottom: ft.hair }}>
+                          <span style={{ ...label, fontSize: 9.5, color: R.success }}>Новая редакция</span>
                         </div>
-                        <div className="w-full flex-1 bg-transparent p-4 text-sm leading-relaxed min-h-[160px] whitespace-pre-wrap font-sans">
-                          {diff.becameFormatted.length > 0 ? (
-                            <>{diff.becameFormatted}</>
-                          ) : (
-                            <span className="text-zinc-500 italic">Текст статьи не заполнен.</span>
-                          )}
+                        <div style={{ padding: 12, fontSize: 13, color: R.text, lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
+                          {diff.becameFormatted.length > 0 ? diff.becameFormatted : <span style={{ color: R.textMuted }}>Текст не заполнен</span>}
                         </div>
                       </div>
                     </div>
@@ -643,190 +1183,312 @@ export const BillEditor: React.FC<BillEditorProps> = ({
             })}
           </div>
 
-          {/* ATTACHMENTS SECTION */}
-          <div className="bg-white/[0.02] backdrop-blur-xl border border-white/10 rounded-2xl p-5 shadow-2xl shadow-black/50">
-            <div className="flex items-center gap-2 mb-4">
-              <div className="w-8 h-8 rounded-lg bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center">
-                <ImageIcon size={16} />
+          {/* Attachments (Media) */}
+          <div id="section-photos" style={{ background: R.bgPanel, border: ft.edge, borderRadius: 2, padding: 20 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <ImageIcon size={16} color={R.accent} />
+                <h3 style={{ fontSize: 14, fontWeight: 800, color: R.text, margin: 0 }}>
+                  Фотоматериалы и приложения
+                </h3>
               </div>
-              <h3 className="text-lg font-bold text-white tracking-wide">Приложения (Медиа)</h3>
+              <span style={{ fontSize: 11, fontFamily: mono, color: R.textMuted }}>
+                Ссылки (.jpg, .png, .webp)
+              </span>
             </div>
             
-            {bill.attachments && bill.attachments.length > 0 || (canEdit && !isReadOnly) ? (
-              <ImageUploader 
-                attachments={bill.attachments || []} 
-                onChange={(urls) => setBill({ ...bill, attachments: urls })}
-                disabled={!canEdit || isReadOnly}
-              />
-            ) : (
-              <div className="text-sm text-zinc-500 italic py-4">Нет прикрепленных файлов</div>
-            )}
+            <ImageUploader 
+              attachments={bill.attachments || []} 
+              onChange={(urls) => setBill({ ...bill, attachments: urls })}
+              disabled={!canEdit || isReadOnly}
+            />
           </div>
-        </motion.div>
 
-        {/* RIGHT COLUMN: SIDEBAR */}
-        <motion.div variants={fadeUp} initial="hidden" animate="show" className="flex flex-col gap-6">
+        </div>
+
+        {/* RIGHT COLUMN: Sidebar (Author, Votes, Verdicts, Comments) */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           
-          {/* AUTHOR CARD */}
-          <div className="bg-white/[0.02] backdrop-blur-xl border border-white/10 rounded-2xl p-5 shadow-2xl shadow-black/50">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center shrink-0">
-                <UserCheck size={18} />
+          {/* Author Card */}
+          <div style={{ background: R.bgPanel, border: ft.edge, borderRadius: 2, padding: 16 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+              <div style={{ width: 34, height: 34, display: 'grid', placeItems: 'center', background: R.bgInput, border: ft.hair, borderRadius: 2 }}>
+                <UserCheck size={16} color={R.accent} />
               </div>
-              <div className="min-w-0">
-                <div className="text-sm font-bold text-white truncate">{bill.author}</div>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: R.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {bill.author || 'Автор не указан'}
+                </div>
+                <div style={{ fontSize: 10.5, fontFamily: mono, color: R.textMuted }}>
+                  Автор законопроекта
+                </div>
               </div>
             </div>
 
-            <div className="pt-3 border-t border-white/10 flex flex-col gap-2 text-xs font-mono">
-              <div className="flex justify-between text-zinc-500">
+            <div style={{ borderTop: ft.hair, paddingTop: 10, display: 'flex', flexDirection: 'column', gap: 4, fontSize: 11, fontFamily: mono }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: R.textMuted }}>
                 <span>Создан:</span>
-                <span className="text-zinc-300">{new Date(bill.createdAt).toLocaleDateString('ru-RU')}</span>
+                <span style={{ color: R.text }}>{new Date(bill.createdAt).toLocaleDateString('ru-RU')}</span>
               </div>
-              <div className="flex justify-between text-zinc-500">
-                <span>Ревизия:</span>
-                <span className="text-indigo-400 font-bold">v1.0</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: R.textMuted }}>
+                <span>Обновлен:</span>
+                <span style={{ color: R.text }}>{new Date(bill.updatedAt).toLocaleDateString('ru-RU')}</span>
               </div>
             </div>
           </div>
 
-          {/* STAGE 1 */}
-          <div className="bg-white/[0.02] backdrop-blur-xl border border-white/10 rounded-2xl p-5 shadow-2xl shadow-black/50">
-            <div className="flex items-center gap-2 mb-4 pb-3 border-b border-white/10">
-              <ShieldCheck size={18} className="text-indigo-400" />
+          {/* Stage 1: Commission Voting */}
+          <div style={{ background: R.bgPanel, border: ft.edge, borderRadius: 2, padding: 16 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, paddingBottom: 8, borderBottom: ft.hair }}>
+              <ShieldCheck size={16} color={R.accent} />
               <div>
-                <h4 className="text-sm font-bold text-white">1-й Этап: Комиссия</h4>
-                <p className="text-[10px] font-mono text-zinc-500 uppercase tracking-wider">Кворум 2/3 голосов</p>
+                <h4 style={{ fontSize: 13, fontWeight: 800, color: R.text, margin: 0 }}>
+                  1-й Этап: Комиссия
+                </h4>
+                <div style={{ fontSize: 10, fontFamily: mono, color: R.textMuted, textTransform: 'uppercase' }}>
+                  Кворум 2/3 голосов
+                </div>
               </div>
             </div>
 
-            <div className="flex flex-col gap-2 mb-4">
+            {/* Voting rows */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 14 }}>
               {[
                 { roleKey: 'prosecutor', title: 'Ген. Прокурор', vote: votes.prosecutor },
                 { roleKey: 'judge', title: 'Пред. Верх. Суда', vote: votes.judge },
-                { roleKey: 'governor', title: 'Губернатор', vote: votes.governor }
+                { roleKey: 'governor', title: 'Губернатор', vote: votes.governor },
               ].map((item) => (
-                <div key={item.roleKey} className="flex items-center justify-between p-2.5 bg-black/40 rounded-xl border border-white/5">
-                  <span className="text-xs font-medium text-zinc-400">{item.title}</span>
+                <div
+                  key={item.roleKey}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '8px 10px',
+                    background: R.bgInput,
+                    border: ft.hair,
+                    borderRadius: 2,
+                  }}
+                >
+                  <span style={{ fontSize: 12, color: R.textSecondary }}>{item.title}</span>
                   {item.vote === 'approved' ? (
-                    <span className="flex items-center gap-1.5 text-[10px] font-mono font-bold text-emerald-400 uppercase tracking-wider">
-                      <Check size={12} /> За
+                    <span style={{ fontSize: 11, fontFamily: mono, fontWeight: 700, color: R.success }}>
+                      ✓ ЗА
                     </span>
                   ) : item.vote === 'rejected' ? (
-                    <span className="flex items-center gap-1.5 text-[10px] font-mono font-bold text-rose-400 uppercase tracking-wider">
-                      <X size={12} /> Против
+                    <span style={{ fontSize: 11, fontFamily: mono, fontWeight: 700, color: R.danger }}>
+                      ✕ ПРОТИВ
                     </span>
                   ) : item.vote === 'needs_revision' ? (
-                    <span className="flex items-center gap-1.5 text-[10px] font-mono font-bold text-amber-400 uppercase tracking-wider">
-                      <RotateCcw size={12} /> Правки
+                    <span style={{ fontSize: 11, fontFamily: mono, fontWeight: 700, color: R.accentText }}>
+                      ПРАВКИ
                     </span>
                   ) : (
-                    <span className="text-[10px] font-mono text-zinc-600 uppercase tracking-wider">Ожидает</span>
+                    <span style={{ fontSize: 11, fontFamily: mono, color: R.textMuted }}>
+                      ОЖИДАЕТ
+                    </span>
                   )}
                 </div>
               ))}
             </div>
 
-            <div className="mb-4">
-              <div className="flex justify-between text-[10px] font-mono font-bold uppercase tracking-wider mb-2">
-                <span className={isStage1Passed ? 'text-emerald-400' : isStage1Rejected ? 'text-rose-400' : 'text-zinc-500'}>
-                  {isStage1Passed ? 'Одобрено Комиссией' : isStage1Rejected ? 'Отклонено Комиссией' : 'Итог голосования'}
+            {/* Progress summary bar */}
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, fontFamily: mono, fontWeight: 700, textTransform: 'uppercase', marginBottom: 6 }}>
+                <span style={{ color: isStage1Passed ? R.success : isStage1Rejected ? R.danger : R.textMuted }}>
+                  {isStage1Passed ? 'Одобрено Комиссией' : isStage1Rejected ? 'Отклонено' : 'Итог'}
                 </span>
-                <span className="text-zinc-400">{approvedVotesCount} За / {rejectedVotesCount} Против</span>
+                <span style={{ color: R.textMuted }}>{approvedVotesCount} За / {rejectedVotesCount} Против</span>
               </div>
-              <div className="h-2 w-full bg-black/60 rounded-full overflow-hidden border border-white/5 flex">
-                {approvedVotesCount > 0 && <div className="h-full bg-emerald-500 transition-all" style={{ width: `${(approvedVotesCount / 3) * 100}%` }} />}
-                {rejectedVotesCount > 0 && <div className="h-full bg-rose-500 transition-all" style={{ width: `${(rejectedVotesCount / 3) * 100}%` }} />}
-                {([votes.prosecutor, votes.judge, votes.governor].filter(v => v === 'needs_revision').length) > 0 && 
-                  <div className="h-full bg-amber-500 transition-all" style={{ width: `${([votes.prosecutor, votes.judge, votes.governor].filter(v => v === 'needs_revision').length / 3) * 100}%` }} />}
-                {(3 - approvedVotesCount - rejectedVotesCount - [votes.prosecutor, votes.judge, votes.governor].filter(v => v === 'needs_revision').length) > 0 && 
-                  <div className="h-full bg-white/5 transition-all" style={{ width: `${((3 - approvedVotesCount - rejectedVotesCount - [votes.prosecutor, votes.judge, votes.governor].filter(v => v === 'needs_revision').length) / 3) * 100}%` }} />}
+              <div style={{ height: 6, width: '100%', background: R.bgInput, borderRadius: 2, overflow: 'hidden', display: 'flex' }}>
+                {approvedVotesCount > 0 && <div style={{ height: '100%', width: `${(approvedVotesCount / 3) * 100}%`, background: R.success }} />}
+                {rejectedVotesCount > 0 && <div style={{ height: '100%', width: `${(rejectedVotesCount / 3) * 100}%`, background: R.danger }} />}
               </div>
             </div>
 
+            {/* Voting buttons for commission members */}
             {['under_review', 'rejected', 'needs_revision'].includes(bill.status) && !bill.federalVerdict && (() => {
               const myVote = (user.officialRole === 'prosecutor' ? votes.prosecutor : user.officialRole === 'judge' ? votes.judge : votes.governor);
               return (
-                <div className="flex gap-2 mt-4">
-                  <button onClick={() => handleCastVote('approved')} className={cn("flex-1 py-2 text-xs font-bold rounded-xl transition-all border", myVote === 'approved' ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30" : "bg-white/[0.04] text-zinc-400 border-white/10 hover:bg-white/[0.08]")}>За</button>
-                  <button onClick={() => handleCastVote('needs_revision')} className={cn("flex-1 py-2 text-xs font-bold rounded-xl transition-all border", myVote === 'needs_revision' ? "bg-amber-500/20 text-amber-400 border-amber-500/30" : "bg-white/[0.04] text-zinc-400 border-white/10 hover:bg-white/[0.08]")}>Правки</button>
-                  <button onClick={() => handleCastVote('rejected')} className={cn("flex-1 py-2 text-xs font-bold rounded-xl transition-all border", myVote === 'rejected' ? "bg-rose-500/20 text-rose-400 border-rose-500/30" : "bg-white/[0.04] text-zinc-400 border-white/10 hover:bg-white/[0.08]")}>Против</button>
+                <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>
+                  <button
+                    onClick={() => handleCastVote('approved')}
+                    style={{ ...btnOutline, flex: '1 1 0', height: 30, fontSize: 11, background: myVote === 'approved' ? R.success : 'transparent', color: myVote === 'approved' ? '#fff' : R.text }}
+                  >
+                    За
+                  </button>
+                  <button
+                    onClick={() => handleCastVote('needs_revision')}
+                    style={{ ...btnOutline, flex: '1 1 0', height: 30, fontSize: 11, background: myVote === 'needs_revision' ? R.accent : 'transparent', color: myVote === 'needs_revision' ? '#fff' : R.text }}
+                  >
+                    Правки
+                  </button>
+                  <button
+                    onClick={() => handleCastVote('rejected')}
+                    style={{ ...btnDanger, flex: '1 1 0', height: 30, fontSize: 11, background: myVote === 'rejected' ? R.danger : 'transparent', color: myVote === 'rejected' ? '#fff' : R.danger }}
+                  >
+                    Против
+                  </button>
                 </div>
               );
             })()}
           </div>
 
-          {/* STAGE 2 */}
-          <div className="bg-white/[0.02] backdrop-blur-xl border border-white/10 rounded-2xl p-5 shadow-2xl shadow-black/50">
-            <div className="flex items-center gap-2 mb-4 pb-3 border-b border-white/10">
-              <Crown size={18} className="text-amber-400" />
-              <div>
-                <h4 className="text-sm font-bold text-white">2-й Этап: Администрация</h4>
-                <p className="text-[10px] font-mono text-zinc-500 uppercase tracking-wider">Федеральное Правительство</p>
+          {/* Stage 2: Administration Verdict */}
+          <div style={{ background: R.bgPanel, border: ft.edge, borderRadius: 2, padding: 16 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, paddingBottom: 8, borderBottom: ft.hair }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Crown size={16} color={R.accent} />
+                <div>
+                  <h4 style={{ fontSize: 13, fontWeight: 800, color: R.text, margin: 0 }}>
+                    2-й Этап: Администрация
+                  </h4>
+                  <div style={{ fontSize: 10, fontFamily: mono, color: R.textMuted, textTransform: 'uppercase' }}>
+                    Федеральное Правительство
+                  </div>
+                </div>
               </div>
+
+              {isAdmin && bill.federalVerdict && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsEditingAdminVerdict((v) => !v);
+                    if (!isEditingAdminVerdict) {
+                      setAdminVerdictReason(bill.federalVerdict?.reason || '');
+                    }
+                  }}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    color: R.accentText,
+                    fontSize: 11,
+                    cursor: 'pointer',
+                    textDecoration: 'underline',
+                    padding: 0
+                  }}
+                >
+                  {isEditingAdminVerdict ? 'Отмена' : 'Изменить'}
+                </button>
+              )}
             </div>
 
-            {bill.status === 'approved' ? (
-              <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl">
-                <div className="text-[10px] font-mono font-bold text-emerald-400 mb-1">✓ ВНЕСЕН В ЗАКОНОДАТЕЛЬСТВО</div>
-                <div className="text-xs text-emerald-200/70">{bill.statusReason || 'Законопроект проверен, утвержден и официально внесен.'}</div>
+            {/* Admin editing form OR no verdict yet and isAdmin */}
+            {(isEditingAdminVerdict || (!bill.federalVerdict && isAdmin)) ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div style={{ fontSize: 11, fontWeight: 600, color: R.textSecondary }}>
+                  {bill.federalVerdict ? 'Пересмотр вердикта ФП:' : 'Вынести вердикт ФП:'}
+                </div>
+                <textarea
+                  value={adminVerdictReason}
+                  onChange={(e) => setAdminVerdictReason(e.target.value)}
+                  style={{
+                    width: '100%',
+                    minHeight: 74,
+                    background: R.bgInput,
+                    border: ft.edge,
+                    color: R.text,
+                    fontSize: 12,
+                    padding: 8,
+                    borderRadius: 2,
+                    outline: 'none',
+                  }}
+                  placeholder="Укажите причину одобрения, замечания для правок или причину отказа..."
+                />
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button onClick={() => handleExecuteAdminVerdict('approved')} style={{ ...btnAccent, flex: '1 1 0', height: 28, fontSize: 11 }}>Одобрить</button>
+                  <button onClick={() => handleExecuteAdminVerdict('needs_revision')} style={{ ...btnOutline, flex: '1 1 0', height: 28, fontSize: 11 }}>Правки</button>
+                  <button onClick={() => handleExecuteAdminVerdict('rejected')} style={{ ...btnDanger, flex: '1 1 0', height: 28, fontSize: 11 }}>Отклонить</button>
+                </div>
               </div>
-            ) : bill.federalVerdict?.status === 'approved' ? (
-              <div className="flex flex-col gap-3 p-3 bg-indigo-500/10 border border-indigo-500/20 rounded-xl">
-                <div className="text-[10px] font-mono font-bold text-indigo-400 mb-1">ОДОБРЕН (ОЖИДАЕТ ВНЕСЕНИЯ)</div>
-                <div className="text-xs text-indigo-200/70">{bill.federalVerdict.reason || 'Законопроект одобрен Администрацией.'}</div>
-                {isAdmin && (
-                  <button 
-                    onClick={async () => {
-                      const updated: Bill = {
-                        ...bill,
-                        status: 'approved',
-                        statusReason: 'Изменения официально внесены в законодательную базу Штата San Andreas.',
-                        updatedAt: new Date().toISOString()
-                      };
-                      await onSave(updated);
-                      onToast('success', 'Изменения внесены в законы');
+            ) : bill.federalVerdict ? (
+              /* Display federal verdict to author, commission, and admin */
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <div
+                  style={{
+                    padding: 10,
+                    borderRadius: 2,
+                    background: bill.federalVerdict.status === 'approved'
+                      ? R.successSubtle
+                      : bill.federalVerdict.status === 'needs_revision'
+                      ? 'rgba(234, 179, 8, 0.1)'
+                      : R.dangerSubtle,
+                    border: `1px solid ${
+                      bill.federalVerdict.status === 'approved'
+                        ? R.success
+                        : bill.federalVerdict.status === 'needs_revision'
+                        ? 'rgba(234, 179, 8, 0.35)'
+                        : R.danger
+                    }`,
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: 10,
+                      fontFamily: mono,
+                      fontWeight: 800,
+                      color: bill.federalVerdict.status === 'approved'
+                        ? R.success
+                        : bill.federalVerdict.status === 'needs_revision'
+                        ? '#eab308'
+                        : R.danger,
+                      marginBottom: 4,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between'
                     }}
-                    className="mt-2 w-full py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition-all shadow-[0_0_15px_rgba(79,70,229,0.3)]"
                   >
-                    Внести в реестр
+                    <span>
+                      {bill.federalVerdict.status === 'approved'
+                        ? (bill.status === 'approved' && bill.statusReason?.includes('внесен') ? '✓ ВНЕСЕН В РЕЕСТР' : '✓ ОДОБРЕНО АДМИНИСТРАЦИЕЙ')
+                        : bill.federalVerdict.status === 'needs_revision'
+                        ? '⚠ НА ДОРАБОТКУ (ПРАВКИ)'
+                        : '✕ ОТКЛОНЕНО АДМИНИСТРАЦИЕЙ'}
+                    </span>
+                  </div>
+
+                  <div style={{ fontSize: 11, color: R.textMuted, marginBottom: 6 }}>
+                    <div>Указал: <strong style={{ color: R.textSecondary }}>{bill.federalVerdict.adminName || 'Федеральное Правительство'}</strong></div>
+                    {bill.federalVerdict.updatedAt && (
+                      <div style={{ fontFamily: mono, fontSize: 10 }}>
+                        {new Date(bill.federalVerdict.updatedAt).toLocaleDateString('ru-RU')}
+                      </div>
+                    )}
+                  </div>
+
+                  <div style={{ fontSize: 10, fontFamily: mono, color: R.textMuted, marginBottom: 2, textTransform: 'uppercase' }}>
+                    Причина / Указание ФП:
+                  </div>
+                  <div style={{ fontSize: 12, color: R.text, whiteSpace: 'pre-wrap', lineHeight: 1.4, background: R.bgPanel, padding: 6, border: ft.hair, borderRadius: 2 }}>
+                    {bill.federalVerdict.reason || 'Причина не указана.'}
+                  </div>
+                </div>
+
+                {bill.federalVerdict.status === 'approved' && bill.status !== 'approved' && isAdmin && (
+                  <button
+                    onClick={handleEnactLaws}
+                    style={{ ...btnAccent, height: 32, fontSize: 12, width: '100%' }}
+                  >
+                    Внести в реестр законодательства
                   </button>
                 )}
               </div>
-            ) : bill.federalVerdict?.status === 'rejected' ? (
-              <div className="p-3 bg-rose-500/10 border border-rose-500/20 rounded-xl">
-                <div className="text-[10px] font-mono font-bold text-rose-400 mb-1">ОТКЛОНЕНО</div>
-                <div className="text-xs text-rose-200/70">{bill.federalVerdict.reason}</div>
-              </div>
-            ) : isAdmin ? (
-              <div className="flex flex-col gap-3">
-                <textarea 
-                  value={adminVerdictReason}
-                  onChange={(e) => setAdminVerdictReason(e.target.value)}
-                  className="w-full min-h-[80px] bg-black/60 border border-white/10 rounded-xl p-3 text-xs text-white focus:outline-none focus:border-indigo-500/50 resize-y placeholder-zinc-600"
-                  placeholder="Обоснование вердикта..."
-                />
-                <div className="flex gap-2">
-                  <button onClick={() => handleExecuteAdminVerdict('approved')} className="flex-1 py-2 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 border border-emerald-500/30 rounded-xl text-xs font-bold transition-colors">Одобрить</button>
-                  <button onClick={() => handleExecuteAdminVerdict('needs_revision')} className="flex-1 py-2 bg-amber-600/20 hover:bg-amber-600/30 text-amber-400 border border-amber-500/30 rounded-xl text-xs font-bold transition-colors">Правки</button>
-                  <button onClick={() => handleExecuteAdminVerdict('rejected')} className="flex-1 py-2 bg-rose-600/20 hover:bg-rose-600/30 text-rose-400 border border-rose-500/30 rounded-xl text-xs font-bold transition-colors">Отклонить</button>
-                </div>
-              </div>
             ) : (
-              <div className="text-[10px] font-mono text-zinc-500 text-center uppercase tracking-wider py-2">
-                {isStage1Passed ? 'Ожидает решения' : 'Доступно после 1-го этапа'}
+              <div style={{ fontSize: 11, fontFamily: mono, color: R.textMuted, textAlign: 'center', padding: '8px 0' }}>
+                {isStage1Passed ? 'Ожидает решения Администрации' : 'Доступно после 1-го этапа'}
               </div>
             )}
           </div>
 
-          {/* COMMENTS */}
-          <div className="bg-white/[0.02] backdrop-blur-xl border border-white/10 rounded-2xl p-5 shadow-2xl shadow-black/50">
-            <div className="flex items-center gap-2 mb-4 pb-3 border-b border-white/10">
-              <MessageSquare size={18} className="text-indigo-400" />
-              <h4 className="text-sm font-bold text-white">Обсуждение ({bill.comments?.length || 0})</h4>
+          {/* Comments Section */}
+          <div style={{ background: R.bgPanel, border: ft.edge, borderRadius: 2, padding: 16 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, paddingBottom: 8, borderBottom: ft.hair }}>
+              <MessageSquare size={16} color={R.accent} />
+              <h4 style={{ fontSize: 13, fontWeight: 800, color: R.text, margin: 0 }}>
+                Обсуждение ({bill.comments?.length || 0})
+              </h4>
             </div>
             
-            {/* The CommentsSection component needs its own redesign to match, but we will pass down props */}
             <CommentsSection 
               billId={bill.id}
               user={user}
@@ -836,7 +1498,8 @@ export const BillEditor: React.FC<BillEditorProps> = ({
             />
           </div>
 
-        </motion.div>
+        </div>
+
       </div>
 
       {expandedRow && (
@@ -851,6 +1514,26 @@ export const BillEditor: React.FC<BillEditorProps> = ({
         />
       )}
 
+      {/* Hidden Print View for PDF Export */}
+      <div style={{ position: 'absolute', top: '-9999px', left: '-9999px' }}>
+        <div id="pdf-content-container">
+          <BillPrintView bill={bill} />
+        </div>
+      </div>
+
+      {/* In-UI Article Deletion Confirmation Modal */}
+      {confirmDeleteArticleId && (
+        <ConfirmModal
+          title="Удалить статью из проекта?"
+          message="Вы действительно хотите удалить эту статью? Внесённый текст действующей редакции и предлагаемых поправок будет безвозвратно удален."
+          confirmLabel="Удалить статью"
+          onConfirm={() => {
+            removeComparisonRow(confirmDeleteArticleId);
+            setConfirmDeleteArticleId(null);
+          }}
+          onCancel={() => setConfirmDeleteArticleId(null)}
+        />
+      )}
     </div>
   );
 };

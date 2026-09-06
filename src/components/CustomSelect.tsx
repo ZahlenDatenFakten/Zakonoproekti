@@ -1,7 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronDown, Check } from 'lucide-react';
-import { cn } from '../utils/cn';
+import { R, ft, shadow } from '../lib/ui';
 
 export interface SelectOption {
   value: string;
@@ -26,7 +25,7 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
   placeholder = 'Выберите...',
   style,
   width = '100%',
-  className
+  className = '',
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -44,74 +43,112 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
   }, []);
 
   return (
-    <div 
-      ref={containerRef} 
-      className={cn("relative select-none", className)}
+    <div
+      ref={containerRef}
+      className={`relative select-none ${className}`}
       style={{ width, ...style }}
     >
       {/* Select Trigger Box */}
-      <div
+      <button
+        type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className={cn(
-          "bg-black/60 border rounded-xl px-4 py-3 flex items-center justify-between cursor-pointer text-sm transition-all",
-          isOpen 
-            ? "border-indigo-500/50 shadow-[0_0_0_2px_rgba(99,102,241,0.2)]" 
-            : "border-white/10 hover:border-white/20",
-          selectedOption ? "text-white" : "text-zinc-600 font-medium"
-        )}
+        style={{
+          width: '100%',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '9px 12px',
+          background: R.bgInput,
+          border: isOpen ? `1px solid ${R.accentBorder}` : ft.edge,
+          color: selectedOption ? R.text : R.textMuted,
+          fontSize: 13,
+          cursor: 'pointer',
+          outline: 'none',
+          boxShadow: isOpen ? `0 0 0 2px ${R.accentSoft}` : 'none',
+          transition: 'border-color .15s, box-shadow .15s',
+        }}
       >
-        <span className="flex items-center gap-2 overflow-hidden whitespace-nowrap font-medium">
+        <span style={{ display: 'flex', alignItems: 'center', gap: 8, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {selectedOption?.icon}
-          {selectedOption ? selectedOption.label : placeholder}
+          <span style={{ fontWeight: selectedOption ? 500 : 400 }}>
+            {selectedOption ? selectedOption.label : placeholder}
+          </span>
         </span>
-        <ChevronDown 
-          size={16} 
-          className={cn(
-            "text-zinc-500 shrink-0 ml-2 transition-transform duration-200",
-            isOpen ? "rotate-180 text-indigo-400" : "rotate-0"
-          )} 
+        <ChevronDown
+          size={14}
+          style={{
+            flexShrink: 0,
+            marginLeft: 8,
+            color: R.textMuted,
+            transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+            transition: 'transform .15s',
+          }}
         />
-      </div>
+      </button>
 
       {/* Floating Dropdown Menu */}
-      <AnimatePresence>
-        {isOpen && (
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            transition={{ duration: 0.15 }}
-            className="absolute top-[calc(100%+8px)] left-0 right-0 z-[999999] bg-[#0C0D12] border border-white/10 rounded-xl shadow-2xl overflow-hidden max-h-60 overflow-y-auto custom-scrollbar"
-          >
-            <div className="p-1">
-              {options.map((option) => {
-                const isSelected = option.value === value;
-                return (
-                  <div
-                    key={option.value}
-                    onClick={() => {
-                      onChange(option.value);
-                      setIsOpen(false);
-                    }}
-                    className={cn(
-                      "px-3 py-2.5 text-sm flex items-center justify-between cursor-pointer rounded-lg transition-all",
-                      isSelected 
-                        ? "bg-indigo-500/10 text-indigo-400 font-bold border-l-2 border-indigo-500" 
-                        : "text-zinc-300 hover:bg-white/5 hover:text-white border-l-2 border-transparent font-medium"
-                    )}
-                  >
-                    <span className="flex items-center gap-2">
-                      {option.icon}
-                      {option.label}
-                    </span>
-                    {isSelected && <Check size={16} className="text-indigo-400" />}
-                  </div>
-                );
-              })}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {isOpen && (
+        <div
+          role="listbox"
+          className="rt-scroll"
+          style={{
+            position: 'absolute',
+            top: 'calc(100% + 4px)',
+            left: 0,
+            right: 0,
+            zIndex: 999999,
+            background: R.bgPanel,
+            border: ft.strong,
+            boxShadow: shadow.dropdown,
+            maxHeight: 260,
+            overflowY: 'auto',
+            padding: '4px 0',
+            animation: 'rtIn .12s ease',
+          }}
+        >
+          {options.map((option) => {
+            const isSelected = option.value === value;
+            return (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => {
+                  onChange(option.value);
+                  setIsOpen(false);
+                }}
+                style={{
+                  width: '100%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '8px 12px',
+                  fontSize: 13,
+                  textAlign: 'left',
+                  border: 'none',
+                  background: isSelected ? R.accentSoft : 'transparent',
+                  color: isSelected ? R.accent : R.text,
+                  fontWeight: isSelected ? 600 : 400,
+                  cursor: 'pointer',
+                  outline: 'none',
+                  transition: 'background .1s',
+                }}
+                onMouseEnter={(e) => {
+                  if (!isSelected) e.currentTarget.style.background = R.bgElevated;
+                }}
+                onMouseLeave={(e) => {
+                  if (!isSelected) e.currentTarget.style.background = 'transparent';
+                }}
+              >
+                <span style={{ display: 'flex', alignItems: 'center', gap: 8, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {option.icon}
+                  <span>{option.label}</span>
+                </span>
+                {isSelected && <Check size={14} style={{ color: R.accent, flexShrink: 0, marginLeft: 8 }} />}
+              </button>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 };

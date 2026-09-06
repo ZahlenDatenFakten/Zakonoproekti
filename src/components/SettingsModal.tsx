@@ -5,7 +5,8 @@ import { OFFICIAL_ROLE_LABELS } from '../types/bill';
 import { CustomSelect } from './CustomSelect';
 import { verifyRolePin, getPinRegistry, savePinRegistry, updateOfficialPin, isSystemAdmin, getAuditLogs } from '../services/securityService';
 import { X, User, Key, ShieldCheck, Check, Clock, Lock } from 'lucide-react';
-import { cn } from '../utils/cn';
+import { R, ft, label, mono, shadow, chip, btnAccent, btnOutline } from '../lib/ui';
+import { ConfirmModal } from './ConfirmModal';
 
 interface SettingsModalProps {
   user: UserProfile;
@@ -21,6 +22,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onToast
 }) => {
   const [activeTab, setActiveTab] = useState<'profile' | 'official' | 'changepin' | 'admin' | 'audit'>('profile');
+  const [showConfirmResetRole, setShowConfirmResetRole] = useState(false);
 
   // Profile Form
   const [firstName, setFirstName] = useState(user.firstName);
@@ -99,6 +101,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       setCurrentPinInput('');
       setNewPinInput('');
       setConfirmPinInput('');
+      onClose();
     } catch (err: any) {
       onToast('error', err.message || 'Ошибка смены PIN-кода');
     }
@@ -106,68 +109,107 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
   const handleSavePinRegistry = () => {
     savePinRegistry(pinRegistry);
-    onToast('success', 'Реестр служебных PIN-кодов ролей обновлен');
+    onToast('success', 'Реестр служебных PIN-кодов успешно обновлен');
   };
 
   const handleResetRole = () => {
-    onUpdateProfile(firstName.trim(), lastName.trim(), 'civilian', false);
-    onToast('info', 'Служебный статус сброшен до Гражданина');
+    setShowConfirmResetRole(true);
   };
 
+  const executeResetRole = () => {
+    setShowConfirmResetRole(false);
+    onUpdateProfile(user.firstName, user.lastName, 'civilian', false);
+    onToast('info', 'Служебный статус сброшен до Гражданского лица');
+    onClose();
+  };
+
+  const tabs = [
+    { id: 'profile', label: 'Профиль' },
+    { id: 'official', label: 'Авторизация' },
+    { id: 'changepin', label: 'Смена PIN' },
+    { id: 'admin', label: 'Админ-панель' },
+    { id: 'audit', label: 'Аудит' },
+  ] as const;
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 9999,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 16,
+        background: 'rgba(10, 9, 8, 0.7)',
+        backdropFilter: 'blur(6px)',
+      }}
+    >
       <motion.div 
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        className="absolute inset-0 bg-black/80 backdrop-blur-sm"
-        onClick={onClose}
-      />
-      <motion.div 
-        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+        initial={{ opacity: 0, scale: 0.96, y: 15 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.95, y: 20 }}
-        className="relative w-full max-w-2xl bg-[#0C0D12] border border-white/10 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+        style={{
+          width: '100%',
+          maxWidth: 640,
+          maxHeight: '90vh',
+          background: R.bgPanel,
+          border: ft.strong,
+          borderRadius: 2,
+          boxShadow: shadow.panel,
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden',
+        }}
       >
-        
         {/* Modal Header */}
-        <div className="p-5 border-b border-white/10 bg-white/[0.02] flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center shadow-[0_0_15px_rgba(99,102,241,0.2)]">
-              <User size={22} />
+        <div
+          style={{
+            padding: '14px 20px',
+            borderBottom: ft.hair,
+            background: R.bgElevated,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ width: 32, height: 32, display: 'grid', placeItems: 'center', background: R.accentSubtle, color: R.accent, borderRadius: 2 }}>
+              <User size={16} />
             </div>
             <div>
-              <h3 className="text-lg font-bold text-white">Личный кабинет и Безопасность</h3>
-              <p className="text-[10px] font-mono text-zinc-400 uppercase tracking-wider mt-0.5">
-                {user.firstName} {user.lastName} &bull; <span className="text-indigo-400 font-bold">{OFFICIAL_ROLE_LABELS[user.officialRole]}</span>
-              </p>
+              <h3 style={{ fontSize: 14, fontWeight: 800, color: R.text, margin: 0 }}>
+                Личный кабинет и безопасность
+              </h3>
+              <div style={{ fontSize: 11, fontFamily: mono, color: R.textMuted, marginTop: 1 }}>
+                {user.firstName} {user.lastName} · {OFFICIAL_ROLE_LABELS[user.officialRole]}
+              </div>
             </div>
           </div>
           <button 
             onClick={onClose} 
-            className="w-8 h-8 flex items-center justify-center rounded-xl bg-transparent hover:bg-white/5 text-zinc-400 hover:text-white transition-colors"
+            style={{
+              background: 'none',
+              border: 'none',
+              color: R.textMuted,
+              cursor: 'pointer',
+              display: 'grid',
+              placeItems: 'center',
+              padding: 4,
+            }}
           >
             <X size={18} />
           </button>
         </div>
 
-        <div className="p-6 overflow-y-auto custom-scrollbar">
+        {/* Content Area */}
+        <div style={{ padding: 20, overflowY: 'auto' }} className="rt-scroll">
           {/* Navigation Tabs */}
-          <div className="flex flex-wrap gap-2 p-1 bg-black/60 border border-white/10 rounded-xl mb-6">
-            {[
-              { id: 'profile', label: '👤 Профиль' },
-              { id: 'official', label: '🔑 Авторизация' },
-              { id: 'changepin', label: '🛡️ Смена PIN' },
-              { id: 'admin', label: '👑 Админ-панель' },
-              { id: 'audit', label: '📝 Аудит' },
-            ].map((t) => (
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 20 }}>
+            {tabs.map((t) => (
               <button
                 key={t.id}
                 onClick={() => setActiveTab(t.id as any)}
-                className={cn(
-                  "flex-1 min-w-[100px] py-2 px-3 text-xs font-bold rounded-lg transition-all",
-                  activeTab === t.id ? "bg-white/10 text-white shadow-sm" : "text-zinc-500 hover:text-zinc-300 hover:bg-white/5"
-                )}
+                style={chip(activeTab === t.id)}
               >
                 {t.label}
               </button>
@@ -176,57 +218,79 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
           {/* TAB 1: Profile */}
           {activeTab === 'profile' && (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-5">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               <div>
-                <label className="block text-[10px] font-bold tracking-wider uppercase text-zinc-500 mb-2">Имя гражданина / чиновника:</label>
+                <label style={{ ...label, display: 'block', marginBottom: 6 }}>Имя гражданина / чиновника:</label>
                 <input
                   type="text"
-                  className="w-full bg-black/60 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-indigo-500/50 transition-colors placeholder-zinc-600"
                   value={firstName}
                   onChange={(e) => setFirstName(e.target.value)}
                   placeholder="Имя..."
+                  style={{
+                    width: '100%',
+                    height: 38,
+                    padding: '0 12px',
+                    fontSize: 14,
+                    fontWeight: 700,
+                    background: R.bgInput,
+                    border: ft.edge,
+                    color: R.text,
+                    borderRadius: 2,
+                    outline: 'none',
+                  }}
                 />
               </div>
 
               <div>
-                <label className="block text-[10px] font-bold tracking-wider uppercase text-zinc-500 mb-2">Фамилия:</label>
+                <label style={{ ...label, display: 'block', marginBottom: 6 }}>Фамилия:</label>
                 <input
                   type="text"
-                  className="w-full bg-black/60 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-indigo-500/50 transition-colors placeholder-zinc-600"
                   value={lastName}
                   onChange={(e) => setLastName(e.target.value)}
                   placeholder="Фамилия..."
+                  style={{
+                    width: '100%',
+                    height: 38,
+                    padding: '0 12px',
+                    fontSize: 14,
+                    fontWeight: 700,
+                    background: R.bgInput,
+                    border: ft.edge,
+                    color: R.text,
+                    borderRadius: 2,
+                    outline: 'none',
+                  }}
                 />
               </div>
 
-              <div className="flex items-center justify-between pt-4">
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: 8 }}>
                 {user.isOfficialVerified ? (
                   <button
                     onClick={handleResetRole}
-                    className="text-xs font-mono text-zinc-500 hover:text-zinc-300 underline underline-offset-4 transition-colors"
+                    style={{ fontSize: 11, fontFamily: mono, color: R.textMuted, background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}
                   >
                     Сбросить служебный статус
                   </button>
                 ) : <div/>}
                 <button 
                   onClick={handleSaveProfile} 
-                  className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-extrabold rounded-xl shadow-lg shadow-indigo-500/20 border border-indigo-400/30 active:scale-95 transition-all"
+                  style={btnAccent}
                 >
                   Сохранить профиль
                 </button>
               </div>
-            </motion.div>
+            </div>
           )}
 
           {/* TAB 2: Official Role PIN Activation */}
           {activeTab === 'official' && (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-5">
-              <p className="text-sm text-zinc-400 leading-relaxed font-medium">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <p style={{ fontSize: 13, color: R.textSecondary, margin: 0 }}>
                 Для голосования на 1-м этапе требуется авторизация служебным PIN-кодом:
               </p>
 
               <div>
-                <label className="block text-[10px] font-bold tracking-wider uppercase text-zinc-500 mb-2">Должность Законодательной Комиссии:</label>
+                <label style={{ ...label, display: 'block', marginBottom: 6 }}>Должность Законодательной Комиссии:</label>
                 <CustomSelect
                   options={[
                     { value: 'prosecutor', label: '⚖️ Генеральный прокурор' },
@@ -239,242 +303,303 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               </div>
 
               <div>
-                <label className="block text-[10px] font-bold tracking-wider uppercase text-zinc-500 mb-2">Персональный PIN-код служащего:</label>
+                <label style={{ ...label, display: 'block', marginBottom: 6 }}>Персональный PIN-код служащего:</label>
                 <input
                   type="password"
                   autoComplete="new-password"
-                  className="w-full bg-black/60 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-indigo-500/50 transition-colors placeholder-zinc-600"
                   placeholder="Введите PIN-код..."
                   value={rolePin}
                   onChange={(e) => setRolePin(e.target.value)}
+                  style={{
+                    width: '100%',
+                    height: 38,
+                    padding: '0 12px',
+                    fontSize: 14,
+                    background: R.bgInput,
+                    border: ft.edge,
+                    color: R.text,
+                    borderRadius: 2,
+                    outline: 'none',
+                  }}
                 />
               </div>
 
-              <div className="flex justify-end pt-4">
+              <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: 8 }}>
                 <button 
                   onClick={handleActivateRole} 
-                  className="flex items-center gap-2 px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-extrabold rounded-xl shadow-lg shadow-indigo-500/20 border border-indigo-400/30 active:scale-95 transition-all"
+                  style={btnAccent}
                 >
-                  <Key size={16} /> Подтвердить полномочия
+                  <Key size={14} /> Подтвердить полномочия
                 </button>
               </div>
-            </motion.div>
+            </div>
           )}
 
-          {/* TAB 3: Change Official PIN Password */}
+          {/* TAB 3: Change Official PIN */}
           {activeTab === 'changepin' && (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+            <div>
               {!user.isOfficialVerified || user.officialRole === 'civilian' ? (
-                <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-xl">
-                  <p className="text-xs text-amber-200/80 leading-relaxed font-medium">
-                    ⚠️ <strong className="text-amber-400">Смена PIN-кода ограниченного доступа:</strong> Данный раздел предназначен для верифицированных должностных лиц (Губернатор, Генпрокурор, Председатель суда, Администратор). Сначала подтвердите свои полномочия на вкладке «Авторизация».
+                <div style={{ padding: 14, background: R.warningSubtle, border: `1px solid ${R.warning}`, borderRadius: 2 }}>
+                  <p style={{ fontSize: 12, color: R.warning, margin: 0 }}>
+                    ⚠️ <strong>Смена PIN-кода ограниченного доступа:</strong> Данный раздел предназначен для верифицированных должностных лиц (Губернатор, Генпрокурор, Председатель суда, Администратор). Сначала подтвердите свои полномочия на вкладке «Авторизация».
                   </p>
                 </div>
               ) : (
-                <div className="space-y-5">
-                  <div className="bg-black/40 border border-white/10 rounded-xl p-4 mb-2">
-                    <div className="text-sm font-bold text-indigo-400 mb-1 font-mono uppercase tracking-wider">
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                  <div style={{ background: R.bgInput, border: ft.hair, borderRadius: 2, padding: 12 }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: R.accent, fontFamily: mono, textTransform: 'uppercase' }}>
                       {OFFICIAL_ROLE_LABELS[user.officialRole]}
                     </div>
-                    <div className="text-xs text-zinc-400 leading-relaxed">
+                    <div style={{ fontSize: 12, color: R.textMuted, marginTop: 4 }}>
                       Вы можете самостоятельно обновить свой персональный PIN-код для входа.
                     </div>
                   </div>
 
                   <div>
-                    <label className="block text-[10px] font-bold tracking-wider uppercase text-zinc-500 mb-2">Текущий PIN-код:</label>
+                    <label style={{ ...label, display: 'block', marginBottom: 6 }}>Текущий PIN-код:</label>
                     <input
                       type="password"
                       autoComplete="new-password"
-                      className="w-full bg-black/60 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-indigo-500/50 transition-colors placeholder-zinc-600"
                       placeholder="Введите действующий PIN..."
                       value={currentPinInput}
                       onChange={(e) => setCurrentPinInput(e.target.value)}
+                      style={{
+                        width: '100%',
+                        height: 38,
+                        padding: '0 12px',
+                        fontSize: 14,
+                        background: R.bgInput,
+                        border: ft.edge,
+                        color: R.text,
+                        borderRadius: 2,
+                        outline: 'none',
+                      }}
                     />
                   </div>
 
                   <div>
-                    <label className="block text-[10px] font-bold tracking-wider uppercase text-zinc-500 mb-2">Новый PIN-код:</label>
+                    <label style={{ ...label, display: 'block', marginBottom: 6 }}>Новый PIN-код:</label>
                     <input
                       type="password"
                       autoComplete="new-password"
-                      className="w-full bg-black/60 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-indigo-500/50 transition-colors placeholder-zinc-600"
                       placeholder="Новый PIN-код (минимум 4 символа)..."
                       value={newPinInput}
                       onChange={(e) => setNewPinInput(e.target.value)}
+                      style={{
+                        width: '100%',
+                        height: 38,
+                        padding: '0 12px',
+                        fontSize: 14,
+                        background: R.bgInput,
+                        border: ft.edge,
+                        color: R.text,
+                        borderRadius: 2,
+                        outline: 'none',
+                      }}
                     />
                   </div>
 
                   <div>
-                    <label className="block text-[10px] font-bold tracking-wider uppercase text-zinc-500 mb-2">Подтверждение нового PIN-кода:</label>
+                    <label style={{ ...label, display: 'block', marginBottom: 6 }}>Подтверждение нового PIN-кода:</label>
                     <input
                       type="password"
                       autoComplete="new-password"
-                      className="w-full bg-black/60 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-indigo-500/50 transition-colors placeholder-zinc-600"
                       placeholder="Повторите новый PIN-код..."
                       value={confirmPinInput}
                       onChange={(e) => setConfirmPinInput(e.target.value)}
+                      style={{
+                        width: '100%',
+                        height: 38,
+                        padding: '0 12px',
+                        fontSize: 14,
+                        background: R.bgInput,
+                        border: ft.edge,
+                        color: R.text,
+                        borderRadius: 2,
+                        outline: 'none',
+                      }}
                     />
                   </div>
 
-                  <div className="flex justify-end pt-4">
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: 8 }}>
                     <button 
                       onClick={handleChangePin} 
-                      className="flex items-center gap-2 px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-extrabold rounded-xl shadow-lg shadow-indigo-500/20 border border-indigo-400/30 active:scale-95 transition-all"
+                      style={btnAccent}
                     >
-                      <Lock size={16} /> Сохранить новый PIN-код
+                      <Lock size={14} /> Сохранить новый PIN-код
                     </button>
                   </div>
                 </div>
               )}
-            </motion.div>
+            </div>
           )}
 
           {/* TAB 4: Admin Panel */}
           {activeTab === 'admin' && (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+            <div>
               {!isSystemAdmin(user) ? (
-                <div className="space-y-5">
-                  <p className="text-sm text-zinc-400 leading-relaxed font-medium">
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                  <p style={{ fontSize: 13, color: R.textSecondary, margin: 0 }}>
                     Для доступа к вердиктам 2-го этапа введите Секретный Код Администратора:
                   </p>
 
                   <div>
-                    <label className="block text-[10px] font-bold tracking-wider uppercase text-zinc-500 mb-2">Секретный Код Администратора:</label>
+                    <label style={{ ...label, display: 'block', marginBottom: 6 }}>Секретный Код Администратора:</label>
                     <input
                       type="password"
                       autoComplete="new-password"
-                      className="w-full bg-black/60 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-indigo-500/50 transition-colors placeholder-zinc-600"
                       placeholder="Код доступа..."
                       value={adminCodeInput}
                       onChange={(e) => setAdminCodeInput(e.target.value)}
+                      style={{
+                        width: '100%',
+                        height: 38,
+                        padding: '0 12px',
+                        fontSize: 14,
+                        background: R.bgInput,
+                        border: ft.edge,
+                        color: R.text,
+                        borderRadius: 2,
+                        outline: 'none',
+                      }}
                     />
                   </div>
 
-                  <div className="flex justify-end pt-4">
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: 8 }}>
                     <button 
                       onClick={handleActivateAdmin} 
-                      className="flex items-center gap-2 px-6 py-2.5 bg-amber-600 hover:bg-amber-500 text-white text-sm font-extrabold rounded-xl shadow-lg shadow-amber-500/20 border border-amber-400/30 active:scale-95 transition-all"
+                      style={btnAccent}
                     >
-                      <ShieldCheck size={16} /> Авторизовать Администратора
+                      <ShieldCheck size={14} /> Авторизовать Администратора
                     </button>
                   </div>
                 </div>
               ) : (
-                <div className="space-y-6">
-                  <div className="bg-emerald-500/10 border border-emerald-500/20 p-3 rounded-xl flex items-center gap-3">
-                    <Check size={18} className="text-emerald-400" />
-                    <span className="text-sm font-bold text-emerald-400">Системный Администратор авторизован (2-й этап активен).</span>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                  <div style={{ background: R.successSubtle, border: `1px solid ${R.success}`, padding: '10px 14px', borderRadius: 2, display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <Check size={16} color={R.success} />
+                    <span style={{ fontSize: 13, fontWeight: 700, color: R.success }}>Системный Администратор авторизован (2-й этап активен).</span>
                   </div>
 
                   <div>
-                    <h4 className="text-[10px] font-mono font-bold text-indigo-400 uppercase tracking-wider mb-4">
+                    <div style={{ ...label, marginBottom: 10, color: R.accent }}>
                       Реестр PIN-кодов должностей
-                    </h4>
+                    </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                       <div>
-                        <label className="block text-[10px] font-bold tracking-wider uppercase text-zinc-500 mb-2">PIN Прокурора:</label>
+                        <label style={{ ...label, display: 'block', marginBottom: 4 }}>PIN Прокурора:</label>
                         <input
                           type="text"
-                          className="w-full bg-black/60 border border-white/10 rounded-xl px-4 py-2.5 text-xs font-mono text-white focus:outline-none focus:border-indigo-500/50 transition-colors"
                           value={pinRegistry.prosecutor}
                           onChange={(e) => setPinRegistryState({ ...pinRegistry, prosecutor: e.target.value })}
+                          style={{ width: '100%', height: 34, padding: '0 10px', fontSize: 12, fontFamily: mono, background: R.bgInput, border: ft.edge, color: R.text, borderRadius: 2 }}
                         />
                       </div>
 
                       <div>
-                        <label className="block text-[10px] font-bold tracking-wider uppercase text-zinc-500 mb-2">PIN Судьи:</label>
+                        <label style={{ ...label, display: 'block', marginBottom: 4 }}>PIN Судьи:</label>
                         <input
                           type="text"
-                          className="w-full bg-black/60 border border-white/10 rounded-xl px-4 py-2.5 text-xs font-mono text-white focus:outline-none focus:border-indigo-500/50 transition-colors"
                           value={pinRegistry.judge}
                           onChange={(e) => setPinRegistryState({ ...pinRegistry, judge: e.target.value })}
+                          style={{ width: '100%', height: 34, padding: '0 10px', fontSize: 12, fontFamily: mono, background: R.bgInput, border: ft.edge, color: R.text, borderRadius: 2 }}
                         />
                       </div>
 
                       <div>
-                        <label className="block text-[10px] font-bold tracking-wider uppercase text-zinc-500 mb-2">PIN Губернатора:</label>
+                        <label style={{ ...label, display: 'block', marginBottom: 4 }}>PIN Губернатора:</label>
                         <input
                           type="text"
-                          className="w-full bg-black/60 border border-white/10 rounded-xl px-4 py-2.5 text-xs font-mono text-white focus:outline-none focus:border-indigo-500/50 transition-colors"
                           value={pinRegistry.governor}
                           onChange={(e) => setPinRegistryState({ ...pinRegistry, governor: e.target.value })}
+                          style={{ width: '100%', height: 34, padding: '0 10px', fontSize: 12, fontFamily: mono, background: R.bgInput, border: ft.edge, color: R.text, borderRadius: 2 }}
                         />
                       </div>
 
                       <div>
-                        <label className="block text-[10px] font-bold tracking-wider uppercase text-zinc-500 mb-2">Код Админа:</label>
+                        <label style={{ ...label, display: 'block', marginBottom: 4 }}>Код Админа:</label>
                         <input
                           type="text"
-                          className="w-full bg-black/60 border border-white/10 rounded-xl px-4 py-2.5 text-xs font-mono text-white focus:outline-none focus:border-indigo-500/50 transition-colors"
                           value={pinRegistry.adminCode}
                           onChange={(e) => setPinRegistryState({ ...pinRegistry, adminCode: e.target.value })}
+                          style={{ width: '100%', height: 34, padding: '0 10px', fontSize: 12, fontFamily: mono, background: R.bgInput, border: ft.edge, color: R.text, borderRadius: 2 }}
                         />
                       </div>
                     </div>
                   </div>
 
-                  <div className="flex justify-end pt-2">
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: 8 }}>
                     <button 
                       onClick={handleSavePinRegistry} 
-                      className="px-6 py-2.5 bg-amber-600 hover:bg-amber-500 text-white text-sm font-extrabold rounded-xl shadow-lg shadow-amber-500/20 border border-amber-400/30 active:scale-95 transition-all"
+                      style={btnAccent}
                     >
                       Сохранить PIN-коды
                     </button>
                   </div>
                 </div>
               )}
-            </motion.div>
+            </div>
           )}
 
           {/* TAB 5: Audit Logs */}
           {activeTab === 'audit' && (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-              <div className="bg-black/40 border border-white/10 rounded-xl p-4 flex items-center justify-between">
-                <div>
-                  <div className="flex items-center gap-2 text-sm font-bold text-white mb-1">
-                    <ShieldCheck size={16} className="text-emerald-400" /> Защита Audit-Trail SA GOV TECH
-                  </div>
-                  <div className="text-[10px] font-mono text-zinc-500 uppercase tracking-wider">
-                    Zero-Trust Access Control &bull; SHA-256 System Integrity
-                  </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div style={{ background: R.bgInput, border: ft.hair, borderRadius: 2, padding: 12 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700, color: R.text }}>
+                  <ShieldCheck size={15} color={R.success} /> Журнал аудита SA GOV TECH
+                </div>
+                <div style={{ fontSize: 10, fontFamily: mono, color: R.textMuted, marginTop: 2, textTransform: 'uppercase' }}>
+                  Zero-Trust Access Control · SHA-256 System Integrity
                 </div>
               </div>
 
-              <div>
-                <h4 className="text-[10px] font-mono font-bold text-indigo-400 uppercase tracking-wider mb-4">
-                  Журнал событий реестра
-                </h4>
-
-                <div className="flex flex-col gap-2 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
-                  {auditLogs.map((log) => (
-                    <div key={log.id} className="bg-white/[0.02] border border-white/10 rounded-xl p-3">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-xs font-bold text-white">{log.action}</span>
-                        <span className="flex items-center gap-1.5 text-[10px] font-mono text-zinc-500">
-                          <Clock size={12} /> {new Date(log.timestamp).toLocaleTimeString('ru-RU')}
-                        </span>
-                      </div>
-                      <div className="text-xs font-mono text-zinc-400 leading-relaxed break-words">{log.details}</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 280, overflowY: 'auto' }} className="rt-scroll">
+                {auditLogs.map((log) => (
+                  <div key={log.id} style={{ background: R.bgInput, border: ft.hair, borderRadius: 2, padding: 10 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: R.text }}>{log.action}</span>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, fontFamily: mono, color: R.textMuted }}>
+                        <Clock size={11} /> {new Date(log.timestamp).toLocaleTimeString('ru-RU')}
+                      </span>
                     </div>
-                  ))}
-                </div>
+                    <div style={{ fontSize: 11, fontFamily: mono, color: R.textSecondary, lineHeight: 1.4 }}>{log.details}</div>
+                  </div>
+                ))}
               </div>
-            </motion.div>
+            </div>
           )}
         </div>
 
-        <div className="p-5 border-t border-white/10 bg-black/40 flex justify-end">
+        {/* Footer */}
+        <div
+          style={{
+            padding: '12px 20px',
+            borderTop: ft.hair,
+            background: R.bgElevated,
+            display: 'flex',
+            justifyContent: 'flex-end',
+          }}
+        >
           <button 
             onClick={onClose} 
-            className="px-6 py-2.5 bg-white/[0.04] hover:bg-white/[0.08] text-white text-sm font-bold rounded-xl border border-white/10 transition-colors"
+            style={btnOutline}
           >
             Закрыть
           </button>
         </div>
 
       </motion.div>
+
+      {showConfirmResetRole && (
+        <ConfirmModal
+          title="Сбросить служебный статус?"
+          message="Вы перейдете в статус Гражданского лица. Доступ к голосованию в Законодательной Комиссии и служебным разделам будет деактивирован."
+          confirmLabel="Сбросить статус"
+          onConfirm={executeResetRole}
+          onCancel={() => setShowConfirmResetRole(false)}
+        />
+      )}
     </div>
   );
 };

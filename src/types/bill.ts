@@ -88,6 +88,7 @@ export interface Bill {
   votes?: CommissionVotes;
   federalVerdict?: FederalGovernmentVerdict;
   sha256Hash?: string; // Криптографический отпечаток целостности документа
+  forumUrl?: string;
   attachments?: BillAttachment[];
   createdAt: string;
   updatedAt: string;
@@ -99,6 +100,13 @@ export interface RolePinRegistry {
   judge: string;
   governor: string;
   adminCode: string;
+}
+
+export interface BillPack {
+  id: string;
+  label: string;
+  timestamp: number;
+  bills: Bill[];
 }
 
 export interface UserProfile {

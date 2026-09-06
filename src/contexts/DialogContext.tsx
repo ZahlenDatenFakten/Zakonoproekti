@@ -1,8 +1,8 @@
 import React, { createContext, useContext, useState } from 'react';
 import type { ReactNode } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { AlertCircle, Info, CheckCircle2 } from 'lucide-react';
-import { cn } from '../utils/cn';
+import { AlertTriangle, Info, CheckCircle2, AlertCircle } from 'lucide-react';
+import { R, ft, shadow, btnAccent, btnOutline, btnDangerSolid } from '../lib/ui';
 
 type DialogType = 'alert' | 'prompt' | 'confirm';
 type DialogVariant = 'info' | 'success' | 'warning' | 'error';
@@ -69,85 +69,146 @@ export const DialogProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       {children}
       <AnimatePresence>
         {dialogs.map((dialog, index) => {
-          const variant = dialog.variant || 'info';
+          const variant = dialog.variant || (dialog.type === 'confirm' ? 'warning' : 'info');
 
           return (
-            <div key={dialog.id} className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <div
+              key={dialog.id}
+              style={{
+                position: 'fixed',
+                inset: 0,
+                zIndex: 99999 + index,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: 16,
+                background: 'rgba(10, 9, 8, 0.72)',
+                backdropFilter: 'blur(6px)',
+              }}
+            >
               <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-              />
-              <motion.div
-                initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                initial={{ opacity: 0, scale: 0.95, y: 12 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.95, y: 10 }}
-                className={cn(
-                  "relative w-full max-w-md bg-[#0C0D12] border rounded-2xl shadow-2xl overflow-hidden flex flex-col",
-                  variant === 'error' ? "border-rose-500/20 shadow-rose-500/10" :
-                  variant === 'warning' ? "border-amber-500/20 shadow-amber-500/10" :
-                  variant === 'success' ? "border-emerald-500/20 shadow-emerald-500/10" :
-                  "border-indigo-500/20 shadow-indigo-500/10"
-                )}
-                style={{ zIndex: 101 + index }}
+                exit={{ opacity: 0, scale: 0.95, y: 12 }}
+                transition={{ duration: 0.16 }}
+                style={{
+                  width: '100%',
+                  maxWidth: 440,
+                  background: R.bgPanel,
+                  border: ft.strong,
+                  borderRadius: 2,
+                  boxShadow: shadow.panel,
+                  overflow: 'hidden',
+                  display: 'flex',
+                  flexDirection: 'column',
+                }}
               >
-                <div className="p-5 flex flex-col gap-4">
-                  <div className="flex items-start gap-4">
-                    <div className={cn(
-                      "w-10 h-10 rounded-xl flex items-center justify-center shrink-0",
-                      variant === 'error' ? "bg-rose-500/10 text-rose-400" :
-                      variant === 'warning' ? "bg-amber-500/10 text-amber-400" :
-                      variant === 'success' ? "bg-emerald-500/10 text-emerald-400" :
-                      "bg-indigo-500/10 text-indigo-400"
-                    )}>
-                      {variant === 'error' && <AlertCircle size={20} />}
-                      {variant === 'warning' && <AlertCircle size={20} />}
-                      {variant === 'success' && <CheckCircle2 size={20} />}
-                      {variant === 'info' && <Info size={20} />}
-                    </div>
-                    <div className="flex-1 pt-1 min-w-0">
-                      {dialog.title && (
-                        <h3 className="text-sm font-bold text-white mb-1">{dialog.title}</h3>
-                      )}
-                      <p className="text-sm text-zinc-300 leading-relaxed whitespace-pre-wrap">{dialog.message}</p>
-                    </div>
+                {/* Header */}
+                <div
+                  style={{
+                    padding: '14px 18px',
+                    borderBottom: ft.hair,
+                    background: R.bgElevated,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 12,
+                  }}
+                >
+                  <div
+                    style={{
+                      width: 32,
+                      height: 32,
+                      borderRadius: 2,
+                      display: 'grid',
+                      placeItems: 'center',
+                      background:
+                        variant === 'error'
+                          ? R.dangerSubtle
+                          : variant === 'warning'
+                          ? 'rgba(234, 179, 8, 0.12)'
+                          : variant === 'success'
+                          ? R.successSubtle
+                          : R.accentSubtle,
+                      color:
+                        variant === 'error'
+                          ? R.danger
+                          : variant === 'warning'
+                          ? '#eab308'
+                          : variant === 'success'
+                          ? R.success
+                          : R.accent,
+                      border: ft.hair,
+                      flexShrink: 0,
+                    }}
+                  >
+                    {variant === 'error' && <AlertCircle size={16} />}
+                    {variant === 'warning' && <AlertTriangle size={16} />}
+                    {variant === 'success' && <CheckCircle2 size={16} />}
+                    {variant === 'info' && <Info size={16} />}
                   </div>
+                  <h3 style={{ fontSize: 14, fontWeight: 800, color: R.text, margin: 0 }}>
+                    {dialog.title || (dialog.type === 'confirm' ? 'Подтверждение действия' : dialog.type === 'prompt' ? 'Ввод данных' : 'Уведомление системы')}
+                  </h3>
+                </div>
+
+                {/* Body */}
+                <div style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+                  <p style={{ fontSize: 13, color: R.textSecondary, lineHeight: 1.5, margin: 0, whiteSpace: 'pre-wrap' }}>
+                    {dialog.message}
+                  </p>
 
                   {dialog.type === 'prompt' && (
                     <input
                       type="text"
                       autoFocus
-                      placeholder={dialog.placeholder || "Введите значение..."}
+                      placeholder={dialog.placeholder || 'Введите значение...'}
                       value={inputValue}
                       onChange={(e) => setInputValue(e.target.value)}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') closeDialog(dialog.id, inputValue);
                         if (e.key === 'Escape') closeDialog(dialog.id, null);
                       }}
-                      className="w-full bg-black/60 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-indigo-500/50 transition-colors"
+                      style={{
+                        width: '100%',
+                        height: 36,
+                        padding: '0 12px',
+                        fontSize: 13,
+                        background: R.bgInput,
+                        border: ft.edge,
+                        color: R.text,
+                        borderRadius: 2,
+                        outline: 'none',
+                      }}
                     />
                   )}
                 </div>
 
-                <div className="p-4 bg-white/[0.02] border-t border-white/10 flex justify-end gap-3">
+                {/* Footer */}
+                <div
+                  style={{
+                    padding: '12px 18px',
+                    borderTop: ft.hair,
+                    background: R.bgElevated,
+                    display: 'flex',
+                    justifyContent: 'flex-end',
+                    gap: 8,
+                  }}
+                >
                   {(dialog.type === 'confirm' || dialog.type === 'prompt') && (
                     <button
+                      type="button"
                       onClick={() => closeDialog(dialog.id, dialog.type === 'prompt' ? null : false)}
-                      className="px-5 py-2 rounded-xl text-sm font-bold text-zinc-400 hover:text-white hover:bg-white/5 transition-colors"
+                      style={btnOutline}
                     >
                       {dialog.cancelText || 'Отмена'}
                     </button>
                   )}
                   <button
+                    type="button"
                     onClick={() => closeDialog(dialog.id, dialog.type === 'prompt' ? inputValue : true)}
-                    className={cn(
-                      "px-5 py-2 rounded-xl text-sm font-bold transition-all active:scale-95",
-                      variant === 'error' ? "bg-rose-600 hover:bg-rose-500 text-white" :
-                      "bg-indigo-600 hover:bg-indigo-500 text-white"
-                    )}
+                    style={variant === 'error' ? btnDangerSolid : btnAccent}
                   >
-                    {dialog.confirmText || 'ОК'}
+                    {dialog.confirmText || 'Подтвердить'}
                   </button>
                 </div>
               </motion.div>
@@ -158,3 +219,4 @@ export const DialogProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     </DialogContext.Provider>
   );
 };
+

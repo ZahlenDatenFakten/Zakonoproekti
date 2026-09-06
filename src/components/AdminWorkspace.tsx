@@ -1,8 +1,8 @@
 import React, { useState, useMemo } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import type { Bill, UserProfile, VoteDecision, FederalGovernmentVerdict } from '../types/bill';
 import { isSystemAdmin } from '../services/securityService';
-import { cn } from '../utils/cn';
+import { groupBillsByWeek } from '../utils/dateUtils';
+import { useSessionState } from '../hooks/useSessionState';
 import { 
   Eye, 
   CheckCircle2, 
@@ -11,11 +11,15 @@ import {
   Lock, 
   Layers,
   Crown,
-  Vote,
   FileCode2,
   Zap,
-  FileText
+  FileText,
+  Edit3,
+  ChevronDown,
+  X
 } from 'lucide-react';
+import { R, ft, shadow, mono, btnAccent, btnOutline, fieldLabel } from '../lib/ui';
+import { ConfirmModal } from './ConfirmModal';
 
 interface AdminWorkspaceProps {
   user: UserProfile;
@@ -30,7 +34,7 @@ export const AdminWorkspace: React.FC<AdminWorkspaceProps> = ({
   bills,
   onSelectBill,
   onSaveBill,
-  onToast
+  onToast,
 }) => {
   const isAdmin = isSystemAdmin(user);
   const isAuthorizedToAccess = isAdmin;
@@ -38,6 +42,14 @@ export const AdminWorkspace: React.FC<AdminWorkspaceProps> = ({
   const [selectedBillForAction, setSelectedBillForAction] = useState<Bill | null>(null);
   const [pendingDecision, setPendingDecision] = useState<VoteDecision | null>(null);
   const [adminNoteInput, setAdminNoteInput] = useState('');
+  const [showConfirmEnactAll, setShowConfirmEnactAll] = useState(false);
+
+  // Pack Accordeons
+  const [expandedPacks, setExpandedPacks] = useSessionState<Record<string, boolean>>('admin_expanded_packs', {});
+
+  const togglePack = (label: string) => {
+    setExpandedPacks((prev) => ({ ...prev, [label]: !prev[label] }));
+  };
 
   // STAGE 2 QUEUE FILTER:
   const adminQueueBills = useMemo(() => {
@@ -62,6 +74,7 @@ export const AdminWorkspace: React.FC<AdminWorkspaceProps> = ({
   }, [bills]);
 
   const handleEnactAllApprovedBills = async () => {
+    setShowConfirmEnactAll(false);
     if (!isAdmin) {
       onToast('error', 'Только Администратор применяет поправки в законах.');
       return;
@@ -78,7 +91,7 @@ export const AdminWorkspace: React.FC<AdminWorkspaceProps> = ({
       const enactedBill: Bill = {
         ...b,
         status: 'approved',
-        statusReason: 'Официально внесен в Законодательную Базу Штата.'
+        statusReason: 'Официально внесен в Законодательную Базу Штата.',
       };
       await onSaveBill(enactedBill);
     }
@@ -109,7 +122,7 @@ export const AdminWorkspace: React.FC<AdminWorkspaceProps> = ({
       status: pendingDecision,
       reason: note,
       updatedAt: new Date().toISOString(),
-      adminName: `${user.firstName} ${user.lastName}`
+      adminName: `${user.firstName} ${user.lastName}`,
     };
 
     let officialStatusReason = '';
@@ -125,11 +138,20 @@ export const AdminWorkspace: React.FC<AdminWorkspaceProps> = ({
       ...selectedBillForAction,
       status: pendingDecision === 'approved' ? 'under_review' : pendingDecision,
       statusReason: officialStatusReason,
-      federalVerdict: verdict
+      federalVerdict: verdict,
     };
 
     onSaveBill(updated);
-    onToast('success', `Вердикт вынесен: ${pendingDecision === 'approved' ? 'ОДОБРЕНО' : pendingDecision === 'rejected' ? 'ОТКЛОНЕНО' : 'НА ДОРАБОТКУ'}`);
+    onToast(
+      'success',
+      `Вердикт вынесен: ${
+        pendingDecision === 'approved'
+          ? 'ОДОБРЕНО'
+          : pendingDecision === 'rejected'
+          ? 'ОТКЛОНЕНО'
+          : 'НА ДОРАБОТКУ'
+      }`
+    );
     setSelectedBillForAction(null);
     setPendingDecision(null);
     setAdminNoteInput('');
@@ -142,294 +164,601 @@ export const AdminWorkspace: React.FC<AdminWorkspaceProps> = ({
 
   if (!isAuthorizedToAccess) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] text-zinc-500">
-        <Lock size={48} className="mb-4 opacity-20 text-indigo-400" />
-        <h2 className="text-xl font-bold text-white mb-2">Доступ ограничен</h2>
-        <p className="font-mono text-sm">Раздел доступен только Администратору.</p>
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          minHeight: '60vh',
+          color: R.textMuted,
+        }}
+      >
+        <Lock size={48} style={{ marginBottom: 16, opacity: 0.3, color: R.accent }} />
+        <h2 style={{ fontSize: 20, fontWeight: 800, color: R.text, marginBottom: 8 }}>
+          Доступ ограничен
+        </h2>
+        <p style={{ fontFamily: mono, fontSize: 13, color: R.textMuted }}>
+          Раздел доступен только Администратору.
+        </p>
       </div>
     );
   }
 
   return (
-    <div className="max-w-7xl mx-auto space-y-8 pb-12 animate-in fade-in duration-500">
-      
+    <div style={{ maxWidth: 1200, margin: '0 auto', paddingBottom: 48 }}>
       {/* HEADER */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
-        <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center shrink-0 shadow-[0_0_15px_rgba(245,158,11,0.2)]">
-            <Crown size={24} />
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'flex-end',
+          justifyContent: 'space-between',
+          gap: 16,
+          marginBottom: 28,
+          flexWrap: 'wrap',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          <div
+            style={{
+              width: 44,
+              height: 44,
+              background: R.accentSubtle,
+              border: `1px solid ${R.accentBorder}`,
+              color: R.accent,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+            }}
+          >
+            <Crown size={22} />
           </div>
           <div>
-            <div className="flex items-center gap-3 mb-1">
-              <h2 className="text-3xl font-extrabold tracking-tight text-white">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+              <h2 style={{ fontSize: 24, fontWeight: 800, color: R.text, margin: 0 }}>
                 Панель Администрации
               </h2>
-              <span className="px-2 py-0.5 rounded-md bg-amber-500/10 border border-amber-500/20 text-[10px] font-mono font-bold text-amber-400 uppercase tracking-wider">
+              <span
+                style={{
+                  padding: '2px 8px',
+                  background: R.bgSubtle,
+                  border: ft.edge,
+                  fontSize: 10,
+                  fontFamily: mono,
+                  fontWeight: 700,
+                  color: R.accent,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.06em',
+                }}
+              >
                 2-Й ЭТАП
               </span>
             </div>
-            <p className="text-sm text-zinc-400 font-medium">
+            <p style={{ fontSize: 13, color: R.textMuted, margin: 0 }}>
               Рассмотрение законопроектов после Законодательной Комиссии
             </p>
           </div>
         </div>
 
         {/* ENACT BUTTON */}
-        <button 
-          onClick={handleEnactAllApprovedBills}
+        <button
+          type="button"
+          onClick={() => setShowConfirmEnactAll(true)}
           disabled={pendingEnactmentBills.length === 0}
-          className={cn(
-            "flex items-center gap-2 px-5 py-3 text-sm font-extrabold rounded-xl transition-all shadow-lg",
-            pendingEnactmentBills.length > 0
-              ? "bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-500/20 border border-emerald-400/30 active:scale-95"
-              : "bg-white/[0.04] text-zinc-500 border border-white/10 cursor-not-allowed shadow-none"
-          )}
+          data-tooltip="Официально внести все утверждённые акты в законы"
+          style={{
+            ...btnAccent,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            opacity: pendingEnactmentBills.length === 0 ? 0.5 : 1,
+            cursor: pendingEnactmentBills.length === 0 ? 'not-allowed' : 'pointer',
+          }}
         >
-          <Zap size={18} /> 
-          Внести в законы {pendingEnactmentBills.length > 0 ? `(${pendingEnactmentBills.length})` : '(0)'}
+          <Zap size={16} />
+          <span>
+            Внести в законы {pendingEnactmentBills.length > 0 ? `(${pendingEnactmentBills.length})` : '(0)'}
+          </span>
         </button>
       </div>
 
-      {/* QUEUE TABLE CARD */}
-      <div className="bg-white/[0.02] backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl shadow-black/50 overflow-hidden">
-        <div className="px-6 py-4 border-b border-white/10 bg-black/40 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Layers size={18} className="text-indigo-400" />
-            <h3 className="text-base font-bold text-white">
-              Очередь на рассмотрение
-            </h3>
-          </div>
-          <span className="text-xs font-mono font-bold text-zinc-500 uppercase tracking-wider">
-            В очереди: {adminQueueBills.length}
-          </span>
-        </div>
-
+      {/* BILLS LIST */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
         {adminQueueBills.length === 0 ? (
-          <div className="py-20 px-6 text-center flex flex-col items-center">
-            <FileCode2 size={48} className="text-zinc-600 mb-4 opacity-50" />
-            <p className="text-zinc-400 text-sm font-medium">
-              Нет законопроектов, ожидающих вердикта Администрации.
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '60px 20px',
+              textAlign: 'center',
+              background: R.bgPanel,
+              border: ft.strong,
+            }}
+          >
+            <FileCode2 size={40} style={{ color: R.textMuted, marginBottom: 12, opacity: 0.4 }} />
+            <p style={{ fontSize: 14, color: R.textMuted, margin: 0 }}>
+              Нет законопроектов, ожидающих официального утверждения.
             </p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-black/60 border-b border-white/10 text-[10px] font-mono font-bold text-zinc-500 uppercase tracking-wider">
-                  <th className="px-6 py-4">Номер / Закон</th>
-                  <th className="px-6 py-4">Статус</th>
-                  <th className="px-6 py-4">Комиссия</th>
-                  <th className="px-6 py-4">Автор</th>
-                  <th className="px-6 py-4 text-right">Действия</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-white/5">
-                {adminQueueBills.map((bill) => {
-                  const votes = bill.votes || {};
-                  const approveCount = [votes.prosecutor, votes.judge, votes.governor].filter((v) => v === 'approved').length;
-                  const rejectCount = [votes.prosecutor, votes.judge, votes.governor].filter((v) => v === 'rejected').length;
-                  
-                  const isEnacted = bill.status === 'approved';
-                  const isStage2ApprovedPendingEnactment = bill.federalVerdict?.status === 'approved' && !isEnacted;
+          (() => {
+            const sortedGroups = groupBillsByWeek(adminQueueBills);
 
-                  return (
-                    <tr key={bill.id} className="hover:bg-white/[0.04] transition-colors">
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-3">
-                          <span className="px-2 py-0.5 rounded bg-indigo-500/10 border border-indigo-500/20 text-[10px] font-mono font-bold text-indigo-400">
-                            {formatDecreeNumber(bill.id)}
-                          </span>
-                          <span className="font-bold text-sm text-white truncate max-w-[200px] xl:max-w-xs">
-                            {bill.targetLaw || bill.title}
-                          </span>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        {isEnacted ? (
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-[10px] font-extrabold uppercase tracking-wider text-emerald-400">
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]" /> Вступил в силу
-                          </span>
-                        ) : isStage2ApprovedPendingEnactment ? (
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/20 border border-emerald-500/30 text-[10px] font-extrabold uppercase tracking-wider text-emerald-300">
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)] animate-pulse" /> Одобрен 2-м этапом
-                          </span>
-                        ) : bill.status === 'rejected' ? (
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-rose-500/10 border border-rose-500/20 text-[10px] font-extrabold uppercase tracking-wider text-rose-400">
-                            <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.8)]" /> Отклонен
-                          </span>
-                        ) : bill.status === 'needs_revision' ? (
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-[10px] font-extrabold uppercase tracking-wider text-amber-400">
-                            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.8)] animate-pulse" /> Доработка
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-[10px] font-extrabold uppercase tracking-wider text-blue-400">
-                            <span className="w-1.5 h-1.5 rounded-full bg-blue-400 shadow-[0_0_8px_rgba(96,165,250,0.8)] animate-pulse" /> Ожидает 2-го этапа
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-2 text-xs font-mono font-bold text-emerald-400">
-                          <Vote size={14} className="text-emerald-500" />
-                          {approveCount} За / {rejectCount} Против
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 text-xs font-mono text-zinc-400 truncate max-w-[150px]">
-                        {bill.author}
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          <button 
-                            onClick={() => onSelectBill(bill)} 
-                            className="p-2 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] text-zinc-300 border border-white/10 transition-colors"
-                            title="Просмотр"
+            return sortedGroups.map((group) => {
+              const isExpanded = expandedPacks[group.label] || false;
+
+              return (
+                <div key={group.label} style={{ marginBottom: 12 }}>
+                  {/* Pack Header */}
+                  <div
+                    onClick={() => togglePack(group.label)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 12,
+                      padding: '12px 16px',
+                      background: R.bgPanel,
+                      border: ft.strong,
+                      cursor: 'pointer',
+                      userSelect: 'none',
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: 28,
+                        height: 28,
+                        background: R.bgSubtle,
+                        border: ft.edge,
+                        color: R.textMuted,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0,
+                      }}
+                    >
+                      <Layers size={14} />
+                    </div>
+                    <h4
+                      style={{
+                        flex: 1,
+                        fontSize: 12,
+                        fontFamily: mono,
+                        fontWeight: 700,
+                        color: R.text,
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.06em',
+                        margin: 0,
+                      }}
+                    >
+                      {group.label}
+                    </h4>
+                    <span
+                      style={{
+                        fontSize: 11,
+                        fontFamily: mono,
+                        color: R.textMuted,
+                        marginRight: 8,
+                      }}
+                    >
+                      {group.bills.length} биллей
+                    </span>
+                    <ChevronDown
+                      size={14}
+                      style={{
+                        color: R.textMuted,
+                        transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
+                        transition: 'transform .15s',
+                      }}
+                    />
+                  </div>
+
+                  {/* Pack Bills */}
+                  {isExpanded && (
+                    <div
+                      style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 8,
+                        marginTop: 8,
+                        paddingLeft: 16,
+                        borderLeft: `2px solid ${R.border}`,
+                      }}
+                    >
+                      {group.bills.map((bill) => {
+                        const decreeStamp = formatDecreeNumber(bill.id);
+                        const isEnacted =
+                          bill.status === 'approved' &&
+                          bill.statusReason?.includes('внесены в законодательную базу');
+                        const isStage2ApprovedPendingEnactment =
+                          bill.status === 'approved' && !isEnacted;
+
+                        return (
+                          <div
+                            key={bill.id}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              padding: '14px 18px',
+                              background: R.bgPanel,
+                              border: ft.strong,
+                              gap: 16,
+                              flexWrap: 'wrap',
+                            }}
                           >
-                            <Eye size={16} />
-                          </button>
-
-                          {isEnacted && (
-                            <span className="flex items-center gap-1 text-[10px] font-mono font-bold text-emerald-400 uppercase tracking-wider px-2">
-                              <CheckCircle2 size={14} /> Внесен
-                            </span>
-                          )}
-
-                          {isStage2ApprovedPendingEnactment && (
-                            <button 
-                              onClick={async () => {
-                                const updated: Bill = {
-                                  ...bill,
-                                  status: 'approved',
-                                  statusReason: 'Изменения официально внесены в законодательную базу Штата San Andreas.',
-                                  updatedAt: new Date().toISOString()
-                                };
-                                await onSaveBill(updated);
-                                onToast('success', 'Изменения внесены в законы');
-                              }} 
-                              className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl transition-all border border-indigo-400/30"
-                            >
-                              <FileText size={14} /> Внести
-                            </button>
-                          )}
-
-                          {!isEnacted && !isStage2ApprovedPendingEnactment && (
-                            <>
-                              <button 
-                                onClick={() => handleOpenActionModal(bill, 'approved')} 
-                                className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600/20 hover:bg-emerald-600/40 text-emerald-400 border border-emerald-500/30 rounded-xl text-xs font-bold transition-colors"
+                            <div style={{ flex: 1, minWidth: 260 }}>
+                              <div
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: 8,
+                                  marginBottom: 8,
+                                  flexWrap: 'wrap',
+                                }}
                               >
-                                <CheckCircle2 size={14} /> Одобрить
+                                <span
+                                  style={{
+                                    padding: '2px 6px',
+                                    background: R.bgSubtle,
+                                    border: ft.edge,
+                                    fontSize: 10,
+                                    fontFamily: mono,
+                                    fontWeight: 700,
+                                    color: R.textMuted,
+                                    textTransform: 'uppercase',
+                                  }}
+                                >
+                                  {decreeStamp}
+                                </span>
+                                {isEnacted && (
+                                  <span
+                                    style={{
+                                      padding: '2px 6px',
+                                      background: 'rgba(34, 197, 94, 0.12)',
+                                      border: '1px solid rgba(34, 197, 94, 0.25)',
+                                      fontSize: 10,
+                                      fontFamily: mono,
+                                      fontWeight: 700,
+                                      color: '#22c55e',
+                                      textTransform: 'uppercase',
+                                    }}
+                                  >
+                                    Внесено в законы
+                                  </span>
+                                )}
+                                <span style={{ fontSize: 11, fontFamily: mono, color: R.textMuted }}>
+                                  Обновлено: {new Date(bill.updatedAt).toLocaleDateString('ru-RU')}
+                                </span>
+                              </div>
+
+                              <h4
+                                style={{
+                                  fontSize: 14,
+                                  fontWeight: 800,
+                                  color: R.text,
+                                  margin: 0,
+                                }}
+                              >
+                                {bill.targetLaw || bill.title}
+                              </h4>
+                            </div>
+
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                              <button
+                                type="button"
+                                onClick={() => onSelectBill(bill)}
+                                style={{
+                                  ...btnOutline,
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: 6,
+                                  padding: '6px 12px',
+                                  fontSize: 12,
+                                }}
+                              >
+                                <Eye size={13} /> Просмотр
                               </button>
 
-                              <button 
-                                onClick={() => handleOpenActionModal(bill, 'needs_revision')} 
-                                className="p-2 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/20 transition-colors"
-                                title="На доработку"
-                              >
-                                <RotateCcw size={16} />
-                              </button>
+                              {isStage2ApprovedPendingEnactment && (
+                                <button
+                                  type="button"
+                                  onClick={async () => {
+                                    const updated: Bill = {
+                                      ...bill,
+                                      status: 'approved',
+                                      statusReason: 'Официально внесены в законодательную базу SA.',
+                                      updatedAt: new Date().toISOString(),
+                                    };
+                                    await onSaveBill(updated);
+                                    onToast('success', 'Закон внесен в базу');
+                                  }}
+                                  style={{
+                                    ...btnAccent,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 6,
+                                    padding: '6px 12px',
+                                    fontSize: 12,
+                                  }}
+                                >
+                                  <FileText size={13} /> Внести
+                                </button>
+                              )}
 
-                              <button 
-                                onClick={() => handleOpenActionModal(bill, 'rejected')} 
-                                className="p-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 transition-colors"
-                                title="Отклонить"
-                              >
-                                <XCircle size={16} />
-                              </button>
-                            </>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                              {!isEnacted && !isStage2ApprovedPendingEnactment && (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleOpenActionModal(bill, 'approved');
+                                    }}
+                                    style={{
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: 6,
+                                      padding: '6px 10px',
+                                      background: 'rgba(34, 197, 94, 0.1)',
+                                      color: '#22c55e',
+                                      border: '1px solid rgba(34, 197, 94, 0.25)',
+                                      fontSize: 12,
+                                      fontWeight: 600,
+                                      cursor: 'pointer',
+                                    }}
+                                  >
+                                    <CheckCircle2 size={13} /> Одобрить
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleOpenActionModal(bill, 'needs_revision');
+                                    }}
+                                    style={{
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: 6,
+                                      padding: '6px 10px',
+                                      background: 'rgba(234, 179, 8, 0.1)',
+                                      color: '#eab308',
+                                      border: '1px solid rgba(234, 179, 8, 0.25)',
+                                      fontSize: 12,
+                                      fontWeight: 600,
+                                      cursor: 'pointer',
+                                    }}
+                                  >
+                                    <Edit3 size={13} /> Доработка
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleOpenActionModal(bill, 'rejected');
+                                    }}
+                                    style={{
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: 6,
+                                      padding: '6px 10px',
+                                      background: 'rgba(239, 68, 68, 0.1)',
+                                      color: '#ef4444',
+                                      border: '1px solid rgba(239, 68, 68, 0.25)',
+                                      fontSize: 12,
+                                      fontWeight: 600,
+                                      cursor: 'pointer',
+                                    }}
+                                  >
+                                    <XCircle size={13} /> Отклонить
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            });
+          })()
         )}
       </div>
 
       {/* VERDICT MODAL */}
-      <AnimatePresence>
-        {selectedBillForAction && pendingDecision && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="absolute inset-0 bg-black/80 backdrop-blur-sm"
-              onClick={() => setSelectedBillForAction(null)}
-            />
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="relative w-full max-w-lg bg-[#0C0D12] border border-white/10 rounded-2xl shadow-2xl overflow-hidden flex flex-col"
+      {selectedBillForAction && pendingDecision && (
+        <div
+          onClick={() => setSelectedBillForAction(null)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(20, 18, 17, 0.65)',
+            backdropFilter: 'blur(3px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 16,
+            zIndex: 100,
+            animation: 'rtFade .12s ease',
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: 520,
+              maxWidth: '100%',
+              background: R.bgPanel,
+              border: ft.strong,
+              boxShadow: shadow.panel,
+              animation: 'rtIn .18s ease',
+            }}
+          >
+            <header
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '14px 18px',
+                borderBottom: ft.strong,
+                background: R.bgPanel,
+              }}
             >
-              <div className="p-5 border-b border-white/10 bg-white/[0.02]">
-                <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                  <Crown size={20} className="text-amber-400" />
-                  Вердикт Администрации
-                </h3>
-              </div>
-              
-              <div className="p-6 flex flex-col gap-5">
-                <div>
-                  <span className="text-[10px] font-mono font-bold text-zinc-500 uppercase tracking-wider block mb-1">
-                    Законопроект
-                  </span>
-                  <div className="text-sm text-white font-medium bg-black/40 border border-white/10 rounded-xl px-4 py-3">
-                    {selectedBillForAction.targetLaw || selectedBillForAction.title}
-                  </div>
-                </div>
+              <h3 style={{ fontSize: 16, fontWeight: 800, color: R.text, display: 'flex', alignItems: 'center', gap: 8, margin: 0 }}>
+                <Crown size={18} style={{ color: R.accent }} /> Вердикт Администрации
+              </h3>
+              <button
+                type="button"
+                onClick={() => setSelectedBillForAction(null)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: 26,
+                  height: 26,
+                  color: R.textMuted,
+                  background: 'transparent',
+                  border: 'none',
+                  cursor: 'pointer',
+                }}
+              >
+                <X size={16} />
+              </button>
+            </header>
 
-                <div className="bg-black/40 border border-white/10 rounded-xl p-4 flex flex-col gap-4">
-                  <div className={cn(
-                    "flex items-center gap-2 text-sm font-mono font-bold tracking-wider uppercase",
-                    pendingDecision === 'approved' ? "text-emerald-400" :
-                    pendingDecision === 'rejected' ? "text-rose-400" : "text-amber-400"
-                  )}>
-                    {pendingDecision === 'approved' ? <CheckCircle2 size={18}/> : pendingDecision === 'rejected' ? <XCircle size={18}/> : <RotateCcw size={18}/>}
-                    РЕШЕНИЕ: {pendingDecision === 'approved' ? 'ОДОБРИТЬ' : pendingDecision === 'rejected' ? 'ОТКЛОНИТЬ' : 'НА ДОРАБОТКУ'}
-                  </div>
-
-                  <div className="flex flex-col gap-2">
-                    <label className="text-[10px] font-mono font-bold text-zinc-500 uppercase tracking-wider">
-                      Обоснование {pendingDecision !== 'approved' && <span className="text-rose-400">*</span>}
-                    </label>
-                    <textarea
-                      className="w-full bg-black/60 border border-white/10 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-indigo-500/50 resize-y min-h-[100px] placeholder-zinc-600"
-                      placeholder="Официальное заключение..."
-                      value={adminNoteInput}
-                      onChange={(e) => setAdminNoteInput(e.target.value)}
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div className="p-5 border-t border-white/10 bg-white/[0.02] flex items-center justify-end gap-3">
-                <button 
-                  onClick={() => setSelectedBillForAction(null)}
-                  className="px-5 py-2.5 rounded-xl text-sm font-bold text-zinc-400 hover:text-white hover:bg-white/5 transition-colors"
+            <div style={{ padding: 18, display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div>
+                <label style={fieldLabel}>Законопроект</label>
+                <div
+                  style={{
+                    padding: '10px 14px',
+                    background: R.bgInput,
+                    border: ft.edge,
+                    fontSize: 13,
+                    color: R.text,
+                    fontWeight: 600,
+                  }}
                 >
-                  Отмена
-                </button>
-                <button 
-                  onClick={handleExecuteAdminVerdict}
-                  disabled={(pendingDecision !== 'approved' && !adminNoteInput.trim())}
-                  className={cn(
-                    "px-5 py-2.5 rounded-xl text-sm font-extrabold text-white shadow-lg transition-all active:scale-95",
-                    (pendingDecision !== 'approved' && !adminNoteInput.trim())
-                      ? "bg-white/[0.04] text-zinc-500 cursor-not-allowed shadow-none"
-                      : "bg-indigo-600 hover:bg-indigo-500 shadow-indigo-500/20 border border-indigo-400/30"
+                  {selectedBillForAction.targetLaw || selectedBillForAction.title}
+                </div>
+              </div>
+
+              <div
+                style={{
+                  background: R.bgSubtle,
+                  border: ft.edge,
+                  padding: 14,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 12,
+                }}
+              >
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    fontSize: 12,
+                    fontFamily: mono,
+                    fontWeight: 700,
+                    textTransform: 'uppercase',
+                    color:
+                      pendingDecision === 'approved'
+                        ? '#22c55e'
+                        : pendingDecision === 'rejected'
+                        ? '#ef4444'
+                        : '#eab308',
+                  }}
+                >
+                  {pendingDecision === 'approved' ? (
+                    <CheckCircle2 size={16} />
+                  ) : pendingDecision === 'rejected' ? (
+                    <XCircle size={16} />
+                  ) : (
+                    <RotateCcw size={16} />
                   )}
-                >
-                  Вынести решение
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+                  РЕШЕНИЕ: {pendingDecision === 'approved' ? 'ОДОБРИТЬ' : pendingDecision === 'rejected' ? 'ОТКЛОНИТЬ' : 'НА ДОРАБОТКУ'}
+                </div>
 
+                <div>
+                  <label style={fieldLabel}>
+                    Обоснование {pendingDecision !== 'approved' && <span style={{ color: '#ef4444' }}>*</span>}
+                  </label>
+                  <textarea
+                    style={{
+                      width: '100%',
+                      background: R.bgInput,
+                      border: ft.edge,
+                      padding: '10px 12px',
+                      fontSize: 13,
+                      color: R.text,
+                      outline: 'none',
+                      minHeight: 90,
+                      resize: 'vertical',
+                      fontFamily: 'inherit',
+                    }}
+                    placeholder="Официальное заключение Администрации..."
+                    value={adminNoteInput}
+                    onChange={(e) => setAdminNoteInput(e.target.value)}
+                    onFocus={(e) => (e.currentTarget.style.borderColor = R.accent)}
+                    onBlur={(e) => (e.currentTarget.style.borderColor = R.border)}
+                  />
+                </div>
+              </div>
+            </div>
+
+            <footer
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'flex-end',
+                gap: 10,
+                padding: '12px 18px',
+                borderTop: ft.strong,
+                background: R.bgPanel,
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => setSelectedBillForAction(null)}
+                style={btnOutline}
+              >
+                Отмена
+              </button>
+              <button
+                type="button"
+                onClick={handleExecuteAdminVerdict}
+                disabled={pendingDecision !== 'approved' && !adminNoteInput.trim()}
+                style={{
+                  ...btnAccent,
+                  opacity: pendingDecision !== 'approved' && !adminNoteInput.trim() ? 0.5 : 1,
+                  cursor:
+                    pendingDecision !== 'approved' && !adminNoteInput.trim()
+                      ? 'not-allowed'
+                      : 'pointer',
+                }}
+              >
+                Вынести решение
+              </button>
+            </footer>
+          </div>
+        </div>
+      )}
+
+      {showConfirmEnactAll && (
+        <ConfirmModal
+          title="Внести одобренные акты в законы?"
+          message={`Вы собираетесь официально внести в законодательную базу Штата San Andreas одобренных проектов: ${pendingEnactmentBills.length}. Акты получат статус 'Вступил в силу' и будут применены в реестре.`}
+          confirmLabel="Внести в законы"
+          isDanger={false}
+          onConfirm={handleEnactAllApprovedBills}
+          onCancel={() => setShowConfirmEnactAll(false)}
+        />
+      )}
     </div>
   );
 };

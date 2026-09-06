@@ -97,9 +97,10 @@ function readLocalBills(): Bill[] {
 }
 
 /**
- * MULTI-DATABASE AUTO-FAILOVER ARCHITECTURE
- * Reads from Firebase AND Supabase in parallel, then merges with local cache.
- * All users — regardless of their localStorage — get the full shared cloud dataset.
+ * SINGLE SOURCE OF TRUTH (CLOUD-FIRST ARCHITECTURE)
+ * Reads from Firebase and Supabase.
+ * Cloud is authoritative; localStorage serves as fast instant cache.
+ * When cloud responds, it overwrites the local cache, preventing zombie bills.
  */
 export async function fetchAllBills(): Promise<Bill[]> {
   // Run all cloud fetches in parallel
@@ -112,51 +113,64 @@ export async function fetchAllBills(): Promise<Bill[]> {
   const fromSupabase: Bill[] = supaBills.status === 'fulfilled' ? supaBills.value || [] : [];
   const localBills = readLocalBills();
 
-  // Merge: cloud sources first, then local (local wins on newer timestamp)
-  const cloudMerged = mergeBills(fromFirebase, fromSupabase);
-  const all = mergeBills(cloudMerged, localBills);
+  // If cloud data is returned, it is the authoritative single source of truth
+  if (fromFirebase.length > 0 || fromSupabase.length > 0) {
+    const cloudAuthoritative = mergeBills(fromFirebase, fromSupabase);
+    // Overwrite local cache with authoritative cloud state to prevent zombie bills
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(cloudAuthoritative));
+    return cloudAuthoritative;
+  }
 
-  return all;
+  // Offline fallback
+  return localBills;
 }
 
 /**
  * Real-time continuous live listener.
- * Firebase provides websocket events. Supabase is polled as supplement.
+ * Firebase provides instant websocket push events on every create, edit, vote, verdict, or deletion.
  */
 export function subscribeToAllBills(callback: (bills: Bill[]) => void): () => void {
   let latestFirebaseBills: Bill[] = [];
   let latestSupaBills: Bill[] = [];
+  let hasReceivedCloud = false;
 
-  const pushMerge = () => {
-    const localBills = readLocalBills();
+  const pushAuthoritative = () => {
     const cloudMerged = mergeBills(latestFirebaseBills, latestSupaBills);
-    const all = mergeBills(cloudMerged, localBills);
-    // Update local cache with authoritative cloud state
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(all));
-    callback(all);
+    if (hasReceivedCloud) {
+      // Overwrite local storage with the exact current cloud state (no resurrected deleted bills)
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(cloudMerged));
+      callback(cloudMerged);
+    } else {
+      const local = readLocalBills();
+      if (local.length > 0) {
+        callback(local);
+      }
+    }
   };
 
-  // 1. Firebase real-time listener
+  // 1. Firebase real-time listener (WebSocket onSnapshot)
   const unsubscribeFb = subscribeToFirebaseBills((cloudBills) => {
+    hasReceivedCloud = true;
     latestFirebaseBills = (cloudBills || []).filter(isValidBill);
-    pushMerge();
+    pushAuthoritative();
   });
 
-  // 2. Supabase realtime via polling (Supabase Realtime requires auth config;
-  //    polling every 5s is sufficient and works with any anon key setup)
+  // 2. Supabase realtime via polling (as supplement if connected)
   let supaInterval: ReturnType<typeof setInterval> | null = null;
   const dbConfig = getStoredDbConfig();
   if (dbConfig.isConnected) {
     // Initial fetch
     fetchFromSupabase().then((bills) => {
+      if (bills.length > 0) hasReceivedCloud = true;
       latestSupaBills = bills;
-      pushMerge();
+      pushAuthoritative();
     });
 
     supaInterval = setInterval(async () => {
       const bills = await fetchFromSupabase();
+      if (bills.length > 0) hasReceivedCloud = true;
       latestSupaBills = bills;
-      pushMerge();
+      pushAuthoritative();
     }, 5000);
   }
 

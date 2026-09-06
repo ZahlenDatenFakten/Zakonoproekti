@@ -1,11 +1,20 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
-import { motion, AnimatePresence } from 'framer-motion';
-import { UploadCloud, X, Loader2, Plus, ArrowRight } from 'lucide-react';
+import { 
+  X, 
+  Plus, 
+  ArrowRight, 
+  ExternalLink, 
+  Maximize2, 
+  Pencil, 
+  AlertCircle, 
+  Check, 
+  Link as LinkIcon, 
+  Image as ImageIcon 
+} from 'lucide-react';
 import type { BillAttachment } from '../types/bill';
-import { cn } from '../utils/cn';
-
-import { uploadImage } from '../services/imageUploadService';
+import { ConfirmModal } from './ConfirmModal';
+import { R, ft, shadow, mono, btnAccent, btnOutline, btnDanger, fieldLabel } from '../lib/ui';
 
 interface ImageUploaderProps {
   attachments: BillAttachment[];
@@ -13,198 +22,552 @@ interface ImageUploaderProps {
   disabled?: boolean;
 }
 
+// Regex to validate image URLs ending with .jpg, .png, .jpeg, .webp, .gif (with optional query parameters)
+const IMAGE_URL_REGEX = /\.(jpg|jpeg|png|webp|gif)(\?.*)?$/i;
+
 export const ImageUploader: React.FC<ImageUploaderProps> = ({ attachments, onChange, disabled }) => {
-  const [isUploading, setIsUploading] = useState<{ id: string, side: 'before' | 'after' } | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [expandedImage, setExpandedImage] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [focusedSlot, setFocusedSlot] = useState<{ id: string, side: 'before' | 'after' } | null>(null);
+  const [confirmDeletePairId, setConfirmDeletePairId] = useState<string | null>(null);
+  
+  // Track which slot is currently editing its URL inline: `${pairId}_${side}`
+  const [editingSlot, setEditingSlot] = useState<string | null>(null);
+  const [inputUrl, setInputUrl] = useState<string>('');
+  const [validationError, setValidationError] = useState<string | null>(null);
 
-  const handleUploadFile = async (file: File, id: string, side: 'before' | 'after') => {
-    if (!file.type.startsWith('image/')) {
-      setError('Можно загружать только изображения (JPG, PNG, GIF и т.д.)');
-      return;
-    }
-    if (file.size > 15 * 1024 * 1024) {
-      setError('Файл слишком большой. Максимальный размер 15 МБ.');
-      return;
-    }
+  // Track failed image loads
+  const [failedImages, setFailedImages] = useState<Record<string, boolean>>({});
 
-    setIsUploading({ id, side });
-    setError(null);
-
+  const isImageUrlValid = (url: string): boolean => {
+    const trimmed = url.trim();
+    if (!trimmed) return false;
     try {
-      const url = await uploadImage(file);
-      const newAttachments = attachments.map(att => {
-        if (att.id === id) {
+      new URL(trimmed);
+      return IMAGE_URL_REGEX.test(trimmed);
+    } catch {
+      // Also allow relative paths or simple links if valid syntax
+      return IMAGE_URL_REGEX.test(trimmed);
+    }
+  };
+
+  const handleStartEditing = (pairId: string, side: 'before' | 'after', currentUrl: string = '') => {
+    setEditingSlot(`${pairId}_${side}`);
+    setInputUrl(currentUrl);
+    setValidationError(null);
+  };
+
+  const handleApplyUrl = (pairId: string, side: 'before' | 'after') => {
+    const trimmed = inputUrl.trim();
+    if (!trimmed) {
+      // Clear URL
+      clearImage(pairId, side);
+      setEditingSlot(null);
+      return;
+    }
+
+    if (!isImageUrlValid(trimmed)) {
+      setValidationError('Ссылка должна заканчиваться на .jpg, .png, .jpeg или .webp');
+      return;
+    }
+
+    const key = `${pairId}_${side}`;
+    setFailedImages((prev) => ({ ...prev, [key]: false }));
+
+    const updated = attachments.map((att) => {
+      if (att.id === pairId) {
+        return {
+          ...att,
+          [side === 'before' ? 'beforeUrl' : 'afterUrl']: trimmed,
+        };
+      }
+      return att;
+    });
+
+    onChange(updated);
+    setEditingSlot(null);
+    setInputUrl('');
+    setValidationError(null);
+  };
+
+  const clearImage = (pairId: string, side: 'before' | 'after') => {
+    const key = `${pairId}_${side}`;
+    setFailedImages((prev) => {
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+
+    onChange(
+      attachments.map((att) => {
+        if (att.id === pairId) {
+          const newAtt = { ...att };
+          delete newAtt[side === 'before' ? 'beforeUrl' : 'afterUrl'];
+          return newAtt;
+        }
+        return att;
+      })
+    );
+  };
+
+  const removeAttachmentPair = (pairId: string) => {
+    onChange(attachments.filter((att) => att.id !== pairId));
+  };
+
+  const addEmptyPair = () => {
+    const newId = 'att_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
+    onChange([...attachments, { id: newId }]);
+  };
+
+  const handlePasteIntoSlot = (e: React.ClipboardEvent, pairId: string, side: 'before' | 'after') => {
+    const pastedText = e.clipboardData.getData('text');
+    if (pastedText && isImageUrlValid(pastedText)) {
+      e.preventDefault();
+      const trimmed = pastedText.trim();
+      const updated = attachments.map((att) => {
+        if (att.id === pairId) {
           return {
             ...att,
-            [side === 'before' ? 'beforeUrl' : 'afterUrl']: url
+            [side === 'before' ? 'beforeUrl' : 'afterUrl']: trimmed,
           };
         }
         return att;
       });
-      onChange(newAttachments);
-    } catch (err: any) {
-      setError(err.message || 'Ошибка загрузки');
-      console.error(err);
-    } finally {
-      setIsUploading(null);
+      onChange(updated);
+      setEditingSlot(null);
     }
   };
-
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>, id: string, side: 'before' | 'after') => {
-    const files = e.target.files;
-    if (files && files.length > 0) {
-      handleUploadFile(files[0], id, side);
-    }
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
-  };
-
-  const removeAttachmentPair = (id: string) => {
-    onChange(attachments.filter(att => att.id !== id));
-  };
-
-  const clearImage = (id: string, side: 'before' | 'after') => {
-    onChange(attachments.map(att => {
-      if (att.id === id) {
-        const newAtt = { ...att };
-        delete newAtt[side === 'before' ? 'beforeUrl' : 'afterUrl'];
-        return newAtt;
-      }
-      return att;
-    }));
-  };
-
-  const addEmptyPair = () => {
-    onChange([
-      ...attachments,
-      { id: Math.random().toString(36).substring(7) }
-    ]);
-  };
-
-  // Global paste handler for focused slots
-  useEffect(() => {
-    const handlePaste = (e: ClipboardEvent) => {
-      if (!focusedSlot || disabled) return;
-      
-      const items = e.clipboardData?.items;
-      if (!items) return;
-
-      for (let i = 0; i < items.length; i++) {
-        if (items[i].type.indexOf('image') !== -1) {
-          const file = items[i].getAsFile();
-          if (file) {
-            e.preventDefault();
-            handleUploadFile(file, focusedSlot.id, focusedSlot.side);
-            break; // Only upload one pasted image
-          }
-        }
-      }
-    };
-
-    document.addEventListener('paste', handlePaste);
-    return () => document.removeEventListener('paste', handlePaste);
-  }, [focusedSlot, disabled, attachments]);
 
   const renderSlot = (pairId: string, side: 'before' | 'after', url?: string) => {
-    const isUploadingThis = isUploading?.id === pairId && isUploading?.side === side;
-    const isFocused = focusedSlot?.id === pairId && focusedSlot?.side === side;
+    const slotKey = `${pairId}_${side}`;
+    const isEditing = editingSlot === slotKey;
+    const isFailed = failedImages[slotKey] || false;
+    const sideTitle = side === 'before' ? 'Действующее (Было)' : 'Проектируемое (Стало)';
+    const sideBadgeColor = side === 'before' ? '#e2494f' : '#7fb894';
 
     return (
-      <div className="flex-1 flex flex-col gap-2">
-        <span className={cn(
-          "text-[10px] uppercase font-bold tracking-wider text-center",
-          side === 'before' ? "text-rose-400" : "text-emerald-400"
-        )}>
-          {side === 'before' ? 'Было' : 'Стало'}
-        </span>
-        <div 
-          tabIndex={!disabled ? 0 : -1}
-          onFocus={() => !disabled && setFocusedSlot({ id: pairId, side })}
-          onBlur={() => setFocusedSlot(null)}
-          className={cn(
-            "relative w-full aspect-square rounded-xl overflow-hidden border transition-all flex flex-col items-center justify-center group outline-none",
-            url ? "bg-black/40 border-white/10 cursor-pointer" : "bg-black/20 border-dashed border-white/20",
-            !url && !disabled && "hover:bg-white/5 hover:border-white/40 cursor-pointer",
-            isFocused && !url && "border-indigo-500 bg-indigo-500/10 shadow-[0_0_15px_rgba(99,102,241,0.2)]"
-          )}
-          onClick={() => {
-            if (url) {
-              setExpandedImage(url);
-            } else if (!disabled) {
-              setFocusedSlot({ id: pairId, side });
-              // Trigger file input by creating a temporary one
-              const input = document.createElement('input');
-              input.type = 'file';
-              input.accept = 'image/*';
-              input.onchange = (e: any) => handleFileSelect(e, pairId, side);
-              input.click();
-            }
-          }}
-        >
-          {url ? (
-            <>
-              <img src={url} alt={side} className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110" />
-              {!disabled && (
-                <button
-                  type="button"
-                  onClick={(e) => { e.stopPropagation(); clearImage(pairId, side); }}
-                  className="absolute top-2 right-2 w-7 h-7 bg-black/60 hover:bg-rose-500/80 rounded-lg flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all backdrop-blur-md"
-                >
-                  <X size={14} className="text-white" />
-                </button>
-              )}
-            </>
-          ) : (
-            <>
-              {isUploadingThis ? (
-                <Loader2 size={24} className="text-indigo-400 animate-spin" />
-              ) : (
-                <div className="flex flex-col items-center opacity-40 group-hover:opacity-100 transition-opacity pointer-events-none">
-                  <UploadCloud size={24} className="mb-2" />
-                  {!disabled && (
-                    <span className="text-[10px] text-center px-4 font-medium leading-tight text-white">
-                      Кликните или нажмите <br/><span className="text-indigo-300">Ctrl+V</span> для вставки
-                    </span>
-                  )}
-                </div>
-              )}
-            </>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6, minWidth: 260 }}>
+        {/* Slot Label */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <span
+            style={{
+              fontSize: 11,
+              fontFamily: mono,
+              fontWeight: 700,
+              textTransform: 'uppercase',
+              letterSpacing: '0.06em',
+              color: sideBadgeColor,
+            }}
+          >
+            {sideTitle}
+          </span>
+          {url && !disabled && (
+            <button
+              type="button"
+              onClick={() => handleStartEditing(pairId, side, url)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 4,
+                fontSize: 11,
+                fontFamily: mono,
+                color: R.textMuted,
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+              }}
+              title="Изменить ссылку"
+            >
+              <Pencil size={11} /> Изменить
+            </button>
           )}
         </div>
+
+        {/* Slot Card */}
+        {isEditing ? (
+          <div
+            style={{
+              padding: 14,
+              background: R.bgInput,
+              border: `1px solid ${R.accent}`,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 10,
+            }}
+          >
+            <label style={fieldLabel}>Вставьте прямую ссылку на фото (.jpg, .png)</label>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <input
+                type="url"
+                autoFocus
+                value={inputUrl}
+                onChange={(e) => {
+                  setInputUrl(e.target.value);
+                  setValidationError(null);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleApplyUrl(pairId, side);
+                  } else if (e.key === 'Escape') {
+                    setEditingSlot(null);
+                  }
+                }}
+                placeholder="https://i.imgur.com/example.png"
+                style={{
+                  flex: 1,
+                  background: R.bgSubtle,
+                  border: ft.edge,
+                  padding: '8px 10px',
+                  fontSize: 12,
+                  fontFamily: mono,
+                  color: R.text,
+                  outline: 'none',
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => handleApplyUrl(pairId, side)}
+                style={{ ...btnAccent, height: 34, padding: '0 12px', fontSize: 12 }}
+              >
+                <Check size={14} /> Применить
+              </button>
+              <button
+                type="button"
+                onClick={() => setEditingSlot(null)}
+                style={{ ...btnOutline, height: 34, padding: '0 10px', fontSize: 12 }}
+              >
+                <X size={14} />
+              </button>
+            </div>
+            {validationError && (
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  fontSize: 11,
+                  color: R.danger,
+                  fontFamily: mono,
+                }}
+              >
+                <AlertCircle size={13} /> {validationError}
+              </div>
+            )}
+            <div style={{ fontSize: 10.5, color: R.textMuted, fontFamily: mono }}>
+              Поддерживаются ссылки с окончанием: .png, .jpg, .jpeg, .webp
+            </div>
+          </div>
+        ) : url ? (
+          <div
+            onPaste={(e) => handlePasteIntoSlot(e, pairId, side)}
+            style={{
+              position: 'relative',
+              width: '100%',
+              height: 220,
+              background: R.bgInput,
+              border: ft.strong,
+              overflow: 'hidden',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            {isFailed ? (
+              <div
+                style={{
+                  padding: 16,
+                  textAlign: 'center',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: 8,
+                  color: R.danger,
+                }}
+              >
+                <AlertCircle size={24} />
+                <div style={{ fontSize: 12, fontWeight: 700 }}>Не удалось загрузить изображение</div>
+                <div
+                  style={{
+                    fontSize: 10,
+                    fontFamily: mono,
+                    color: R.textMuted,
+                    maxWidth: 240,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {url}
+                </div>
+                {!disabled && (
+                  <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
+                    <button
+                      type="button"
+                      onClick={() => handleStartEditing(pairId, side, url)}
+                      style={{ ...btnOutline, padding: '4px 8px', fontSize: 11 }}
+                    >
+                      Исправить ссылку
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => clearImage(pairId, side)}
+                      style={{ ...btnDanger, padding: '4px 8px', fontSize: 11 }}
+                    >
+                      Удалить
+                    </button>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <>
+                <img
+                  src={url}
+                  alt={sideTitle}
+                  onError={() => setFailedImages((prev) => ({ ...prev, [slotKey]: true }))}
+                  onClick={() => setExpandedImage(url)}
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'contain',
+                    background: '#11100f',
+                    cursor: 'pointer',
+                    transition: 'transform 0.15s ease',
+                  }}
+                />
+
+                {/* Floating Action Controls */}
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: 6,
+                    right: 6,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 4,
+                    background: 'rgba(20, 18, 17, 0.85)',
+                    padding: '3px 6px',
+                    border: ft.edge,
+                    backdropFilter: 'blur(4px)',
+                  }}
+                >
+                  <button
+                    type="button"
+                    onClick={() => setExpandedImage(url)}
+                    title="Развернуть во весь экран"
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: R.text,
+                      display: 'grid',
+                      placeItems: 'center',
+                      padding: 4,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <Maximize2 size={13} />
+                  </button>
+
+                  <a
+                    href={url}
+                    target="_blank"
+                    rel="noreferrer"
+                    title="Открыть оригинал по ссылке"
+                    style={{
+                      display: 'grid',
+                      placeItems: 'center',
+                      padding: 4,
+                      color: R.text,
+                    }}
+                  >
+                    <ExternalLink size={13} />
+                  </a>
+
+                  {!disabled && (
+                    <button
+                      type="button"
+                      onClick={() => clearImage(pairId, side)}
+                      title="Удалить фото"
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: R.danger,
+                        display: 'grid',
+                        placeItems: 'center',
+                        padding: 4,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <X size={13} />
+                    </button>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        ) : (
+          /* Empty state: Input Link Box */
+          <div
+            onPaste={(e) => handlePasteIntoSlot(e, pairId, side)}
+            onClick={() => !disabled && handleStartEditing(pairId, side)}
+            style={{
+              width: '100%',
+              height: 160,
+              background: R.bgSubtle,
+              border: `1px dashed ${R.border}`,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 8,
+              cursor: disabled ? 'default' : 'pointer',
+              padding: 16,
+              textAlign: 'center',
+              transition: 'border-color 0.15s, background 0.15s',
+            }}
+            onMouseEnter={(e) => {
+              if (!disabled) {
+                e.currentTarget.style.borderColor = R.accent;
+                e.currentTarget.style.background = R.bgElevated;
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (!disabled) {
+                e.currentTarget.style.borderColor = R.border;
+                e.currentTarget.style.background = R.bgSubtle;
+              }
+            }}
+          >
+            <div
+              style={{
+                width: 36,
+                height: 36,
+                display: 'grid',
+                placeItems: 'center',
+                background: R.bgInput,
+                border: ft.hair,
+                color: R.accent,
+              }}
+            >
+              <LinkIcon size={16} />
+            </div>
+
+            <div style={{ fontSize: 12, fontWeight: 700, color: R.text }}>
+              {disabled ? 'Изображение не прикреплено' : 'Вставить ссылку на фото'}
+            </div>
+
+            {!disabled && (
+              <div style={{ fontSize: 10.5, color: R.textMuted, fontFamily: mono }}>
+                Кликните для ввода или нажмите <span style={{ color: R.accent }}>Ctrl+V</span> (.jpg, .png)
+              </div>
+            )}
+          </div>
+        )}
       </div>
     );
   };
 
   return (
-    <div className="space-y-6">
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       {attachments.length === 0 && disabled ? (
-        <div className="text-sm text-zinc-500 italic py-4">Нет прикрепленных файлов</div>
+        <div
+          style={{
+            fontSize: 12,
+            fontFamily: mono,
+            color: R.textMuted,
+            padding: '24px 16px',
+            textAlign: 'center',
+            background: R.bgSubtle,
+            border: ft.edge,
+          }}
+        >
+          Фотоматериалы не прикреплены
+        </div>
       ) : (
-        <div className="flex flex-col gap-6">
-          {attachments.map((pair) => (
-            <div key={pair.id} className="group relative flex items-center gap-4 p-4 rounded-2xl bg-white/[0.02] border border-white/5">
-              {!disabled && (
-                <button
-                  type="button"
-                  onClick={() => removeAttachmentPair(pair.id)}
-                  className="absolute -top-2 -right-2 w-6 h-6 z-10 bg-rose-500 text-white rounded-full flex items-center justify-center opacity-0 hover:opacity-100 group-hover:opacity-100 transition-opacity shadow-lg"
-                  title="Удалить пару"
-                >
-                  <X size={12} strokeWidth={3} />
-                </button>
-              )}
-              
-              {renderSlot(pair.id, 'before', pair.beforeUrl)}
-              
-              <div className="flex flex-col items-center justify-center shrink-0 text-zinc-600 px-2 pt-6">
-                <ArrowRight size={20} />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {attachments.map((pair, index) => (
+            <div
+              key={pair.id}
+              style={{
+                position: 'relative',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 12,
+                padding: 16,
+                background: R.bgPanel,
+                border: ft.strong,
+              }}
+            >
+              {/* Pair Header */}
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  borderBottom: ft.hair,
+                  paddingBottom: 8,
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <ImageIcon size={14} color={R.accent} />
+                  <span
+                    style={{
+                      fontSize: 11,
+                      fontFamily: mono,
+                      fontWeight: 700,
+                      textTransform: 'uppercase',
+                      color: R.text,
+                    }}
+                  >
+                    Фотофиксация #{index + 1}
+                  </span>
+                </div>
+
+                {!disabled && (
+                  <button
+                    type="button"
+                    onClick={() => setConfirmDeletePairId(pair.id)}
+                    data-tooltip="Удалить блок фотофиксации"
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 4,
+                      fontSize: 11,
+                      fontFamily: mono,
+                      color: R.danger,
+                      background: 'none',
+                      border: 'none',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <X size={13} /> Удалить блок
+                  </button>
+                )}
               </div>
-              
-              {renderSlot(pair.id, 'after', pair.afterUrl)}
+
+              {/* Pair Slots (Было / Стало) */}
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'stretch',
+                  gap: 16,
+                  flexWrap: 'wrap',
+                }}
+              >
+                {renderSlot(pair.id, 'before', pair.beforeUrl)}
+
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    paddingTop: 24,
+                    color: R.textMuted,
+                  }}
+                >
+                  <ArrowRight size={18} />
+                </div>
+
+                {renderSlot(pair.id, 'after', pair.afterUrl)}
+              </div>
             </div>
           ))}
 
@@ -212,59 +575,123 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({ attachments, onCha
             <button
               type="button"
               onClick={addEmptyPair}
-              className="w-full py-4 rounded-2xl border border-dashed border-white/20 hover:border-indigo-500/50 hover:bg-indigo-500/5 flex flex-col items-center justify-center gap-2 transition-all text-zinc-400 hover:text-indigo-300"
+              style={{
+                width: '100%',
+                padding: '14px',
+                background: R.bgSubtle,
+                border: `1px dashed ${R.border}`,
+                color: R.textMuted,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 8,
+                cursor: 'pointer',
+                transition: 'border-color .15s, color .15s, background .15s',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = R.accent;
+                e.currentTarget.style.color = R.accent;
+                e.currentTarget.style.background = R.bgElevated;
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = R.border;
+                e.currentTarget.style.color = R.textMuted;
+                e.currentTarget.style.background = R.bgSubtle;
+              }}
             >
-              <Plus size={24} />
-              <span className="text-xs font-bold uppercase tracking-widest">Добавить пару фото</span>
+              <Plus size={16} />
+              <span
+                style={{
+                  fontSize: 12,
+                  fontFamily: mono,
+                  fontWeight: 700,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.06em',
+                }}
+              >
+                Добавить ссылки на фото (Было / Стало)
+              </span>
             </button>
           )}
         </div>
       )}
-      
-      {error && (
-        <div className="text-xs text-rose-400 flex items-center gap-2 bg-rose-500/10 px-3 py-2 rounded-lg border border-rose-500/20">
-          <X size={14} />
-          {error}
-        </div>
-      )}
 
-      {/* Fullscreen Image Viewer */}
-      {createPortal(
-        <AnimatePresence>
-          {expandedImage && (
-            <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="absolute inset-0 bg-black/90 backdrop-blur-xl"
-                onClick={() => setExpandedImage(null)}
+      {/* Fullscreen Lightbox Modal */}
+      {expandedImage &&
+        createPortal(
+          <div
+            onClick={() => setExpandedImage(null)}
+            style={{
+              position: 'fixed',
+              inset: 0,
+              zIndex: 9999,
+              background: 'rgba(20, 18, 17, 0.88)',
+              backdropFilter: 'blur(4px)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: 24,
+              animation: 'rtFade .12s ease',
+            }}
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                position: 'relative',
+                maxWidth: '92vw',
+                maxHeight: '92vh',
+                background: R.bgPanel,
+                border: ft.strong,
+                boxShadow: shadow.panel,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: 6,
+              }}
+            >
+              <img
+                src={expandedImage}
+                alt="Просмотр"
+                style={{ maxWidth: '100%', maxHeight: '86vh', objectFit: 'contain' }}
               />
-              <motion.div
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.95 }}
-                className="relative max-w-full max-h-full flex items-center justify-center z-10"
+              <button
+                type="button"
                 onClick={() => setExpandedImage(null)}
+                style={{
+                  position: 'absolute',
+                  top: -12,
+                  right: -12,
+                  width: 32,
+                  height: 32,
+                  background: R.accent,
+                  color: '#fff',
+                  border: 'none',
+                  display: 'grid',
+                  placeItems: 'center',
+                  cursor: 'pointer',
+                  boxShadow: shadow.dropdown,
+                }}
+                title="Закрыть"
               >
-                <img 
-                  src={expandedImage} 
-                  alt="Expanded view" 
-                  className="max-w-full max-h-[90vh] object-contain rounded-lg shadow-2xl"
-                  onClick={(e) => e.stopPropagation()}
-                />
-                <button
-                  type="button"
-                  onClick={() => setExpandedImage(null)}
-                  className="absolute -top-4 -right-4 w-10 h-10 bg-rose-500 hover:bg-rose-600 text-white rounded-full flex items-center justify-center shadow-2xl transition-colors"
-                >
-                  <X size={20} strokeWidth={3} />
-                </button>
-              </motion.div>
+                <X size={18} />
+              </button>
             </div>
-          )}
-        </AnimatePresence>,
-        document.body
+          </div>,
+          document.body
+        )}
+
+      {confirmDeletePairId && (
+        <ConfirmModal
+          title="Удалить блок фотофиксации?"
+          message="Ссылки на прикрепленные изображения (было / стало) будут удалены из проекта."
+          confirmLabel="Удалить блок"
+          onConfirm={() => {
+            removeAttachmentPair(confirmDeletePairId);
+            setConfirmDeletePairId(null);
+          }}
+          onCancel={() => setConfirmDeletePairId(null)}
+        />
       )}
     </div>
   );

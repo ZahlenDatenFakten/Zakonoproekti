@@ -1,5 +1,6 @@
 import React from 'react';
 import type { UserProfile, AppTheme } from '../types/bill';
+import { cn } from '../utils/cn';
 import { OFFICIAL_ROLE_LABELS } from '../types/bill';
 import { isSystemAdmin } from '../services/securityService';
 import { 
@@ -37,12 +38,13 @@ export const Header: React.FC<HeaderProps> = ({
   return (
     <header style={{ 
       background: 'var(--bg-glass)', 
-      backdropFilter: 'blur(16px)',
-      WebkitBackdropFilter: 'blur(16px)',
+      backdropFilter: 'blur(24px)',
+      WebkitBackdropFilter: 'blur(24px)',
       borderBottom: '1px solid var(--border-subtle)',
       position: 'sticky',
       top: 0,
-      zIndex: 50
+      zIndex: 50,
+      boxShadow: '0 4px 30px rgba(0, 0, 0, 0.1)'
     }}>
       <div style={{ 
         maxWidth: '1240px', 
@@ -61,53 +63,37 @@ export const Header: React.FC<HeaderProps> = ({
           style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', flexShrink: 0 }}
         >
           <img 
-            src="/logo.png" 
-            alt="State Seal" 
+            src="/favicon.png" 
+            alt="Законопроекты GTA5RP" 
             style={{ 
-              width: '32px', 
-              height: '32px', 
+              width: '30px', 
+              height: '30px', 
               aspectRatio: '1 / 1',
               objectFit: 'contain',
               flexShrink: 0
             }} 
           />
 
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <h1 style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '0.02em', lineHeight: 1.2, margin: 0, whiteSpace: 'nowrap' }}>
-                ГОСУДАРСТВЕННЫЙ РЕЕСТР
-              </h1>
-              <span className="decree-stamp" style={{ padding: '1px 5px', fontSize: '0.6rem' }}>
-                SA GOV
-              </span>
-            </div>
-            <p style={{ fontSize: '0.64rem', color: 'var(--text-muted)', lineHeight: 1.2, margin: '1px 0 0 0', fontFamily: 'var(--font-mono)', whiteSpace: 'nowrap' }}>
-              LEGISLATURE • STATE OF SAN ANDREAS
-            </p>
+          <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.15 }}>
+            <span style={{ fontWeight: 800, fontSize: 14, letterSpacing: '-0.01em', color: 'var(--rt-fg)' }}>
+              Законопроекты
+            </span>
+            <span style={{ fontSize: 10, letterSpacing: '.14em', textTransform: 'uppercase', color: 'var(--rt-mut)', fontWeight: 700 }}>
+              GTA5RP · ЗАКОНОДАТЕЛЬСТВО
+            </span>
           </div>
         </div>
 
         {/* NAVIGATION TABS */}
-        <nav style={{ 
-          display: 'flex', 
-          gap: '2px', 
-          background: 'var(--bg-input)', 
-          padding: '2px', 
-          borderRadius: 'var(--radius-pill)', 
-          border: '1px solid var(--border-subtle)',
-          flexShrink: 0
-        }}>
+        <nav className="flex gap-1 bg-black/20 p-1 rounded-sm border border-[var(--border-subtle)] shrink-0">
           <button
             onClick={() => onNavigate('dashboard')}
-            className="btn btn-pill"
-            style={{
-              fontSize: '0.78rem',
-              fontWeight: 500,
-              padding: '5px 14px',
-              border: 'none',
-              background: currentView === 'dashboard' ? 'var(--bg-surface-active)' : 'transparent',
-              color: currentView === 'dashboard' ? 'var(--text-primary)' : 'var(--text-muted)'
-            }}
+            className={cn(
+              "flex items-center gap-2 px-3 py-1.5 rounded-sm text-[0.78rem] font-medium transition-all duration-300 ease-out",
+              currentView === 'dashboard' 
+                ? "bg-white/[0.06] text-white border border-white/20 shadow-[0_0_15px_rgba(255,255,255,0.05)]" 
+                : "text-zinc-400 hover:bg-white/[0.04] hover:text-white border border-transparent"
+            )}
           >
             <LayoutDashboard size={13} /> Реестр актов
           </button>
@@ -115,15 +101,12 @@ export const Header: React.FC<HeaderProps> = ({
           {isAdmin && (
             <button
               onClick={() => onNavigate('admin_workspace')}
-              className="btn btn-pill"
-              style={{
-                fontSize: '0.78rem',
-                fontWeight: 500,
-                padding: '5px 14px',
-                border: 'none',
-                background: currentView === 'admin_workspace' ? 'var(--bg-surface-active)' : 'transparent',
-                color: currentView === 'admin_workspace' ? 'var(--text-primary)' : 'var(--text-muted)'
-              }}
+              className={cn(
+                "flex items-center gap-2 px-3 py-1.5 rounded-sm text-[0.78rem] font-medium transition-all duration-300 ease-out",
+                currentView === 'admin_workspace' 
+                  ? "bg-white/[0.06] text-white border border-white/20 shadow-[0_0_15px_rgba(255,255,255,0.05)]" 
+                  : "text-zinc-400 hover:bg-white/[0.04] hover:text-white border border-transparent"
+              )}
             >
               <ShieldCheck size={13} /> Администрация
             </button>
@@ -136,26 +119,11 @@ export const Header: React.FC<HeaderProps> = ({
           {/* PROFILE BADGE */}
           <div 
             onClick={onOpenSettings}
-            style={{ 
-              display: 'flex', 
-              alignItems: 'center', 
-              gap: '6px', 
-              padding: '3px 8px 3px 4px', 
-              borderRadius: 'var(--radius-pill)', 
-              background: 'var(--bg-surface-elevated)', 
-              border: '1px solid var(--border-subtle)',
-              cursor: 'pointer',
-              maxWidth: '200px'
-            }}
+            className="flex items-center gap-2 p-1 pr-3 rounded-sm bg-black/20 border border-[var(--border-subtle)] cursor-pointer hover:bg-white/[0.04] transition-all duration-300 ease-out max-w-[200px]"
             title={`${user.firstName} ${user.lastName} (${OFFICIAL_ROLE_LABELS[user.officialRole] || 'Гражданин'})`}
           >
-            <div style={{
-              width: '24px', height: '24px', borderRadius: '50%',
-              background: 'var(--bg-surface-active)', 
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              flexShrink: 0
-            }}>
-              <User size={12} color="var(--text-accent)" />
+            <div className="w-6 h-6 rounded-sm bg-white/[0.02] border border-white/10 flex items-center justify-center shrink-0">
+              <User size={12} className="text-zinc-300" />
             </div>
             <div style={{ overflow: 'hidden' }}>
               <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-primary)', lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>

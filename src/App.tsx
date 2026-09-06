@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import type { Bill, UserProfile, DbConfig, AccessPermission, OfficialRole } from './types/bill';
+import { restore, useThemeHotkey } from './lib/theme';
 import { OFFICIAL_ROLE_LABELS } from './types/bill';
 import { 
   fetchAllBills, 
@@ -26,6 +27,7 @@ import { SettingsModal } from './components/SettingsModal';
 import { ConfirmModal } from './components/ConfirmModal';
 import { ToastContainer } from './components/Toast';
 import { IdentityModal } from './components/IdentityModal';
+import { ScrollControls } from './components/ScrollControls';
 import type { ToastMessage } from './components/Toast';
 
 export const App: React.FC = () => {
@@ -55,10 +57,11 @@ export const App: React.FC = () => {
   // In-App Toast Notifications
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
 
-  // Always force dark mode for Cyber State OS
+  // Theme hotkey (Ctrl + Shift + L) and theme restoration
+  useThemeHotkey();
+
   useEffect(() => {
-    document.documentElement.setAttribute('data-theme', 'dark');
-    document.documentElement.classList.add('dark');
+    restore();
   }, []);
 
   // Handle native browser Back / Forward buttons (popstate)
@@ -112,13 +115,19 @@ export const App: React.FC = () => {
       const dbSyncToken = urlParams.get('db_sync');
       if (dbSyncToken) {
         const decoded = JSON.parse(decodeURIComponent(escape(atob(dbSyncToken))));
-        if (decoded && decoded.type === 'firebase') {
-          saveFirebaseConfig(decoded.config);
-          addToast('success', 'База данных Firebase успешно подключена по ссылке синхронизации!');
-        } else if (decoded && decoded.type === 'supabase') {
-          saveDbConfig(decoded.config);
-          setDbConfig(decoded.config);
-          addToast('success', 'База данных Supabase успешно подключена по ссылке синхронизации!');
+        if (decoded && (decoded.type === 'firebase' || decoded.fb)) {
+          const cfg = decoded.config || decoded.fb;
+          if (cfg) {
+            saveFirebaseConfig({ ...cfg, isConnected: true });
+            addToast('success', 'База данных Firebase успешно подключена по ссылке синхронизации!');
+          }
+        } else if (decoded && (decoded.type === 'supabase' || decoded.sb)) {
+          const cfg = decoded.config || (decoded.sb ? { supabaseUrl: decoded.sb.url, supabaseAnonKey: decoded.sb.key, isConnected: true } : null);
+          if (cfg) {
+            saveDbConfig(cfg);
+            setDbConfig(cfg);
+            addToast('success', 'База данных Supabase успешно подключена по ссылке синхронизации!');
+          }
         }
         urlParams.delete('db_sync');
         const cleanUrl = window.location.pathname + (urlParams.toString() ? '?' + urlParams.toString() : '');
@@ -317,7 +326,15 @@ export const App: React.FC = () => {
 
   return (
     <DialogProvider>
-      <div className="flex h-screen overflow-hidden bg-[#090B10] text-white selection:bg-indigo-500/40 selection:text-white">
+      <div
+        style={{
+          display: 'flex',
+          height: '100vh',
+          overflow: 'hidden',
+          background: 'var(--rt-bg)',
+          color: 'var(--rt-fg)',
+        }}
+      >
       
       {/* Sidebar Navigation */}
       <Sidebar
@@ -330,8 +347,18 @@ export const App: React.FC = () => {
       />
 
       {/* Main Content Area */}
-      <main className="flex-1 ml-64 overflow-y-auto custom-scrollbar relative">
-        <div className="min-h-full p-8 max-w-7xl mx-auto">
+      <main
+        id="main-scroll-container"
+        style={{
+          flex: '1 1 auto',
+          marginLeft: 260,
+          overflowY: 'auto',
+          position: 'relative',
+          background: 'var(--rt-bg)',
+        }}
+        className="rt-scroll"
+      >
+        <div style={{ minHeight: '100%', padding: '32px 36px', maxWidth: 1240, margin: '0 auto' }}>
           {currentView === 'dashboard' && (
             <Dashboard
               bills={bills}
@@ -373,6 +400,9 @@ export const App: React.FC = () => {
             />
           )}
         </div>
+
+        {/* In-UI Page Scroll Controls (Кнопки ролла страниц) */}
+        <ScrollControls containerSelector="#main-scroll-container" />
       </main>
 
       {/* Modals & Portals */}

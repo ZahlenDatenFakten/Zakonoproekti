@@ -97,3 +97,16 @@ out
 # Build output
 dist
 build
+
+# Scratch & temporary patch files
+patch*
+*.backup.tsx
+*_backup.tsx
+printview.tsx
+scratch/
+Bill_SA-2492.pdf
+rainbow-tables (11).zip
+.agents/
+.vscode/
+
+

@@ -19,6 +19,19 @@ export interface FirebaseConfig {
 
 const FIREBASE_CONFIG_KEY = 'legaldraft_firebase_config_v1';
 
+// Default Production Firebase Cloud Database for Zakonoproekti
+// Guarantees all users, devices and VPS Docker deployments connect to the same cloud DB
+const DEFAULT_FIREBASE_CONFIG: FirebaseConfig = {
+  apiKey: 'AIzaSyCXIH6qVpf1u-MGg_qeWOkb7eGFxpchLmw',
+  authDomain: 'zakonoproekti.firebaseapp.com',
+  projectId: 'zakonoproekti',
+  databaseURL: 'https://zakonoproekti-default-rtdb.firebaseio.com',
+  storageBucket: 'zakonoproekti.appspot.com',
+  messagingSenderId: '505087569184',
+  appId: '1:505087569184:web:a654b6789b2fa4f1d57b45',
+  isConnected: true
+};
+
 export function getStoredFirebaseConfig(): FirebaseConfig {
   const envApiKey = (import.meta.env.VITE_FIREBASE_API_KEY || '').trim();
   const envProjectId = (import.meta.env.VITE_FIREBASE_PROJECT_ID || '').trim();
@@ -44,7 +57,7 @@ export function getStoredFirebaseConfig(): FirebaseConfig {
     };
   }
 
-  // 2. Fallback to localStorage
+  // 2. Priority to localStorage if explicitly configured
   const saved = localStorage.getItem(FIREBASE_CONFIG_KEY);
   if (saved) {
     try {
@@ -52,35 +65,27 @@ export function getStoredFirebaseConfig(): FirebaseConfig {
       if (parsed && typeof parsed === 'object') {
         const apiKey = (parsed.apiKey || '').trim();
         const projectId = (parsed.projectId || '').trim();
-        return {
-          apiKey,
-          authDomain: (parsed.authDomain || '').trim(),
-          projectId,
-          databaseURL: (parsed.databaseURL || '').trim(),
-          storageBucket: (parsed.storageBucket || '').trim(),
-          messagingSenderId: (parsed.messagingSenderId || '').trim(),
-          appId: (parsed.appId || '').trim(),
-          imgbbApiKey: (parsed.imgbbApiKey || '').trim(),
-          isConnected: parsed.isConnected !== undefined ? parsed.isConnected : Boolean(apiKey && projectId)
-        };
+        if (apiKey && projectId) {
+          return {
+            apiKey,
+            authDomain: (parsed.authDomain || '').trim(),
+            projectId,
+            databaseURL: (parsed.databaseURL || '').trim(),
+            storageBucket: (parsed.storageBucket || '').trim(),
+            messagingSenderId: (parsed.messagingSenderId || '').trim(),
+            appId: (parsed.appId || '').trim(),
+            imgbbApiKey: (parsed.imgbbApiKey || '').trim(),
+            isConnected: parsed.isConnected !== undefined ? parsed.isConnected : true
+          };
+        }
       }
     } catch {
       // ignore
     }
   }
 
-  // 3. Fallback to empty config
-  return {
-    apiKey: '',
-    authDomain: '',
-    projectId: '',
-    databaseURL: '',
-    storageBucket: '',
-    messagingSenderId: '',
-    appId: '',
-    imgbbApiKey: '',
-    isConnected: false
-  };
+  // 3. Fallback to Default Production Cloud Database (guarantees universal multi-user sync)
+  return DEFAULT_FIREBASE_CONFIG;
 }
 
 export function saveFirebaseConfig(config: FirebaseConfig): void {
@@ -292,15 +297,15 @@ export async function saveBillToFirebase(bill: Bill): Promise<boolean> {
     updatedAt: new Date().toISOString()
   };
 
-  let savedSuccess = false;
+  let firestoreSuccess = false;
 
-  // 1. Save to Cloud Firestore
+  // 1. Save to Cloud Firestore (Primary Source of Truth)
   try {
     const firestore = getFirestore(app);
     if (firestore) {
       const docRef = doc(firestore, 'bills', bill.id);
       await setDoc(docRef, updatedBill, { merge: true });
-      savedSuccess = true;
+      firestoreSuccess = true;
     }
   } catch (err: any) {
     console.warn('Firebase Firestore save error:', err);
@@ -310,7 +315,7 @@ export async function saveBillToFirebase(bill: Bill): Promise<boolean> {
     throw new Error(`Firebase Firestore ошибка: ${err?.message || 'Неизвестная ошибка'}`);
   }
 
-  // 2. Save to Realtime Database if databaseURL is configured
+  // 2. Synchronize to Realtime Database as mirror (does not crash save if RTDB is restricted)
   try {
     const config = getStoredFirebaseConfig();
     if (config.databaseURL) {
@@ -318,18 +323,13 @@ export async function saveBillToFirebase(bill: Bill): Promise<boolean> {
       if (rtdb) {
         const billRef = ref(rtdb, 'bills/' + bill.id);
         await set(billRef, updatedBill);
-        savedSuccess = true;
       }
     }
   } catch (err: any) {
-    console.warn('Firebase RealtimeDB save error:', err);
-    if (err?.message?.includes('permission') || err?.code?.includes('permission') || err?.message?.includes('denied')) {
-      throw new Error('Firebase Realtime DB: Отказано в доступе (Permission Denied). Установите ".read": true, ".write": true в правилах.');
-    }
-    throw new Error(`Firebase Realtime DB ошибка: ${err?.message || 'Неизвестная ошибка'}`);
+    console.warn('Firebase RealtimeDB mirror warning (non-fatal):', err);
   }
 
-  return savedSuccess;
+  return firestoreSuccess;
 }
 
 export async function fetchBillsFromFirebase(): Promise<Bill[] | null> {
@@ -412,9 +412,8 @@ export function subscribeToFirebaseBills(callback: (bills: Bill[]) => void): (()
               list.push(data);
             }
           });
-          if (list.length > 0) {
-            callback(list.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()));
-          }
+          // Always send authoritative snapshot to callback (even on deletions)
+          callback(list.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()));
         },
         (err) => {
           console.warn('Firestore snapshot listener error:', err);

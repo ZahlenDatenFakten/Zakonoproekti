@@ -34,11 +34,14 @@ export async function uploadImage(file: File): Promise<string> {
       const uniqueName = Date.now() + '-' + Math.round(Math.random() * 1e9) + '-' + file.name;
       const fileRef = storageRef(storage, `uploads/${uniqueName}`);
       try {
-        const snapshot = await uploadBytes(fileRef, file);
+        const snapshot = await Promise.race([
+          uploadBytes(fileRef, file),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Firebase timeout (CORS)')), 6000))
+        ]) as any;
         return await getDownloadURL(snapshot.ref);
       } catch (err: any) {
-        console.error('Firebase storage upload failed:', err);
-        throw new Error('Ошибка загрузки в Firebase Storage: ' + (err.message || 'Проверьте правила доступа (Rules).'));
+        console.warn('Firebase storage upload failed (falling back):', err);
+        // Do not throw! Let it fall through to Supabase/Base64
       }
     }
   }
@@ -50,12 +53,15 @@ export async function uploadImage(file: File): Promise<string> {
     if (supabase) {
       const uniqueName = Date.now() + '-' + Math.round(Math.random() * 1e9) + '-' + file.name;
       try {
-        const { error } = await supabase.storage
-          .from('uploads') // Ensure you have a public 'uploads' bucket in Supabase!
-          .upload(`public/${uniqueName}`, file, {
-            cacheControl: '3600',
-            upsert: false
-          });
+        const { error } = await Promise.race([
+          supabase.storage
+            .from('uploads')
+            .upload(`public/${uniqueName}`, file, {
+              cacheControl: '3600',
+              upsert: false
+            }),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Supabase timeout')), 6000))
+        ]) as any;
           
         if (error) throw error;
         
@@ -65,13 +71,14 @@ export async function uploadImage(file: File): Promise<string> {
           
         return publicUrl;
       } catch (err: any) {
-        console.error('Supabase storage upload failed:', err);
-        throw new Error('Ошибка загрузки в Supabase Storage: ' + (err.message || 'Убедитесь, что бакет "uploads" существует и является публичным.'));
+        console.warn('Supabase storage upload failed (falling back):', err);
+        // Do not throw! Let it fall through to Base64
       }
     }
   }
 
-  // Local fallback (Only works if a Node backend is actually running, fails on Vercel)
+  
+  // Local Express fallback (saves to local /uploads folder via server.js)
   const formData = new FormData();
   formData.append('image', file);
 
@@ -82,17 +89,24 @@ export async function uploadImage(file: File): Promise<string> {
     });
     
     if (!response.ok) {
-      throw new Error(`Сервер вернул статус ${response.status}. Возможно, вы запустили сайт на Vercel без Node.js бэкенда? В этом случае для хранения фото укажите Storage Bucket в настройках Firebase, либо используйте свой хостинг с Node.js.`);
+      throw new Error(`Server returned ${response.status}`);
     }
 
     const data = await response.json();
     if (data.success && data.url) {
       return data.url;
     } else {
-      throw new Error(data.error || 'Неизвестная ошибка сервера');
+      throw new Error(data.error || 'Server error');
     }
   } catch (err: any) {
-    console.error('Local upload failed:', err);
-    throw new Error(err.message || 'Ошибка загрузки (Если вы на Vercel, вам нужно подключить Firebase/Supabase Storage)');
+    console.error('Local express upload failed, falling back to base64:', err);
+    
+    // Absolute last resort: Base64
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = () => reject(new Error('Failed to read file.'));
+    });
   }
 }

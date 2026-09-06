@@ -1,171 +1,60 @@
 import express from 'express';
+import multer from 'multer';
 import cors from 'cors';
-import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import multer from 'multer';
+import fs from 'fs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-const PORT = process.env.PORT || 80;
+const PORT = process.env.PORT || 5050; // Use 5050 to avoid conflicting with other apps
+
+// Ensure uploads directory exists
+const uploadsDir = path.join(__dirname, 'uploads');
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
+
+// Multer config for image uploads
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, uploadsDir);
+  },
+  filename: function (req, file, cb) {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    const ext = path.extname(file.originalname);
+    cb(null, 'img-' + uniqueSuffix + ext);
+  }
+});
+const upload = multer({ storage: storage });
 
 app.use(cors());
 app.use(express.json());
-const CONFIG_DIR = path.join(__dirname, 'config');
-if (!fs.existsSync(CONFIG_DIR)) {
-  fs.mkdirSync(CONFIG_DIR, { recursive: true });
-}
-const CONFIG_FILE = path.join(CONFIG_DIR, 'config.json');
-const UPLOADS_DIR = path.join(__dirname, 'uploads');
 
-// Ensure uploads dir exists
-if (!fs.existsSync(UPLOADS_DIR)) {
-  fs.mkdirSync(UPLOADS_DIR, { recursive: true });
-}
-
+// Serve static files from the Vite build
+app.use(express.static(path.join(__dirname, 'dist')));
 // Serve uploaded files statically
-app.use('/uploads', express.static(UPLOADS_DIR));
+app.use('/uploads', express.static(uploadsDir));
 
-// Configure Multer for file uploads
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, UPLOADS_DIR);
-  },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    const ext = path.extname(file.originalname) || '.jpg';
-    cb(null, uniqueSuffix + ext);
-  }
-});
-const upload = multer({ 
-  storage,
-  limits: { fileSize: 15 * 1024 * 1024 }, // 15MB limit
-});
-
-// Helper to seed config from .env if it doesn't exist
-function seedConfig() {
-  if (!fs.existsSync(CONFIG_FILE)) {
-    const initialConfig = {
-      apiKey: process.env.VITE_FIREBASE_API_KEY || '',
-      authDomain: process.env.VITE_FIREBASE_AUTH_DOMAIN || '',
-      projectId: process.env.VITE_FIREBASE_PROJECT_ID || '',
-      databaseURL: process.env.VITE_FIREBASE_DATABASE_URL || '',
-      storageBucket: process.env.VITE_FIREBASE_STORAGE_BUCKET || '',
-      messagingSenderId: process.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '',
-      appId: process.env.VITE_FIREBASE_APP_ID || '',
-      isConnected: Boolean(process.env.VITE_FIREBASE_API_KEY && process.env.VITE_FIREBASE_PROJECT_ID)
-    };
-    try {
-      fs.writeFileSync(CONFIG_FILE, JSON.stringify(initialConfig, null, 2), 'utf8');
-      console.log('Seeded initial config.json from environment variables.');
-    } catch (err) {
-      console.error('Failed to seed config.json', err);
-    }
-  }
-}
-
-// Seed on startup
-seedConfig();
-
-// API Endpoint to GET current config
-app.get('/api/config', (req, res) => {
-  try {
-    if (fs.existsSync(CONFIG_FILE)) {
-      const data = fs.readFileSync(CONFIG_FILE, 'utf8');
-      res.json(JSON.parse(data));
-    } else {
-      res.json({ isConnected: false });
-    }
-  } catch (err) {
-    console.error('Error reading config.json:', err);
-    res.status(500).json({ error: 'Failed to read config' });
-  }
-});
-
-// Ensure an admin token exists for security
-const TOKEN_DIR = path.join(__dirname, 'admin_token');
-if (!fs.existsSync(TOKEN_DIR)) {
-  fs.mkdirSync(TOKEN_DIR, { recursive: true });
-}
-const TOKEN_FILE = path.join(TOKEN_DIR, 'admin_token.txt');
-let ADMIN_TOKEN = process.env.ADMIN_SECRET_KEY || '';
-
-if (!ADMIN_TOKEN) {
-  if (fs.existsSync(TOKEN_FILE)) {
-    ADMIN_TOKEN = fs.readFileSync(TOKEN_FILE, 'utf8').trim();
-  } else {
-    // Generate a random token on first start
-    ADMIN_TOKEN = Math.random().toString(36).slice(-10) + Math.random().toString(36).slice(-10);
-    try {
-      fs.writeFileSync(TOKEN_FILE, ADMIN_TOKEN, 'utf8');
-      console.log('====================================================');
-      console.log('SECURITY NOTICE: Generated new admin token for API!');
-      console.log(`Your Admin Token is: ${ADMIN_TOKEN}`);
-      console.log('You will need this token to change DB settings from the UI.');
-      console.log('====================================================');
-    } catch (err) {
-      console.error('Failed to write admin_token.txt', err);
-    }
-  }
-}
-
-// API Endpoint to POST (update) current config
-app.post('/api/config', (req, res) => {
-  try {
-    const providedToken = req.headers['x-admin-token'];
-    if (!providedToken || providedToken !== ADMIN_TOKEN) {
-      return res.status(401).json({ error: 'Unauthorized: Invalid Admin Token' });
-    }
-
-    const newConfig = req.body;
-    // ensure basic shape
-    if (typeof newConfig !== 'object') {
-      return res.status(400).json({ error: 'Invalid config payload' });
-    }
-    
-    fs.writeFileSync(CONFIG_FILE, JSON.stringify(newConfig, null, 2), 'utf8');
-    res.json({ success: true, message: 'Config updated successfully' });
-  } catch (err) {
-    console.error('Error writing config.json:', err);
-    res.status(500).json({ error: 'Failed to save config' });
-  }
-});
-
-// API Endpoint to upload files
+// Upload API Endpoint
 app.post('/api/upload', upload.single('image'), (req, res) => {
-  try {
-    if (!req.file) {
-      return res.status(400).json({ error: 'No file uploaded' });
-    }
-    // Return the URL to access the uploaded file
-    const fileUrl = `/uploads/${req.file.filename}`;
-    res.json({ success: true, url: fileUrl });
-  } catch (err) {
-    console.error('Error handling upload:', err);
-    res.status(500).json({ error: 'Upload failed' });
+  if (!req.file) {
+    return res.status(400).json({ success: false, error: 'No image provided' });
   }
+  
+  // The URL to access the uploaded file
+  const fileUrl = `/uploads/${req.file.filename}`;
+  res.json({ success: true, url: fileUrl });
 });
 
-// Serve static files from the React dist folder
-const distPath = path.join(__dirname, 'dist');
-if (fs.existsSync(distPath)) {
-  app.use(express.static(distPath));
-
-  // Catch-all route for SPA navigation
-  app.get('/{*path}', (req, res, next) => {
-    // Exclude /api routes from catch-all
-    if (req.path.startsWith('/api/')) {
-      return next();
-    }
-    res.sendFile(path.join(distPath, 'index.html'));
-  });
-} else {
-  console.warn(`Warning: Static dist folder not found at ${distPath}`);
-  app.get('/', (req, res) => res.send('Frontend build not found. Run npm run build first.'));
-}
+// Catch-all route to serve index.html for React Router / SPA
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'dist', 'index.html'));
+});
 
 app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
+  console.log(`Server is running on http://localhost:${PORT}`);
+  console.log(`Uploads will be saved to ${uploadsDir}`);
 });

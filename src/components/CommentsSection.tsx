@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import type { BillComment, UserProfile } from '../types/bill';
 import { addCommentToBill } from '../services/storageService';
-import { Send, User, Calendar, MessageSquare, Lock } from 'lucide-react';
+import { Send, Calendar, MessageSquare, Lock } from 'lucide-react';
+import { R, ft, btnAccent, mono } from '../lib/ui';
+import { Avatar } from './Primitives';
 
 interface CommentsSectionProps {
   billId: string;
@@ -16,7 +18,7 @@ export const CommentsSection: React.FC<CommentsSectionProps> = ({
   user,
   comments,
   canComment,
-  onAddComment
+  onAddComment,
 }) => {
   const [newCommentText, setNewCommentText] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -33,7 +35,7 @@ export const CommentsSection: React.FC<CommentsSectionProps> = ({
         billId,
         authorName: fullName,
         authorRole: user.officialRole,
-        content: newCommentText.trim()
+        content: newCommentText.trim(),
       });
 
       onAddComment([...comments, added]);
@@ -44,60 +46,149 @@ export const CommentsSection: React.FC<CommentsSectionProps> = ({
   };
 
   return (
-    <div className="flex flex-col gap-4">
-      
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       {/* COMMENT FORM */}
       {canComment ? (
-        <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           <textarea
-            rows={2}
-            placeholder="Оставить правовой комментарий..."
+            rows={3}
+            placeholder="Оставить правовой комментарий к законопроекту..."
             value={newCommentText}
             onChange={(e) => setNewCommentText(e.target.value)}
-            className="w-full bg-black/60 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-indigo-500/50 transition-colors placeholder-zinc-600 resize-y min-h-[80px]"
             disabled={isSubmitting}
+            style={{
+              width: '100%',
+              background: R.bgInput,
+              border: ft.edge,
+              padding: '10px 14px',
+              fontSize: 13,
+              color: R.text,
+              outline: 'none',
+              resize: 'vertical',
+              minHeight: 80,
+              fontFamily: 'inherit',
+              transition: 'border-color .15s',
+            }}
+            onFocus={(e) => (e.currentTarget.style.borderColor = R.accent)}
+            onBlur={(e) => (e.currentTarget.style.borderColor = R.border)}
           />
 
-          <div className="flex justify-end">
-            <button 
-              type="submit" 
+          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+            <button
+              type="submit"
               disabled={isSubmitting || !newCommentText.trim()}
-              className="flex items-center gap-2 px-5 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:hover:bg-indigo-600 text-white text-xs font-extrabold rounded-lg shadow-lg shadow-indigo-500/20 border border-indigo-400/30 active:scale-95 transition-all"
+              style={{
+                ...btnAccent,
+                opacity: isSubmitting || !newCommentText.trim() ? 0.5 : 1,
+                cursor: isSubmitting || !newCommentText.trim() ? 'not-allowed' : 'pointer',
+              }}
             >
-              <Send size={14} /> {isSubmitting ? 'Отправка...' : 'Отправить'}
+              <Send size={13} />
+              <span>{isSubmitting ? 'Отправка...' : 'Отправить'}</span>
             </button>
           </div>
         </form>
       ) : (
-        <div className="flex items-center justify-center gap-2 py-4 bg-white/[0.02] border border-white/10 rounded-xl text-zinc-500 text-xs font-mono font-bold uppercase tracking-wider">
-          <Lock size={14} className="text-zinc-600" /> Обсуждение закрыто
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 8,
+            padding: '14px 16px',
+            background: R.bgSubtle,
+            border: ft.edge,
+            color: R.textMuted,
+            fontSize: 12,
+            fontFamily: mono,
+            textTransform: 'uppercase',
+            letterSpacing: '0.06em',
+          }}
+        >
+          <Lock size={14} /> Обсуждение закрыто
         </div>
       )}
 
       {/* COMMENTS LIST */}
-      <div className="flex flex-col gap-3">
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         {comments.length === 0 ? (
-          <div className="py-8 flex flex-col items-center justify-center gap-2 opacity-50">
-            <MessageSquare size={24} className="text-zinc-600" />
-            <span className="text-xs font-mono text-zinc-500 uppercase tracking-wider">Комментариев пока нет</span>
+          <div
+            style={{
+              padding: '36px 16px',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 8,
+              border: ft.edge,
+              background: R.bgSubtle,
+            }}
+          >
+            <MessageSquare size={24} style={{ color: R.textMuted, opacity: 0.6 }} />
+            <span style={{ fontSize: 12, fontFamily: mono, color: R.textMuted, letterSpacing: '0.04em' }}>
+              Комментариев пока нет
+            </span>
           </div>
         ) : (
           comments.map((cm) => (
-            <div key={cm.id} className="bg-black/40 border border-white/5 rounded-xl p-4">
-              <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
-                <div className="flex items-center gap-3">
-                  <div className="w-6 h-6 rounded-full bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center shrink-0">
-                    <User size={12} className="text-indigo-400" />
+            <div
+              key={cm.id}
+              style={{
+                background: R.bgPanel,
+                border: ft.strong,
+                padding: '14px 16px',
+              }}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  marginBottom: 10,
+                  flexWrap: 'wrap',
+                  gap: 8,
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <Avatar name={cm.authorName} size={26} />
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: R.text }}>
+                      {cm.authorName}
+                    </div>
+                    {cm.authorRole && (
+                      <div style={{ fontSize: 11, color: R.textMuted, fontFamily: mono }}>
+                        {cm.authorRole}
+                      </div>
+                    )}
                   </div>
-                  <span className="text-xs font-bold text-white">{cm.authorName}</span>
                 </div>
 
-                <span className="flex items-center gap-1.5 text-[10px] font-mono text-zinc-500 bg-white/[0.02] px-2 py-1 rounded-md border border-white/5">
-                  <Calendar size={10} /> {new Date(cm.createdAt).toLocaleDateString('ru-RU')}
+                <span
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    fontSize: 11,
+                    fontFamily: mono,
+                    color: R.textMuted,
+                    background: R.bgSubtle,
+                    padding: '3px 8px',
+                    border: ft.edge,
+                  }}
+                >
+                  <Calendar size={11} /> {new Date(cm.createdAt).toLocaleDateString('ru-RU')}
                 </span>
               </div>
 
-              <div className="text-sm text-zinc-400 leading-relaxed pl-9">
+              <div
+                style={{
+                  fontSize: 13,
+                  lineHeight: 1.6,
+                  color: R.text,
+                  whiteSpace: 'pre-wrap',
+                  paddingLeft: 36,
+                }}
+              >
                 {cm.content}
               </div>
             </div>

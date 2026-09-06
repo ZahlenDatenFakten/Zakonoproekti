@@ -1,21 +1,25 @@
-import React, { useState, useMemo } from 'react';
+import React, { useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { Bill, BillStatus, UserProfile } from '../types/bill';
 import { isSystemAdmin } from '../services/securityService';
 import { 
   Search, 
-  ChevronRight,
+  ChevronDown,
   Plus, 
   Calendar,
   User as UserIcon,
   Layers,
   Trash2,
-  FileText,
   CheckCircle2,
   SlidersHorizontal,
-  Check
+  Share2,
+  Clock,
+  ExternalLink,
+  Crown
 } from 'lucide-react';
-import { cn } from '../utils/cn';
+import { groupBillsByWeek } from '../utils/dateUtils';
+import { useSessionState } from '../hooks/useSessionState';
+import { R, ft, label, mono, chip, btnAccent, plural } from '../lib/ui';
 
 interface DashboardProps {
   user: UserProfile;
@@ -30,24 +34,31 @@ export const Dashboard: React.FC<DashboardProps> = ({
   user,
   bills,
   onSelectBill,
+  onShareBill,
   onDeleteBill,
   onNewBill
 }) => {
-  const [activeTab, setActiveTab] = useState<'all' | 'my' | 'active' | 'approved'>('all');
-  const [searchQuery, setSearchQuery] = useState('');
+  const [activeTab, setActiveTab] = useSessionState<'all' | 'my' | 'active' | 'approved'>('dashboard_tab', 'all');
+  const [searchQuery, setSearchQuery] = useSessionState('dashboard_search', '');
   
   // Advanced Filters
-  const [showFilters, setShowFilters] = useState(false);
-  const [filterStatuses, setFilterStatuses] = useState<BillStatus[]>([]);
-  const [filterVote, setFilterVote] = useState<'all' | 'voted' | 'not_voted'>('all');
-  const [sortOrder, setSortOrder] = useState<'newest' | 'oldest'>('newest');
+  const [showFilters, setShowFilters] = useSessionState('dashboard_show_filters', false);
+  const [filterStatuses, setFilterStatuses] = useSessionState<BillStatus[]>('dashboard_filter_statuses', []);
+  const [filterVote, setFilterVote] = useSessionState<'all' | 'voted' | 'not_voted'>('dashboard_filter_vote', 'all');
+  const [sortOrder, setSortOrder] = useSessionState<'newest' | 'oldest'>('dashboard_sort', 'newest');
+
+  // Pack Accordeons
+  const [expandedPacks, setExpandedPacks] = useSessionState<Record<string, boolean>>('dashboard_expanded_packs', {});
+
+  const togglePack = (packLabel: string) => {
+    setExpandedPacks(prev => ({ ...prev, [packLabel]: !prev[packLabel] }));
+  };
 
   const currentFullName = `${user.firstName} ${user.lastName}`.trim();
 
   // Filter out private drafts of other users first
   const visibleBills = useMemo(() => {
     return bills.filter((b) => {
-      // Drafts remain private to their author (and Admin) until submitted
       if (b.status === 'draft' && b.author.trim() !== currentFullName && !isSystemAdmin(user)) {
         return false;
       }
@@ -55,7 +66,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
     });
   }, [bills, currentFullName, user]);
 
-  // Statistics calculation based ONLY on bills the user is allowed to see
+  // Statistics calculation based ONLY on visible bills
   const stats = useMemo(() => {
     const total = visibleBills.length;
     const active = visibleBills.filter(b => b.status === 'under_review' || b.status === 'needs_revision' || b.status === 'draft').length;
@@ -89,12 +100,10 @@ export const Dashboard: React.FC<DashboardProps> = ({
         return true;
       })
       .filter((b) => {
-        // Advanced Status Filter
         if (filterStatuses.length > 0 && !filterStatuses.includes(b.status)) {
           return false;
         }
 
-        // Advanced Vote Filter
         if (filterVote !== 'all') {
           const isCommission = ['prosecutor', 'judge', 'governor'].includes(user.officialRole);
           const hasVoted = isCommission && b.votes?.[user.officialRole as 'prosecutor'|'judge'|'governor'];
@@ -114,42 +123,135 @@ export const Dashboard: React.FC<DashboardProps> = ({
       });
   }, [visibleBills, activeTab, searchQuery, currentFullName, filterStatuses, filterVote, sortOrder, user]);
 
-  const formatDate = (isoStr: string) => {
-    const d = new Date(isoStr);
-    return `${d.toLocaleDateString('ru-RU')} ${d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}`;
-  };
+  const getStatusBadge = (bill: Bill) => {
+    const isStage2ApprovedPendingEnactment = bill.federalVerdict?.status === 'approved' && bill.status !== 'approved';
 
-  const getStatusBadge = (status: BillStatus) => {
-    switch (status) {
-      case 'approved':
-        return (
-          <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-[10px] font-extrabold uppercase tracking-wider text-emerald-400">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]" /> Вступил в силу
-          </span>
-        );
+    if (bill.status === 'approved') {
+      return (
+        <span
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 5,
+            padding: '3px 8px',
+            fontSize: 11,
+            fontWeight: 700,
+            background: R.successSubtle,
+            color: R.success,
+            border: `1px solid ${R.success}`,
+            borderRadius: 2,
+            letterSpacing: '0.02em',
+          }}
+        >
+          <span style={{ width: 6, height: 6, borderRadius: '50%', background: R.success }} />
+          Вступил в силу
+        </span>
+      );
+    }
+
+    if (isStage2ApprovedPendingEnactment) {
+      return (
+        <span
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 5,
+            padding: '3px 8px',
+            fontSize: 11,
+            fontWeight: 700,
+            background: R.accentSubtle,
+            color: R.accent,
+            border: `1px solid ${R.accentBorder}`,
+            borderRadius: 2,
+            letterSpacing: '0.02em',
+          }}
+        >
+          <span style={{ width: 6, height: 6, borderRadius: '50%', background: R.accent }} />
+          Одобрен 2-м этапом
+        </span>
+      );
+    }
+
+    switch (bill.status) {
       case 'rejected':
         return (
-          <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-rose-500/10 border border-rose-500/20 text-[10px] font-extrabold uppercase tracking-wider text-rose-400">
-            <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.8)]" /> Отклонен
+          <span
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 5,
+              padding: '3px 8px',
+              fontSize: 11,
+              fontWeight: 700,
+              background: R.dangerSubtle,
+              color: R.danger,
+              border: `1px solid ${R.dangerBorder}`,
+              borderRadius: 2,
+            }}
+          >
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: R.danger }} />
+            Отклонен
           </span>
         );
       case 'needs_revision':
         return (
-          <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-[10px] font-extrabold uppercase tracking-wider text-amber-400">
-            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.8)] animate-pulse" /> Доработка
+          <span
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 5,
+              padding: '3px 8px',
+              fontSize: 11,
+              fontWeight: 700,
+              background: R.accentSubtle,
+              color: R.accentText,
+              border: `1px solid ${R.accentBorder}`,
+              borderRadius: 2,
+            }}
+          >
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: R.accent }} />
+            Доработка
           </span>
         );
       case 'under_review':
         return (
-          <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-[10px] font-extrabold uppercase tracking-wider text-blue-400">
-            <span className="w-1.5 h-1.5 rounded-full bg-blue-400 shadow-[0_0_8px_rgba(96,165,250,0.8)] animate-pulse" /> На рассмотрении
+          <span
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 5,
+              padding: '3px 8px',
+              fontSize: 11,
+              fontWeight: 700,
+              background: R.warningSubtle,
+              color: R.warning,
+              border: `1px solid ${R.warning}`,
+              borderRadius: 2,
+            }}
+          >
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: R.warning }} />
+            На рассмотрении
           </span>
         );
       case 'draft':
       default:
         return (
-          <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-zinc-500/10 border border-zinc-500/20 text-[10px] font-extrabold uppercase tracking-wider text-zinc-400">
-            <span className="w-1.5 h-1.5 rounded-full bg-zinc-500" /> Черновик
+          <span
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 5,
+              padding: '3px 8px',
+              fontSize: 11,
+              fontWeight: 600,
+              background: R.bgElevated,
+              color: R.textMuted,
+              border: ft.edge,
+              borderRadius: 2,
+            }}
+          >
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: R.textMuted }} />
+            Черновик
           </span>
         );
     }
@@ -157,185 +259,218 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
   const formatDecreeNumber = (billId: string) => {
     const numericId = billId.replace(/\D/g, '').slice(-4) || '0042';
-    return `АКТ № SA-${numericId}`;
+    return `SA-${numericId}`;
   };
 
-  // Animation variants
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    show: {
-      opacity: 1,
-      transition: { staggerChildren: 0.05 }
-    }
-  };
-
-  const itemVariants = {
-    hidden: { opacity: 0, y: 15 },
-    show: { opacity: 1, y: 0, transition: { type: "spring" as const, stiffness: 300, damping: 30 } }
-  };
+  const tabs = [
+    { id: 'all', label: 'Все акты', count: stats.total },
+    { id: 'active', label: 'На рассмотрении', count: stats.active },
+    { id: 'approved', label: 'Вступили в силу', count: stats.approved },
+    { id: 'my', label: 'Мои проекты', count: stats.myCount },
+  ] as const;
 
   return (
-    <div className="max-w-6xl mx-auto space-y-8 pb-12">
+    <div style={{ maxWidth: 1180, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 24 }}>
       
-      {/* Header Area */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
+      {/* Header Area in DocList style */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
         <div>
-          <h2 className="text-3xl font-extrabold tracking-tight text-white mb-2">
+          <h1 style={{ fontSize: 26, fontWeight: 800, letterSpacing: '-0.02em', color: R.text, margin: 0 }}>
             Реестр законопроектов
-          </h2>
-          <p className="text-sm text-zinc-400 font-medium">
-            Электронный архив законодательных актов и экспертиз Штата San Andreas
-          </p>
+          </h1>
+          <div style={{ fontSize: 12, fontFamily: mono, color: R.textMuted, marginTop: 4 }}>
+            {visibleBills.length} {plural(visibleBills.length, 'законопроект', 'законопроекта', 'законопроектов')} · ШТАТ SAN ANDREAS
+          </div>
         </div>
 
-        <button 
-          onClick={onNewBill} 
-          className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold px-5 py-3 rounded-xl shadow-lg shadow-indigo-500/20 border border-indigo-400/30 active:scale-95 transition-all"
+        <button
+          style={btnAccent}
+          onClick={onNewBill}
+          data-tooltip="Создать и внести новый законопроект"
         >
-          <Plus size={18} />
-          Внести законопроект
+          <Plus size={16} strokeWidth={2.5} />
+          <span>Внести законопроект</span>
         </button>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* Metrics Cards Grid */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
         {[
-          { icon: <Layers size={20} />, value: stats.total, label: 'Всего актов', color: 'indigo' },
-          { icon: <FileText size={20} />, value: stats.active, label: 'На рассмотрении', color: 'amber' },
-          { icon: <ChevronRight size={20} />, value: stats.approved, label: 'Вступили в силу', color: 'emerald' },
-          { icon: <UserIcon size={20} />, value: stats.myCount, label: 'Мои проекты', color: 'zinc' },
-        ].map((stat, i) => (
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: i * 0.1 }}
-            key={i} 
-            className="flex items-center gap-4 p-5 rounded-2xl bg-white/[0.02] backdrop-blur-xl border border-white/10 shadow-2xl shadow-black/50 hover:border-white/20 transition-all duration-200"
+          { icon: <Layers size={18} color={R.accent} />, value: stats.total, label: 'Всего в реестре' },
+          { icon: <Clock size={18} color={R.warning} />, value: stats.active, label: 'На рассмотрении' },
+          { icon: <CheckCircle2 size={18} color={R.success} />, value: stats.approved, label: 'Вступили в силу' },
+          { icon: <UserIcon size={18} color={R.textSecondary} />, value: stats.myCount, label: 'Мои проекты' },
+        ].map((item, i) => (
+          <div
+            key={i}
+            style={{
+              padding: '16px 18px',
+              background: R.bgPanel,
+              border: ft.edge,
+              borderRadius: 2,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 14,
+              boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+            }}
           >
-            <div className={cn(
-              "w-12 h-12 rounded-xl flex items-center justify-center shrink-0 border",
-              stat.color === 'indigo' && "bg-indigo-500/10 border-indigo-500/20 text-indigo-400 shadow-[inset_0_2px_8px_rgba(99,102,241,0.15)]",
-              stat.color === 'amber' && "bg-amber-500/10 border-amber-500/20 text-amber-400 shadow-[inset_0_2px_8px_rgba(245,158,11,0.15)]",
-              stat.color === 'emerald' && "bg-emerald-500/10 border-emerald-500/20 text-emerald-400 shadow-[inset_0_2px_8px_rgba(16,185,129,0.15)]",
-              stat.color === 'zinc' && "bg-zinc-500/10 border-zinc-500/20 text-zinc-400 shadow-[inset_0_2px_8px_rgba(161,161,170,0.15)]",
-            )}>
-              {stat.icon}
+            <div
+              style={{
+                width: 38,
+                height: 38,
+                display: 'grid',
+                placeItems: 'center',
+                background: R.bgInput,
+                border: ft.hair,
+                borderRadius: 2,
+                flexShrink: 0,
+              }}
+            >
+              {item.icon}
             </div>
             <div>
-              <div className="text-2xl font-extrabold font-mono text-white leading-none mb-1">
-                {stat.value}
+              <div style={{ fontSize: 22, fontWeight: 800, fontFamily: mono, color: R.text, lineHeight: 1.1 }}>
+                {item.value}
               </div>
-              <div className="text-[11px] font-bold tracking-wider uppercase text-zinc-400">
-                {stat.label}
+              <div style={{ ...label, fontSize: 9.5, marginTop: 4 }}>
+                {item.label}
               </div>
             </div>
-          </motion.div>
+          </div>
         ))}
       </div>
 
-      {/* Filters & Search */}
-      <div className="flex flex-col md:flex-row items-center justify-between gap-4 bg-white/[0.02] backdrop-blur-xl border border-white/10 rounded-2xl p-2 shadow-2xl shadow-black/50">
-        
-        {/* TABS */}
-        <div className="flex w-full md:w-auto gap-1">
-          {[
-            { id: 'all', label: 'Все' },
-            { id: 'active', label: 'На рассмотрении' },
-            { id: 'approved', label: 'Вступили в силу' },
-            { id: 'my', label: 'Мои проекты' }
-          ].map((tab) => {
+      {/* Filters Toolbar Bar */}
+      <div
+        style={{
+          background: R.bgPanel,
+          border: ft.edge,
+          padding: '10px 14px',
+          borderRadius: 2,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 12,
+          flexWrap: 'wrap',
+        }}
+      >
+        {/* Tab Chips */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+          {tabs.map((tab) => {
             const isActive = activeTab === tab.id;
             return (
               <button
                 key={tab.id}
+                style={chip(isActive)}
                 onClick={() => setActiveTab(tab.id as any)}
-                className={cn(
-                  "flex-1 md:flex-none px-4 py-2 rounded-xl text-xs font-bold tracking-wide transition-all duration-200",
-                  isActive 
-                    ? "bg-white/10 text-white shadow-lg" 
-                    : "text-zinc-400 hover:text-white hover:bg-white/5"
-                )}
               >
-                {tab.label}
+                <span>{tab.label}</span>
+                <span style={{ fontFamily: mono, fontSize: 11, opacity: 0.75 }}>
+                  {tab.count}
+                </span>
               </button>
             );
           })}
         </div>
 
-        {/* SEARCH & FILTER BUTTON */}
-        <div className="relative w-full md:w-80 shrink-0 flex gap-2">
-          <div className="relative flex-1">
-            <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-500" />
-            <input 
-              type="text" 
-              placeholder="Поиск (название, автор)..." 
+        {/* Search Input & Advanced Filter Button */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 260, flex: '1 1 auto', maxWidth: 420 }}>
+          <div style={{ position: 'relative', flex: '1 1 auto' }}>
+            <Search
+              size={15}
+              color={R.textMuted}
+              style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)' }}
+            />
+            <input
+              type="text"
+              placeholder="Поиск по названию, автору или закону..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-black/60 border border-white/10 rounded-xl py-2 pl-10 pr-4 text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/50 transition-all duration-200"
+              style={{
+                width: '100%',
+                height: 32,
+                paddingLeft: 32,
+                paddingRight: 10,
+                background: R.bgInput,
+                border: ft.edge,
+                borderRadius: 2,
+                fontSize: 13,
+                color: R.text,
+                outline: 'none',
+              }}
+              onFocus={(e) => (e.currentTarget.style.borderColor = R.accent)}
+              onBlur={(e) => (e.currentTarget.style.borderColor = 'var(--rt-line)')}
             />
           </div>
+
           <button
             onClick={() => setShowFilters(!showFilters)}
-            className={cn(
-              "flex items-center justify-center w-10 h-10 rounded-xl border transition-all duration-200",
-              showFilters || filterStatuses.length > 0 || filterVote !== 'all' || sortOrder !== 'newest'
-                ? "bg-indigo-500/20 border-indigo-500/40 text-indigo-400 shadow-[0_0_15px_rgba(99,102,241,0.2)]"
-                : "bg-black/60 border-white/10 text-zinc-400 hover:text-white hover:bg-white/5"
-            )}
-            title="Расширенные фильтры"
+            data-tooltip="Расширенные фильтры"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: 32,
+              height: 32,
+              background: showFilters || filterStatuses.length > 0 || filterVote !== 'all' ? R.accent : R.bgInput,
+              color: showFilters || filterStatuses.length > 0 || filterVote !== 'all' ? R.onAccent : R.textSecondary,
+              border: ft.edge,
+              borderRadius: 2,
+              cursor: 'pointer',
+              flexShrink: 0,
+            }}
           >
-            <SlidersHorizontal size={18} />
+            <SlidersHorizontal size={15} />
           </button>
         </div>
       </div>
 
-      {/* ADVANCED FILTERS PANEL */}
+      {/* Advanced Filters Drawer Panel */}
       <AnimatePresence>
         {showFilters && (
           <motion.div
-            initial={{ opacity: 0, height: 0, marginTop: 0 }}
-            animate={{ opacity: 1, height: 'auto', marginTop: 16 }}
-            exit={{ opacity: 0, height: 0, marginTop: 0 }}
-            className="overflow-hidden"
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            style={{
+              background: R.bgPanel,
+              border: ft.edge,
+              borderRadius: 2,
+              padding: 16,
+              overflow: 'hidden',
+            }}
           >
-            <div className="p-5 bg-white/[0.02] backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl shadow-black/50 grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 20 }}>
               
               {/* Status Filter */}
-              <div className="space-y-3">
-                <h4 className="text-[10px] font-extrabold uppercase tracking-widest text-zinc-500">По статусу акта</h4>
-                <div className="flex flex-col gap-2">
-                  {(['draft', 'under_review', 'needs_revision', 'approved', 'rejected'] as BillStatus[]).map(status => {
-                    const isChecked = filterStatuses.includes(status);
-                    const labels: Record<string, string> = {
+              <div>
+                <div style={{ ...label, marginBottom: 10 }}>По статусу акта</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {(['draft', 'under_review', 'needs_revision', 'approved', 'rejected'] as BillStatus[]).map((st) => {
+                    const isChecked = filterStatuses.includes(st);
+                    const stLabels: Record<string, string> = {
                       draft: 'Черновик',
                       under_review: 'На рассмотрении',
                       needs_revision: 'Доработка',
                       approved: 'Вступил в силу',
-                      rejected: 'Отклонен'
+                      rejected: 'Отклонен',
                     };
+
                     return (
-                      <label key={status} className="flex items-center gap-3 cursor-pointer group">
-                        <div className={cn(
-                          "w-4 h-4 rounded-md border flex items-center justify-center transition-all",
-                          isChecked ? "bg-indigo-500 border-indigo-500 text-white" : "bg-black/40 border-white/20 group-hover:border-indigo-400/50"
-                        )}>
-                          {isChecked && <Check size={12} strokeWidth={3} />}
-                        </div>
-                        <span className={cn("text-xs font-medium transition-colors", isChecked ? "text-white" : "text-zinc-400 group-hover:text-zinc-300")}>
-                          {labels[status]}
-                        </span>
-                        <input 
-                          type="checkbox" 
-                          className="hidden"
+                      <label key={st} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13, color: R.text }}>
+                        <input
+                          type="checkbox"
                           checked={isChecked}
                           onChange={() => {
                             if (isChecked) {
-                              setFilterStatuses(filterStatuses.filter(s => s !== status));
+                              setFilterStatuses(filterStatuses.filter(s => s !== st));
                             } else {
-                              setFilterStatuses([...filterStatuses, status]);
+                              setFilterStatuses([...filterStatuses, st]);
                             }
                           }}
+                          style={{ accentColor: R.accent, cursor: 'pointer' }}
                         />
+                        <span>{stLabels[st]}</span>
                       </label>
                     );
                   })}
@@ -343,56 +478,53 @@ export const Dashboard: React.FC<DashboardProps> = ({
               </div>
 
               {/* Vote Status Filter */}
-              <div className="space-y-3">
-                <h4 className="text-[10px] font-extrabold uppercase tracking-widest text-zinc-500">Участие в голосовании</h4>
-                <div className="flex flex-col gap-2">
+              <div>
+                <div style={{ ...label, marginBottom: 10 }}>Участие в голосовании</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                   {[
-                    { id: 'all', label: 'Показывать все' },
-                    { id: 'voted', label: '✅ Я уже проголосовал' },
-                    { id: 'not_voted', label: '⏳ Ожидают моего голоса' }
-                  ].map(opt => {
-                    const isSelected = filterVote === opt.id;
-                    return (
-                      <button
-                        key={opt.id}
-                        onClick={() => setFilterVote(opt.id as any)}
-                        className={cn(
-                          "text-left px-3 py-2 rounded-lg text-xs font-medium transition-all",
-                          isSelected ? "bg-indigo-500/20 text-indigo-300 border border-indigo-500/30" : "bg-transparent text-zinc-400 hover:bg-white/5 border border-transparent"
-                        )}
-                      >
-                        {opt.label}
-                      </button>
-                    );
-                  })}
+                    { id: 'all', title: 'Все акты' },
+                    { id: 'voted', title: 'Голос учтен' },
+                    { id: 'not_voted', title: 'Ожидают моего голоса' },
+                  ].map((opt) => (
+                    <button
+                      key={opt.id}
+                      onClick={() => setFilterVote(opt.id as any)}
+                      style={{
+                        padding: '6px 10px',
+                        textAlign: 'left',
+                        fontSize: 12,
+                        fontWeight: filterVote === opt.id ? 700 : 500,
+                        background: filterVote === opt.id ? R.accentSubtle : 'transparent',
+                        color: filterVote === opt.id ? R.accent : R.textSecondary,
+                        border: filterVote === opt.id ? `1px solid ${R.accentBorder}` : '1px solid transparent',
+                        borderRadius: 2,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {opt.title}
+                    </button>
+                  ))}
                 </div>
               </div>
 
-              {/* Sorting Filter */}
-              <div className="space-y-3">
-                <h4 className="text-[10px] font-extrabold uppercase tracking-widest text-zinc-500">Сортировка</h4>
-                <div className="flex bg-black/40 p-1 rounded-xl border border-white/10">
+              {/* Sort Order */}
+              <div>
+                <div style={{ ...label, marginBottom: 10 }}>Сортировка</div>
+                <div style={{ display: 'flex', gap: 6 }}>
                   <button
                     onClick={() => setSortOrder('newest')}
-                    className={cn(
-                      "flex-1 py-2 text-xs font-bold rounded-lg transition-all",
-                      sortOrder === 'newest' ? "bg-white/10 text-white shadow-sm" : "text-zinc-500 hover:text-white"
-                    )}
+                    style={chip(sortOrder === 'newest')}
                   >
                     Сначала новые
                   </button>
                   <button
                     onClick={() => setSortOrder('oldest')}
-                    className={cn(
-                      "flex-1 py-2 text-xs font-bold rounded-lg transition-all",
-                      sortOrder === 'oldest' ? "bg-white/10 text-white shadow-sm" : "text-zinc-500 hover:text-white"
-                    )}
+                    style={chip(sortOrder === 'oldest')}
                   >
                     Сначала старые
                   </button>
                 </div>
-                
-                {/* Reset Filters */}
+
                 {(filterStatuses.length > 0 || filterVote !== 'all' || sortOrder !== 'newest') && (
                   <button
                     onClick={() => {
@@ -400,9 +532,21 @@ export const Dashboard: React.FC<DashboardProps> = ({
                       setFilterVote('all');
                       setSortOrder('newest');
                     }}
-                    className="w-full mt-4 py-2 text-xs font-bold text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 rounded-lg transition-colors border border-dashed border-rose-500/30"
+                    style={{
+                      marginTop: 14,
+                      padding: '6px 10px',
+                      fontSize: 11,
+                      fontFamily: mono,
+                      fontWeight: 700,
+                      color: R.danger,
+                      background: R.dangerSubtle,
+                      border: `1px solid ${R.dangerBorder}`,
+                      cursor: 'pointer',
+                      borderRadius: 2,
+                      width: '100%',
+                    }}
                   >
-                    Сбросить фильтры
+                    СБРОСИТЬ ВСЕ ФИЛЬТРЫ
                   </button>
                 )}
               </div>
@@ -412,107 +556,369 @@ export const Dashboard: React.FC<DashboardProps> = ({
         )}
       </AnimatePresence>
 
-      {/* BILLS LIST */}
-      <motion.div 
-        variants={containerVariants}
-        initial="hidden"
-        animate="show"
-        className="flex flex-col gap-3"
-      >
-        {filteredBills.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 px-4 text-center bg-white/[0.02] backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl shadow-black/50">
-            <Search size={48} className="text-zinc-600 mb-4" />
-            <p className="text-zinc-400 text-sm font-medium">
-              Законопроекты не найдены. Измените параметры поиска.
-            </p>
-          </div>
-        ) : (
-          filteredBills.map((bill) => {
-            const decreeStamp = formatDecreeNumber(bill.id);
-            const isAuthor = !bill.author || bill.author.trim().toLowerCase() === currentFullName.toLowerCase() || bill.author.trim() === currentFullName || isSystemAdmin(user);
-            const canDelete = isAuthor || isSystemAdmin(user);
-            const isCommission = ['prosecutor', 'judge', 'governor'].includes(user.officialRole);
-            const hasVoted = isCommission && bill.votes?.[user.officialRole as 'prosecutor'|'judge'|'governor'];
-            const hasAdminVerdict = user.officialRole === 'admin' && bill.federalVerdict;
-            const alreadyVoted = hasVoted || hasAdminVerdict;
+      {/* Bills Groups / Week Packs */}
+      {filteredBills.length === 0 ? (
+        <div
+          style={{
+            padding: '48px 20px',
+            textAlign: 'center',
+            background: R.bgPanel,
+            border: ft.edge,
+            borderRadius: 2,
+            color: R.textMuted,
+          }}
+        >
+          <Search size={36} color={R.textMuted} style={{ margin: '0 auto 12px' }} />
+          <div style={{ fontSize: 14, fontWeight: 700, color: R.text }}>Законопроекты не найдены</div>
+          <div style={{ fontSize: 12, marginTop: 4 }}>Измените поисковый запрос или сбросьте фильтры</div>
+        </div>
+      ) : (
+        (() => {
+          let sortedGroups = groupBillsByWeek(filteredBills);
+          if (sortOrder === 'oldest') {
+            sortedGroups = sortedGroups.reverse();
+          }
 
-            return (
-              <motion.div 
-                variants={itemVariants}
-                key={bill.id}
-                onClick={() => onSelectBill(bill)}
-                className="group flex flex-col sm:flex-row sm:items-center justify-between p-5 rounded-2xl bg-white/[0.02] backdrop-blur-xl border border-white/10 shadow-2xl shadow-black/50 hover:border-white/20 hover:bg-white/[0.04] cursor-pointer transition-all duration-200"
-              >
-                <div className="flex-1 min-w-0 pr-4">
-                  {/* Top Meta Line */}
-                  <div className="flex items-center gap-3 mb-3 flex-wrap">
-                    <span className="px-2 py-0.5 rounded-md bg-indigo-500/10 border border-indigo-500/20 text-[10px] font-mono font-bold text-indigo-300 uppercase tracking-wider">
-                      {decreeStamp}
-                    </span>
-                    {getStatusBadge(bill.status)}
-                    {alreadyVoted && (
-                      <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-purple-500/10 border border-purple-500/20 text-[10px] font-extrabold uppercase tracking-wider text-purple-400" title="Вы уже отдали свой голос по этому законопроекту">
-                        <CheckCircle2 size={12} />
-                        Голос учтен
-                      </span>
-                    )}
-                  </div>
+          return (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              {sortedGroups.map((group) => {
+                const isExpanded = expandedPacks[group.label] !== false; // expanded by default for smooth browsing
 
-                  {/* Title */}
-                  <h3 className="text-base font-bold text-white mb-2 leading-snug truncate">
-                    {bill.targetLaw || bill.title || 'Внесение изменений в закон'}
-                  </h3>
-                  
-                  {/* Note preview */}
-                  {bill.explanatoryNote && (
-                    <p className="text-sm text-zinc-400 mb-4 truncate max-w-3xl">
-                      {bill.explanatoryNote}
-                    </p>
-                  )}
-
-                  {/* Bottom Meta */}
-                  <div className="flex items-center gap-4 text-[11px] font-mono text-zinc-500 flex-wrap uppercase tracking-wider">
-                    <div className="flex items-center gap-1.5">
-                      <UserIcon size={12} className="text-zinc-600" />
-                      <span className="text-zinc-300 font-bold">{bill.author}</span>
-                    </div>
-                    <span className="opacity-30">•</span>
-                    <div className="flex items-center gap-1.5">
-                      <Calendar size={12} className="text-zinc-600" />
-                      <span>{formatDate(bill.updatedAt)}</span>
-                    </div>
-                    <span className="opacity-30">•</span>
-                    <div>
-                      Статей: <span className="text-indigo-400 font-extrabold">{bill.comparisons.length}</span>
-                    </div>
-                  </div>
-                </div>
-                
-                {/* Actions */}
-                <div className="flex items-center gap-2 mt-4 sm:mt-0 shrink-0">
-                  {canDelete && (
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onDeleteBill(bill.id);
+                return (
+                  <div key={group.label} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {/* Week Pack Section Header */}
+                    <div
+                      onClick={() => togglePack(group.label)}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '10px 14px',
+                        background: R.bgPanel,
+                        border: ft.hair,
+                        borderRadius: 2,
+                        cursor: 'pointer',
+                        userSelect: 'none',
+                        transition: 'background 0.12s',
                       }}
-                      className="p-2.5 rounded-xl bg-transparent hover:bg-rose-500/10 text-zinc-500 hover:text-rose-400 transition-colors duration-200"
-                      title="Удалить законопроект"
+                      onMouseEnter={(e) => (e.currentTarget.style.background = R.bgElevated)}
+                      onMouseLeave={(e) => (e.currentTarget.style.background = R.bgPanel)}
                     >
-                      <Trash2 size={16} />
-                    </button>
-                  )}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <Layers size={15} color={R.accent} />
+                        <span style={{ fontSize: 12, fontWeight: 800, letterSpacing: '0.04em', textTransform: 'uppercase', color: R.text }}>
+                          {group.label}
+                        </span>
+                      </div>
 
-                  <div className="w-10 h-10 rounded-xl bg-white/[0.04] border border-white/10 flex items-center justify-center text-zinc-400 group-hover:bg-indigo-500 group-hover:text-white group-hover:border-indigo-400/50 group-hover:shadow-[0_0_15px_rgba(99,102,241,0.4)] transition-all duration-300">
-                    <ChevronRight size={18} />
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <span style={{ fontSize: 11, fontFamily: mono, color: R.textMuted }}>
+                          {group.bills.length} {plural(group.bills.length, 'акт', 'акта', 'актов')}
+                        </span>
+                        <ChevronDown
+                          size={14}
+                          color={R.textMuted}
+                          style={{
+                            transition: 'transform 0.2s ease',
+                            transform: isExpanded ? 'rotate(180deg)' : 'none',
+                          }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Bills Rows */}
+                    <AnimatePresence>
+                      {isExpanded && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                          {group.bills.map((bill) => {
+                            const decreeStamp = formatDecreeNumber(bill.id);
+                            const isAuthor = !bill.author || bill.author.trim().toLowerCase() === currentFullName.toLowerCase() || bill.author.trim() === currentFullName || isSystemAdmin(user);
+                            const canDelete = isAuthor || isSystemAdmin(user);
+                            const isCommission = ['prosecutor', 'judge', 'governor'].includes(user.officialRole);
+                            const hasVoted = isCommission && bill.votes?.[user.officialRole as 'prosecutor'|'judge'|'governor'];
+                            const hasAdminVerdict = user.officialRole === 'admin' && bill.federalVerdict;
+                            const alreadyVoted = hasVoted || hasAdminVerdict;
+
+                            return (
+                              <div
+                                key={bill.id}
+                                onClick={() => onSelectBill(bill)}
+                                style={{
+                                  padding: '14px 16px',
+                                  background: R.bgPanel,
+                                  border: ft.edge,
+                                  borderRadius: 2,
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  alignItems: 'flex-start',
+                                  justifyContent: 'space-between',
+                                  gap: 16,
+                                  transition: 'border-color 0.12s ease, background 0.12s ease',
+                                }}
+                                onMouseEnter={(e) => {
+                                  e.currentTarget.style.borderColor = R.accent;
+                                  e.currentTarget.style.background = R.bgElevated;
+                                }}
+                                onMouseLeave={(e) => {
+                                  e.currentTarget.style.borderColor = 'var(--rt-line)';
+                                  e.currentTarget.style.background = R.bgPanel;
+                                }}
+                              >
+                                <div style={{ flex: '1 1 auto', minWidth: 0 }}>
+                                  
+                                  {/* Top Meta Line: Code, Status, Vote Badge */}
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
+                                    <span
+                                      style={{
+                                        fontFamily: mono,
+                                        fontSize: 11,
+                                        fontWeight: 700,
+                                        padding: '2px 6px',
+                                        background: R.bgInput,
+                                        border: ft.hair,
+                                        color: R.textMuted,
+                                        borderRadius: 2,
+                                      }}
+                                    >
+                                      {decreeStamp}
+                                    </span>
+
+                                    {getStatusBadge(bill)}
+
+                                    {alreadyVoted && (
+                                      <span
+                                        style={{
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          gap: 4,
+                                          padding: '2px 6px',
+                                          fontSize: 10,
+                                          fontWeight: 700,
+                                          background: R.bgElevated,
+                                          color: R.textSecondary,
+                                          border: ft.hair,
+                                          borderRadius: 2,
+                                        }}
+                                      >
+                                        <CheckCircle2 size={11} color={R.success} />
+                                        Голос учтен
+                                      </span>
+                                    )}
+
+                                    {bill.targetLaw && (
+                                      <span
+                                        style={{
+                                          fontSize: 11,
+                                          fontWeight: 700,
+                                          color: R.accentText,
+                                          padding: '1px 6px',
+                                          background: R.accentSubtle,
+                                          borderRadius: 2,
+                                        }}
+                                      >
+                                        {bill.targetLaw}
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  {/* Bill Title */}
+                                  <h3
+                                    style={{
+                                      fontSize: 15,
+                                      fontWeight: 800,
+                                      letterSpacing: '-0.01em',
+                                      color: R.text,
+                                      margin: '0 0 6px 0',
+                                      lineHeight: 1.3,
+                                    }}
+                                  >
+                                    {bill.title || bill.targetLaw || 'Законопроект без названия'}
+                                  </h3>
+
+                                  {/* Explanatory note excerpt */}
+                                  {bill.explanatoryNote && (
+                                    <p
+                                      style={{
+                                        fontSize: 12.5,
+                                        color: R.textMuted,
+                                        margin: '0 0 8px 0',
+                                        overflow: 'hidden',
+                                        textOverflow: 'ellipsis',
+                                        whiteSpace: 'nowrap',
+                                        maxWidth: 780,
+                                      }}
+                                    >
+                                      {bill.explanatoryNote}
+                                    </p>
+                                  )}
+
+                                  {/* Federal Government Verdict Quote on Card */}
+                                  {bill.federalVerdict && (
+                                    <div
+                                      style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: 8,
+                                        margin: '0 0 10px 0',
+                                        padding: '6px 10px',
+                                        background: bill.federalVerdict.status === 'approved'
+                                          ? 'rgba(34, 197, 94, 0.08)'
+                                          : bill.federalVerdict.status === 'needs_revision'
+                                          ? 'rgba(234, 179, 8, 0.08)'
+                                          : 'rgba(239, 68, 68, 0.08)',
+                                        borderLeft: `3px solid ${
+                                          bill.federalVerdict.status === 'approved'
+                                            ? '#22c55e'
+                                            : bill.federalVerdict.status === 'needs_revision'
+                                            ? '#eab308'
+                                            : '#ef4444'
+                                        }`,
+                                        borderRadius: 2,
+                                        fontSize: 11.5,
+                                        color: R.textSecondary,
+                                      }}
+                                    >
+                                      <Crown
+                                        size={13}
+                                        color={
+                                          bill.federalVerdict.status === 'approved'
+                                            ? '#22c55e'
+                                            : bill.federalVerdict.status === 'needs_revision'
+                                            ? '#eab308'
+                                            : '#ef4444'
+                                        }
+                                        style={{ flexShrink: 0 }}
+                                      />
+                                      <span style={{ fontWeight: 700, color: R.text, flexShrink: 0 }}>
+                                        Вердикт ФП ({bill.federalVerdict.status === 'approved' ? 'Одобрен' : bill.federalVerdict.status === 'needs_revision' ? 'Правки' : 'Отклонен'}):
+                                      </span>
+                                      <span style={{ fontStyle: 'italic', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                        "{bill.federalVerdict.reason}"
+                                      </span>
+                                      {bill.federalVerdict.adminName && (
+                                        <span style={{ fontSize: 10, fontFamily: mono, color: R.textMuted, marginLeft: 'auto', flexShrink: 0 }}>
+                                          ({bill.federalVerdict.adminName})
+                                        </span>
+                                      )}
+                                    </div>
+                                  )}
+
+                                  {/* Bottom Details line */}
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 14, fontSize: 11, color: R.textMuted, flexWrap: 'wrap' }}>
+                                    <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                      <UserIcon size={12} />
+                                      {bill.author || 'Не указан'}
+                                    </span>
+                                    
+                                    <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontFamily: mono }}>
+                                      <Calendar size={12} />
+                                      {new Date(bill.createdAt || bill.updatedAt).toLocaleDateString('ru-RU')}
+                                    </span>
+
+                                    {bill.comparisons && bill.comparisons.length > 0 && (
+                                      <span style={{ fontFamily: mono }}>
+                                        {bill.comparisons.length} {plural(bill.comparisons.length, 'статья', 'статьи', 'статей')}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+
+                                {/* Row Actions */}
+                                <div
+                                  style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <button
+                                    onClick={() => onShareBill(bill)}
+                                    data-tooltip="Поделиться законопроектом"
+                                    style={{
+                                      width: 30,
+                                      height: 30,
+                                      display: 'grid',
+                                      placeItems: 'center',
+                                      background: R.bgInput,
+                                      border: ft.hair,
+                                      borderRadius: 2,
+                                      color: R.textMuted,
+                                      cursor: 'pointer',
+                                    }}
+                                    onMouseEnter={(e) => (e.currentTarget.style.color = R.accent)}
+                                    onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--rt-mut)')}
+                                  >
+                                    <Share2 size={13} />
+                                  </button>
+
+                                  {canDelete && (
+                                    <button
+                                      onClick={() => onDeleteBill(bill.id)}
+                                      data-tooltip="Отозвать законопроект"
+                                      style={{
+                                        width: 30,
+                                        height: 30,
+                                        display: 'grid',
+                                        placeItems: 'center',
+                                        background: R.bgInput,
+                                        border: ft.hair,
+                                        borderRadius: 2,
+                                        color: R.textMuted,
+                                        cursor: 'pointer',
+                                      }}
+                                      onMouseEnter={(e) => {
+                                        e.currentTarget.style.color = R.danger;
+                                        e.currentTarget.style.borderColor = R.dangerBorder;
+                                      }}
+                                      onMouseLeave={(e) => {
+                                        e.currentTarget.style.color = 'var(--rt-mut)';
+                                        e.currentTarget.style.borderColor = 'var(--rt-grid)';
+                                      }}
+                                    >
+                                      <Trash2 size={13} />
+                                    </button>
+                                  )}
+
+                                  <button
+                                    onClick={() => onSelectBill(bill)}
+                                    data-tooltip="Открыть законопроект"
+                                    style={{
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: 4,
+                                      height: 30,
+                                      padding: '0 10px',
+                                      background: R.bgInput,
+                                      border: ft.hair,
+                                      borderRadius: 2,
+                                      fontSize: 12,
+                                      fontWeight: 700,
+                                      color: R.text,
+                                      cursor: 'pointer',
+                                    }}
+                                    onMouseEnter={(e) => {
+                                      e.currentTarget.style.background = R.accent;
+                                      e.currentTarget.style.color = R.onAccent;
+                                    }}
+                                    onMouseLeave={(e) => {
+                                      e.currentTarget.style.background = 'var(--rt-input)';
+                                      e.currentTarget.style.color = 'var(--rt-fg)';
+                                    }}
+                                  >
+                                    <span>Открыть</span>
+                                    <ExternalLink size={12} />
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </AnimatePresence>
                   </div>
-                </div>
-              </motion.div>
-            );
-          })
-        )}
-      </motion.div>
+                );
+              })}
+            </div>
+          );
+        })()
+      )}
 
     </div>
   );
