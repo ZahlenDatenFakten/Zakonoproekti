@@ -685,6 +685,28 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
                                     {getStatusBadge(bill)}
 
+                                    {bill.isTotalReform && (
+                                      <span
+                                        style={{
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          gap: 4.5,
+                                          padding: '2px 8px',
+                                          fontSize: 10.5,
+                                          fontWeight: 800,
+                                          background: 'rgba(217, 119, 6, 0.14)',
+                                          color: '#f59e0b',
+                                          border: '1px solid rgba(245, 158, 11, 0.4)',
+                                          borderRadius: 2,
+                                          letterSpacing: '0.04em',
+                                          textTransform: 'uppercase',
+                                        }}
+                                      >
+                                        <Layers size={11} color="#f59e0b" />
+                                        ОБЩАЯ РЕФОРМА
+                                      </span>
+                                    )}
+
                                     {alreadyVoted && (
                                       <span
                                         style={{
@@ -815,10 +837,17 @@ export const Dashboard: React.FC<DashboardProps> = ({
                                       {new Date(bill.createdAt || bill.updatedAt).toLocaleDateString('ru-RU')}
                                     </span>
 
-                                    {bill.comparisons && bill.comparisons.length > 0 && (
-                                      <span style={{ fontFamily: mono }}>
-                                        {bill.comparisons.length} {plural(bill.comparisons.length, 'статья', 'статьи', 'статей')}
+                                    {bill.isTotalReform ? (
+                                      <span style={{ fontFamily: mono, color: '#f59e0b', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                                        <Layers size={11} />
+                                        Реформа закона (единый текст)
                                       </span>
+                                    ) : (
+                                      bill.comparisons && bill.comparisons.length > 0 && (
+                                        <span style={{ fontFamily: mono }}>
+                                          {bill.comparisons.length} {plural(bill.comparisons.length, 'статья', 'статьи', 'статей')}
+                                        </span>
+                                      )
                                     )}
                                   </div>
                                 </div>

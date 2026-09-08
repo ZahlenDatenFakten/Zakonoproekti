@@ -8,6 +8,9 @@ import { Database, X, Flame, ShieldAlert, CheckCircle2, AlertTriangle, Copy, Che
 import { useDialog } from '../contexts/DialogContext';
 import { R, ft, label, mono, shadow, chip, btnAccent, btnOutline, btnDanger } from '../lib/ui';
 
+import { isSystemAdmin } from '../services/securityService';
+import { getUserProfile } from '../services/storageService';
+
 interface DbConfigModalProps {
   config: DbConfig;
   onUpdateConfig: (newConfig: DbConfig) => void;
@@ -15,6 +18,11 @@ interface DbConfigModalProps {
 }
 
 export const DbConfigModal: React.FC<DbConfigModalProps> = ({ config, onUpdateConfig, onClose }) => {
+  const activeUser = getUserProfile();
+  if (!isSystemAdmin(activeUser)) {
+    return null;
+  }
+
   const { alert, prompt } = useDialog();
   const [activeTab, setActiveTab] = useState<'firebase' | 'supabase'>('firebase');
 

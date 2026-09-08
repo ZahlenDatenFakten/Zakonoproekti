@@ -413,6 +413,26 @@ export const AdminWorkspace: React.FC<AdminWorkspaceProps> = ({
                                 >
                                   {decreeStamp}
                                 </span>
+                                {bill.isTotalReform && (
+                                  <span
+                                    style={{
+                                      padding: '2px 6px',
+                                      background: 'rgba(217, 119, 6, 0.14)',
+                                      border: '1px solid rgba(245, 158, 11, 0.4)',
+                                      fontSize: 10,
+                                      fontFamily: mono,
+                                      fontWeight: 700,
+                                      color: '#f59e0b',
+                                      textTransform: 'uppercase',
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: 3,
+                                    }}
+                                  >
+                                    <Layers size={10} color="#f59e0b" />
+                                    ОБЩАЯ РЕФОРМА
+                                  </span>
+                                )}
                                 {isEnacted && (
                                   <span
                                     style={{

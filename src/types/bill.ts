@@ -90,6 +90,8 @@ export interface Bill {
   sha256Hash?: string; // Криптографический отпечаток целостности документа
   forumUrl?: string;
   attachments?: BillAttachment[];
+  isTotalReform?: boolean; // Общая реформа закона (полная замена нормативно-правового акта)
+  totalReformContent?: string; // Единый текст новой редакции закона целиком
   createdAt: string;
   updatedAt: string;
   viewCount: number;

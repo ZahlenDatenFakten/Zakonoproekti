@@ -32,6 +32,7 @@ import type { ToastMessage } from './components/Toast';
 
 export const App: React.FC = () => {
   const [user, setUser] = useState<UserProfile>(getUserProfile());
+  const isAdmin = isSystemAdmin(user);
   const [dbConfig, setDbConfig] = useState<DbConfig>(getStoredDbConfig());
   const [bills, setBills] = useState<Bill[]>([]);
   
@@ -114,19 +115,23 @@ export const App: React.FC = () => {
       const urlParams = new URLSearchParams(window.location.search);
       const dbSyncToken = urlParams.get('db_sync');
       if (dbSyncToken) {
-        const decoded = JSON.parse(decodeURIComponent(escape(atob(dbSyncToken))));
-        if (decoded && (decoded.type === 'firebase' || decoded.fb)) {
-          const cfg = decoded.config || decoded.fb;
-          if (cfg) {
-            saveFirebaseConfig({ ...cfg, isConnected: true });
-            addToast('success', 'База данных Firebase успешно подключена по ссылке синхронизации!');
-          }
-        } else if (decoded && (decoded.type === 'supabase' || decoded.sb)) {
-          const cfg = decoded.config || (decoded.sb ? { supabaseUrl: decoded.sb.url, supabaseAnonKey: decoded.sb.key, isConnected: true } : null);
-          if (cfg) {
-            saveDbConfig(cfg);
-            setDbConfig(cfg);
-            addToast('success', 'База данных Supabase успешно подключена по ссылке синхронизации!');
+        // Only allow administrators to import database configurations via URL
+        const currentUser = getUserProfile();
+        if (isSystemAdmin(currentUser)) {
+          const decoded = JSON.parse(decodeURIComponent(escape(atob(dbSyncToken))));
+          if (decoded && (decoded.type === 'firebase' || decoded.fb)) {
+            const cfg = decoded.config || decoded.fb;
+            if (cfg) {
+              saveFirebaseConfig({ ...cfg, isConnected: true });
+              addToast('success', 'База данных Firebase успешно подключена по ссылке синхронизации!');
+            }
+          } else if (decoded && (decoded.type === 'supabase' || decoded.sb)) {
+            const cfg = decoded.config || (decoded.sb ? { supabaseUrl: decoded.sb.url, supabaseAnonKey: decoded.sb.key, isConnected: true } : null);
+            if (cfg) {
+              saveDbConfig(cfg);
+              setDbConfig(cfg);
+              addToast('success', 'База данных Supabase успешно подключена по ссылке синхронизации!');
+            }
           }
         }
         urlParams.delete('db_sync');
@@ -343,7 +348,7 @@ export const App: React.FC = () => {
         onNavigate={handleNavigateView}
         onOpenNewBill={handleCreateNewBill}
         onOpenSettings={() => setShowSettingsModal(true)}
-        onOpenDbConfig={() => setShowDbModal(true)}
+        onOpenDbConfig={isAdmin ? () => setShowDbModal(true) : undefined}
       />
 
       {/* Main Content Area */}
@@ -427,7 +432,7 @@ export const App: React.FC = () => {
         />
       )}
 
-      {showDbModal && (
+      {showDbModal && isAdmin && (
         <DbConfigModal
           config={dbConfig}
           onUpdateConfig={(newConfig) => setDbConfig(newConfig)}

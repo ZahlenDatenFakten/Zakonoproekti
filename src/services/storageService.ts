@@ -36,6 +36,8 @@ function mapSupabaseRow(item: any): Bill {
     votes: typeof item.votes === 'string' ? JSON.parse(item.votes) : item.votes || {},
     federalVerdict: typeof item.federal_verdict === 'string' ? JSON.parse(item.federal_verdict) : item.federal_verdict || null,
     sha256Hash: item.sha256_hash,
+    isTotalReform: Boolean(item.is_total_reform),
+    totalReformContent: item.total_reform_content || '',
     createdAt: item.created_at,
     updatedAt: item.updated_at,
     viewCount: item.view_count || 1
@@ -226,6 +228,8 @@ export async function saveBill(bill: Bill): Promise<Bill> {
           votes: JSON.stringify(updatedBill.votes || {}),
           federal_verdict: JSON.stringify(updatedBill.federalVerdict || null),
           sha256_hash: updatedBill.sha256Hash,
+          is_total_reform: updatedBill.isTotalReform || false,
+          total_reform_content: updatedBill.totalReformContent || '',
           updated_at: updatedBill.updatedAt,
           view_count: updatedBill.viewCount
         });

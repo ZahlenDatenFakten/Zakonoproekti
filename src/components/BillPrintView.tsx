@@ -57,30 +57,47 @@ export const BillPrintView: React.FC<BillPrintViewProps> = ({ bill }) => {
         </div>
       )}
 
-      {/* Articles / Comparisons */}
-      <div className="mb-8">
-        <h3 className="text-lg font-bold border-b pb-2 mb-6" style={{ borderColor: "#d1d5db" }}>Изменения (Протокол)</h3>
-        
-        {bill.comparisons.map((comp, idx) => {
-          const diffResult = computeWordDiff(comp.wasContent, comp.becameContent, true);
+      {/* Articles / Total Reform Content */}
+      {bill.isTotalReform ? (
+        <div className="mb-8">
+          <div className="flex items-center justify-between border-b pb-2 mb-6" style={{ borderColor: "#d1d5db" }}>
+            <h3 className="text-lg font-bold uppercase tracking-wide">
+              Новая редакция закона (Общая реформа)
+            </h3>
+            <span className="text-xs font-bold px-2 py-1 bg-amber-100 text-amber-900 border border-amber-300 rounded">
+              ЕДИНЫЙ ТЕКСТ ЗАКОНА
+            </span>
+          </div>
           
-          return (
-            <div key={comp.id} className="mb-8 page-break-inside-avoid">
-              <h4 className="font-bold text-md mb-3">{idx + 1}. {comp.articleTitle}</h4>
-              
-              <div className="p-4 rounded-sm border" style={{ backgroundColor: "#f9fafb", borderColor: "#e5e7eb" }}>
-                <div className="whitespace-pre-wrap text-sm leading-relaxed" style={{ color: "#000000" }}>
-                  {diffResult.unifiedFormatted}
+          <div className="p-6 rounded border font-serif text-sm leading-relaxed whitespace-pre-wrap" style={{ backgroundColor: "#fbfbfb", borderColor: "#d1d5db", color: "#111827", minHeight: '300px' }}>
+            {bill.totalReformContent || bill.comparisons?.[0]?.becameContent || 'Текст реформы не указан'}
+          </div>
+        </div>
+      ) : (
+        <div className="mb-8">
+          <h3 className="text-lg font-bold border-b pb-2 mb-6" style={{ borderColor: "#d1d5db" }}>Изменения (Протокол)</h3>
+          
+          {bill.comparisons.map((comp, idx) => {
+            const diffResult = computeWordDiff(comp.wasContent, comp.becameContent, true);
+            
+            return (
+              <div key={comp.id} className="mb-8 page-break-inside-avoid">
+                <h4 className="font-bold text-md mb-3">{idx + 1}. {comp.articleTitle}</h4>
+                
+                <div className="p-4 rounded-sm border" style={{ backgroundColor: "#f9fafb", borderColor: "#e5e7eb" }}>
+                  <div className="whitespace-pre-wrap text-sm leading-relaxed" style={{ color: "#000000" }}>
+                    {diffResult.unifiedFormatted}
+                  </div>
                 </div>
+                
+                {comp.notes && (
+                  <p className="mt-2 text-xs" style={{ color: "#4b5563" }}><em>Примечание: {comp.notes}</em></p>
+                )}
               </div>
-              
-              {comp.notes && (
-                <p className="mt-2 text-xs" style={{ color: "#4b5563" }}><em>Примечание: {comp.notes}</em></p>
-              )}
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      )}
 
       {/* Attachments / Media in Print View */}
       {bill.attachments && bill.attachments.length > 0 && (

@@ -27,9 +27,10 @@ import {
   FileText,
   MoreVertical,
   Edit3,
-  Columns,
   Image as ImageIcon,
-  AlertTriangle
+  AlertTriangle,
+  Layers,
+  Minimize2
 } from 'lucide-react';
 import { R, ft, label, mono, btnAccent, btnOutline, btnDanger } from '../lib/ui';
 import { Popover, MenuItem } from './Primitives';
@@ -67,6 +68,7 @@ export const BillEditor: React.FC<BillEditorProps> = ({
   const [adminVerdictReason, setAdminVerdictReason] = useState('');
   const [isEditingAdminVerdict, setIsEditingAdminVerdict] = useState(false);
   const [confirmDeleteArticleId, setConfirmDeleteArticleId] = useState<string | null>(null);
+  const [isFullscreenReform, setIsFullscreenReform] = useState(false);
 
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -76,6 +78,7 @@ export const BillEditor: React.FC<BillEditorProps> = ({
   const isOfficial = user.isOfficialVerified && (user.officialRole === 'governor' || user.officialRole === 'prosecutor' || user.officialRole === 'judge');
   const canEdit = permission === 'edit' || isAuthor || isAdmin;
   const canDelete = isAuthor || isAdmin;
+  const canCreateTotalReform = (user.isOfficialVerified && (user.officialRole === 'governor' || user.officialRole === 'prosecutor' || user.officialRole === 'judge')) || isAdmin;
 
   // Auto-close menu on outside click
   useEffect(() => {
@@ -419,7 +422,7 @@ export const BillEditor: React.FC<BillEditorProps> = ({
     return `SA-${numericId}`;
   };
 
-  const isReadOnly = bill.status === 'approved' || bill.status === 'rejected';
+  const isReadOnly = (permission === 'read' && !isAuthor && !isAdmin) || bill.status === 'approved' || bill.status === 'rejected';
 
   return (
     <div style={{ maxWidth: 1180, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -649,10 +652,13 @@ export const BillEditor: React.FC<BillEditorProps> = ({
         </button>
         <button
           type="button"
-          onClick={() => document.getElementById('section-articles')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+          onClick={() => {
+            const targetId = bill.isTotalReform ? 'section-total-reform' : 'section-articles';
+            document.getElementById(targetId)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }}
           style={{ ...btnOutline, height: 26, fontSize: 11, padding: '0 8px' }}
         >
-          Статьи ({bill.comparisons.length})
+          {bill.isTotalReform ? 'Общая реформа (1 ячейка)' : `Статьи (${bill.comparisons.length})`}
         </button>
         <button
           type="button"
@@ -919,269 +925,556 @@ export const BillEditor: React.FC<BillEditorProps> = ({
                 placeholder="Краткое обоснование необходимости внесения поправок..."
               />
             </div>
-          </div>
 
-          {/* Articles Header */}
-          <div id="section-articles" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <h3 style={{ fontSize: 16, fontWeight: 800, color: R.text, margin: 0 }}>
-                Статьи законопроекта
-              </h3>
-              <span style={{ fontFamily: mono, fontSize: 11, padding: '2px 8px', background: R.accentSubtle, color: R.accent, border: `1px solid ${R.accentBorder}`, borderRadius: 2 }}>
-                {bill.comparisons.length}
-              </span>
-            </div>
-
-            {canEdit && !isReadOnly && (
-              <button
-                onClick={addComparisonRow}
-                style={{ ...btnOutline, height: 32, fontSize: 12 }}
-              >
-                <Plus size={14} /> Добавить статью
-              </button>
-            )}
-          </div>
-
-          {/* Articles List */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            {bill.comparisons.map((row, index) => {
-              const diff = computeWordDiff(row.wasContent, row.becameContent);
-              const activeTab = activeTabMap[row.id] || 'editor';
-
-              return (
+            {/* TOTAL LAW REFORM TOGGLE (Общая реформа закона) */}
+            <div
+              style={{
+                background: bill.isTotalReform 
+                  ? 'linear-gradient(135deg, rgba(234, 88, 12, 0.09) 0%, rgba(245, 158, 11, 0.05) 100%)' 
+                  : R.bgElevated,
+                border: bill.isTotalReform 
+                  ? '1px solid rgba(234, 88, 12, 0.45)' 
+                  : ft.edge,
+                borderRadius: 2,
+                padding: '14px 16px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 16,
+                transition: 'all 0.2s ease',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
                 <div
-                  key={row.id}
                   style={{
-                    background: R.bgPanel,
-                    border: ft.edge,
+                    width: 36,
+                    height: 36,
                     borderRadius: 2,
-                    overflow: 'hidden',
-                    display: 'flex',
-                    flexDirection: 'column',
+                    background: bill.isTotalReform ? R.accent : R.bgInput,
+                    color: bill.isTotalReform ? R.onAccent : R.textMuted,
+                    display: 'grid',
+                    placeItems: 'center',
+                    flexShrink: 0,
+                    border: bill.isTotalReform ? 'none' : ft.edge,
+                    boxShadow: bill.isTotalReform ? '0 2px 8px rgba(234, 88, 12, 0.35)' : 'none',
                   }}
                 >
-                  {/* Article Card Header */}
+                  <Layers size={18} />
+                </div>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: 13, fontWeight: 800, color: R.text, textTransform: 'uppercase', letterSpacing: '0.02em' }}>
+                      Общая реформа закона
+                    </span>
+                    <span
+                      style={{
+                        fontFamily: mono,
+                        fontSize: 9.5,
+                        fontWeight: 800,
+                        padding: '2px 6px',
+                        borderRadius: 2,
+                        textTransform: 'uppercase',
+                        background: bill.isTotalReform ? 'rgba(234, 88, 12, 0.2)' : R.bgInput,
+                        color: bill.isTotalReform ? R.accent : R.textMuted,
+                        border: `1px solid ${bill.isTotalReform ? R.accentBorder : ft.edge}`,
+                      }}
+                    >
+                      {bill.isTotalReform ? 'Полная замена закона' : 'Высшее руководство'}
+                    </span>
+                  </div>
+                  <p style={{ fontSize: 12, color: R.textSecondary, margin: '4px 0 0', lineHeight: 1.45 }}>
+                    Полная смена текста нормативно-правового акта целиком в единой редакции. Отключает сравнительные таблицы (без зелёного и красного).
+                  </p>
+                  {!canCreateTotalReform && !bill.isTotalReform && (
+                    <span style={{ fontSize: 11, color: R.textMuted, fontStyle: 'italic', display: 'block', marginTop: 4 }}>
+                      🔒 Доступно исключительно Губернатору, Генеральному Прокурору и Председателю ВС.
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <div style={{ flexShrink: 0 }}>
+                <label
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    cursor: (canCreateTotalReform && canEdit && !isReadOnly) ? 'pointer' : 'not-allowed',
+                    opacity: (!canCreateTotalReform && !bill.isTotalReform) ? 0.5 : 1,
+                    userSelect: 'none',
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    id="toggle-total-reform"
+                    checked={Boolean(bill.isTotalReform)}
+                    disabled={!canCreateTotalReform || !canEdit || isReadOnly}
+                    onChange={(e) => {
+                      const checked = e.target.checked;
+                      handleFieldChange('isTotalReform', checked);
+                      if (checked) {
+                        if (!bill.totalReformContent && bill.comparisons?.length > 0) {
+                          const initialText = bill.comparisons.map((c) => (c.articleTitle ? `${c.articleTitle}\n` : '') + (c.becameContent || c.wasContent || '')).join('\n\n');
+                          handleFieldChange('totalReformContent', initialText);
+                        }
+                        onToast('success', 'Включен режим Общей реформы закона (единая редакция)');
+                      } else {
+                        onToast('info', 'Возвращен стандартный постатейный режим');
+                      }
+                    }}
+                    style={{
+                      width: 18,
+                      height: 18,
+                      accentColor: R.accent,
+                      cursor: (canCreateTotalReform && canEdit && !isReadOnly) ? 'pointer' : 'not-allowed',
+                    }}
+                  />
+                  <span style={{ fontSize: 12, fontWeight: 700, color: bill.isTotalReform ? R.accent : R.text }}>
+                    {bill.isTotalReform ? 'Включено' : 'Выключено'}
+                  </span>
+                </label>
+              </div>
+            </div>
+          </div>
+
+          {/* CONDITIONAL RENDERING: TOTAL LAW REFORM (SINGLE CELL) vs STANDARD ARTICLE COMPARISONS */}
+          {bill.isTotalReform ? (
+            /* ========================================================================= */
+            /* SINGLE REFORM CELL - NO GREEN, NO RED, ONLY NEW LAW TEXT IN FULL          */
+            /* ========================================================================= */
+            <div
+              id="section-total-reform"
+              style={{
+                background: R.bgPanel,
+                border: `1px solid ${R.accentBorder}`,
+                borderRadius: 2,
+                overflow: 'hidden',
+                display: 'flex',
+                flexDirection: 'column',
+                boxShadow: '0 4px 20px rgba(0,0,0,0.18)',
+              }}
+            >
+              {/* Single Cell Header */}
+              <div
+                style={{
+                  padding: '12px 16px',
+                  background: R.bgElevated,
+                  borderBottom: ft.edge,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  flexWrap: 'wrap',
+                  gap: 10,
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <div
                     style={{
-                      background: R.bgElevated,
-                      padding: '10px 14px',
-                      borderBottom: ft.hair,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      gap: 12,
-                      flexWrap: 'wrap',
+                      width: 30,
+                      height: 30,
+                      borderRadius: 2,
+                      background: 'rgba(234, 88, 12, 0.15)',
+                      color: R.accent,
+                      display: 'grid',
+                      placeItems: 'center',
                     }}
                   >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: '1 1 260px' }}>
-                      <span style={{ fontFamily: mono, fontSize: 12, fontWeight: 700, color: R.textMuted }}>
-                        §{index + 1}
+                    <FileText size={16} />
+                  </div>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: 13.5, fontWeight: 800, color: R.text, textTransform: 'uppercase', letterSpacing: '0.02em' }}>
+                        Текст новой редакции закона в полном объеме
                       </span>
-                      <input
-                        type="text"
-                        value={row.articleTitle}
-                        onChange={(e) => updateComparisonRow(row.id, 'articleTitle', e.target.value)}
-                        disabled={!canEdit || isReadOnly}
+                      <span
                         style={{
-                          flex: '1 1 auto',
-                          maxWidth: 380,
-                          background: 'transparent',
-                          border: 'none',
-                          fontSize: 13,
+                          fontFamily: mono,
+                          fontSize: 10,
                           fontWeight: 700,
-                          color: R.text,
-                          outline: 'none',
-                        }}
-                        placeholder="Статья 1. Наименование статьи..."
-                      />
-                    </div>
-
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      {/* Editor vs Diff Tabs */}
-                      <div style={{ display: 'flex', background: R.bgInput, border: ft.hair, borderRadius: 2, padding: 2 }}>
-                        <button
-                          onClick={() => setActiveTabMap((prev) => ({ ...prev, [row.id]: 'editor' }))}
-                          style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: 4,
-                            padding: '4px 8px',
-                            fontSize: 11,
-                            fontWeight: 700,
-                            background: activeTab === 'editor' ? R.accent : 'transparent',
-                            color: activeTab === 'editor' ? R.onAccent : R.textSecondary,
-                            border: 'none',
-                            cursor: 'pointer',
-                            borderRadius: 2,
-                          }}
-                        >
-                          <Edit3 size={12} /> Редактор
-                        </button>
-                        <button
-                          onClick={() => setActiveTabMap((prev) => ({ ...prev, [row.id]: 'diff' }))}
-                          style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: 4,
-                            padding: '4px 8px',
-                            fontSize: 11,
-                            fontWeight: 700,
-                            background: activeTab === 'diff' ? R.accent : 'transparent',
-                            color: activeTab === 'diff' ? R.onAccent : R.textSecondary,
-                            border: 'none',
-                            cursor: 'pointer',
-                            borderRadius: 2,
-                          }}
-                        >
-                          <Columns size={12} /> Сравнение
-                        </button>
-                      </div>
-
-                      {canEdit && !isReadOnly && (
-                        <button
-                          onClick={() => copyWasToBecame(row.id)}
-                          title="Скопировать исходный текст в новую редакцию"
-                          style={{
-                            width: 28,
-                            height: 28,
-                            display: 'grid',
-                            placeItems: 'center',
-                            background: 'transparent',
-                            border: 'none',
-                            color: R.textMuted,
-                            cursor: 'pointer',
-                          }}
-                        >
-                          <Copy size={13} />
-                        </button>
-                      )}
-
-                      <button
-                        onClick={() => setExpandedRow(row)}
-                        title="На весь экран"
-                        style={{
-                          width: 28,
-                          height: 28,
-                          display: 'grid',
-                          placeItems: 'center',
-                          background: 'transparent',
-                          border: 'none',
-                          color: R.textMuted,
-                          cursor: 'pointer',
+                          color: R.accent,
+                          background: R.accentSubtle,
+                          padding: '2px 7px',
+                          borderRadius: 2,
+                          border: `1px solid ${R.accentBorder}`,
+                          textTransform: 'uppercase',
                         }}
                       >
-                        <Maximize2 size={13} />
-                      </button>
-
-                      {canEdit && !isReadOnly && bill.comparisons.length > 1 && (
-                        <button
-                          onClick={() => setConfirmDeleteArticleId(row.id)}
-                          data-tooltip="Удалить статью"
-                          style={{
-                            width: 28,
-                            height: 28,
-                            display: 'grid',
-                            placeItems: 'center',
-                            background: 'transparent',
-                            border: 'none',
-                            color: R.danger,
-                            cursor: 'pointer',
-                          }}
-                        >
-                          <Trash2 size={13} />
-                        </button>
-                      )}
+                        Единая редакция
+                      </span>
+                    </div>
+                    <div style={{ fontSize: 11, color: R.textMuted, marginTop: 2 }}>
+                      Полная замена нормативного акта · Рассматривается Специальной Законодательной Комиссией и Федеральным Правительством
                     </div>
                   </div>
+                </div>
 
-                  {/* TAB 1: Editor */}
-                  {activeTab === 'editor' && (
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', minHeight: 180 }}>
-                      <div style={{ display: 'flex', flexDirection: 'column', borderRight: ft.hair }}>
-                        <div style={{ padding: '6px 12px', background: R.bg, borderBottom: ft.hair, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                          <span style={{ ...label, fontSize: 9.5 }}>Действующий текст</span>
+                {/* Header Actions */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontFamily: mono, fontSize: 11, color: R.textMuted, padding: '3px 8px', background: R.bgInput, borderRadius: 2, border: ft.edge }}>
+                    Символов: {(bill.totalReformContent || '').length} · Слов: {(bill.totalReformContent || '').trim() ? (bill.totalReformContent || '').trim().split(/\s+/).length : 0}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(bill.totalReformContent || '');
+                      onToast('success', 'Текст закона скопирован в буфер обмена');
+                    }}
+                    style={{ ...btnOutline, height: 28, fontSize: 11, padding: '0 8px', display: 'flex', alignItems: 'center', gap: 4 }}
+                    title="Скопировать полный текст"
+                  >
+                    <Copy size={12} /> Скопировать
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsFullscreenReform((prev) => !prev)}
+                    style={{ ...btnOutline, height: 28, fontSize: 11, padding: '0 8px', display: 'flex', alignItems: 'center', gap: 4 }}
+                    title="Полноэкранный режим"
+                  >
+                    {isFullscreenReform ? <Minimize2 size={12} /> : <Maximize2 size={12} />}
+                    {isFullscreenReform ? 'Свернуть' : 'Во весь экран'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Single Cell Body (Strictly no red and no green) */}
+              <div style={{ padding: 18, background: R.bgPanel, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {canEdit && !isReadOnly ? (
+                  <div style={{ position: 'relative' }}>
+                    <textarea
+                      value={bill.totalReformContent || ''}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        handleFieldChange('totalReformContent', val);
+                        // Maintain single synthetic comparison row for backward-compatibility
+                        const updatedComp: ComparisonRow[] = [
+                          {
+                            id: 'reform_full',
+                            articleTitle: 'Полный текст закона (Общая реформа)',
+                            wasContent: '',
+                            becameContent: val,
+                            notes: 'Общая реформа нормативно-правового акта'
+                          }
+                        ];
+                        handleFieldChange('comparisons', updatedComp);
+                      }}
+                      placeholder="Вставьте или введите полный текст новой редакции закона целиком...&#10;&#10;Пример структуры:&#10;ГЛАВА I. ОБЩИЕ ПОЛОЖЕНИЯ&#10;Статья 1. Основные понятия...&#10;Статья 2. Сфера действия...&#10;&#10;ГЛАВА II. СТРУКТУРА И ПОЛНОМОЧИЯ...&#10;Статья 3..."
+                      style={{
+                        width: '100%',
+                        minHeight: isFullscreenReform ? '72vh' : '520px',
+                        padding: '16px 18px',
+                        fontSize: 13.5,
+                        lineHeight: 1.68,
+                        fontFamily: 'inherit',
+                        background: R.bgInput,
+                        color: R.text,
+                        border: ft.edge,
+                        borderRadius: 2,
+                        outline: 'none',
+                        resize: 'vertical',
+                        boxSizing: 'border-box',
+                        boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.15)',
+                      }}
+                    />
+                  </div>
+                ) : (
+                  <div
+                    style={{
+                      minHeight: '320px',
+                      padding: '20px 22px',
+                      fontSize: 13.5,
+                      lineHeight: 1.7,
+                      color: R.text,
+                      background: R.bgInput,
+                      border: ft.edge,
+                      borderRadius: 2,
+                      whiteSpace: 'pre-wrap',
+                      fontFamily: 'inherit',
+                      maxHeight: isFullscreenReform ? '75vh' : '650px',
+                      overflowY: 'auto',
+                    }}
+                  >
+                    {bill.totalReformContent || 'Текст новой редакции закона не заполнен.'}
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : (
+            /* ========================================================================= */
+            /* STANDARD ARTICLE COMPARISONS (WITH WAS / BECAME DIFF TABLES)              */
+            /* ========================================================================= */
+            <>
+              {/* Articles Header */}
+              <div id="section-articles" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <h3 style={{ fontSize: 16, fontWeight: 800, color: R.text, margin: 0 }}>
+                    Статьи законопроекта
+                  </h3>
+                  <span style={{ fontFamily: mono, fontSize: 11, padding: '2px 8px', background: R.accentSubtle, color: R.accent, border: `1px solid ${R.accentBorder}`, borderRadius: 2 }}>
+                    {bill.comparisons.length}
+                  </span>
+                </div>
+
+                {canEdit && !isReadOnly && (
+                  <button
+                    onClick={addComparisonRow}
+                    style={{ ...btnOutline, height: 32, fontSize: 12 }}
+                  >
+                    <Plus size={14} /> Добавить статью
+                  </button>
+                )}
+              </div>
+
+              {/* Articles List */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                {bill.comparisons.map((row, index) => {
+                  const diff = computeWordDiff(row.wasContent, row.becameContent);
+                  const activeTab = activeTabMap[row.id] || 'editor';
+
+                  return (
+                    <div
+                      key={row.id}
+                      style={{
+                        background: R.bgPanel,
+                        border: ft.edge,
+                        borderRadius: 2,
+                        overflow: 'hidden',
+                        display: 'flex',
+                        flexDirection: 'column',
+                      }}
+                    >
+                      {/* Article Card Header */}
+                      <div
+                        style={{
+                          background: R.bgElevated,
+                          padding: '10px 14px',
+                          borderBottom: ft.hair,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          gap: 12,
+                          flexWrap: 'wrap',
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: '1 1 260px' }}>
+                          <span style={{ fontFamily: mono, fontSize: 12, fontWeight: 700, color: R.textMuted }}>
+                            §{index + 1}
+                          </span>
+                          <input
+                            type="text"
+                            value={row.articleTitle}
+                            onChange={(e) => updateComparisonRow(row.id, 'articleTitle', e.target.value)}
+                            disabled={!canEdit || isReadOnly}
+                            style={{
+                              flex: '1 1 auto',
+                              maxWidth: 380,
+                              background: 'transparent',
+                              border: 'none',
+                              fontSize: 13,
+                              fontWeight: 700,
+                              color: R.text,
+                              outline: 'none',
+                            }}
+                            placeholder="Статья 1. Наименование статьи..."
+                          />
+                        </div>
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          {/* Editor vs Diff Tabs */}
+                          <div
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              background: R.bgInput,
+                              border: ft.hair,
+                              borderRadius: 2,
+                              padding: 2,
+                            }}
+                          >
+                            <button
+                              type="button"
+                              onClick={() => setActiveTabMap((prev) => ({ ...prev, [row.id]: 'editor' }))}
+                              style={{
+                                padding: '3px 8px',
+                                fontSize: 11,
+                                fontWeight: 700,
+                                background: activeTab === 'editor' ? R.bgElevated : 'transparent',
+                                color: activeTab === 'editor' ? R.accent : R.textMuted,
+                                border: 'none',
+                                borderRadius: 2,
+                                cursor: 'pointer',
+                              }}
+                            >
+                              Редактор
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setActiveTabMap((prev) => ({ ...prev, [row.id]: 'diff' }))}
+                              style={{
+                                padding: '3px 8px',
+                                fontSize: 11,
+                                fontWeight: 700,
+                                background: activeTab === 'diff' ? R.bgElevated : 'transparent',
+                                color: activeTab === 'diff' ? R.accent : R.textMuted,
+                                border: 'none',
+                                borderRadius: 2,
+                                cursor: 'pointer',
+                              }}
+                            >
+                              Сравнение
+                            </button>
+                          </div>
+
                           {canEdit && !isReadOnly && (
                             <button
-                              onClick={() => updateComparisonRow(row.id, 'wasContent', '[Ранее статья в законе отсутствовала]')}
-                              style={{ fontSize: 10, fontFamily: mono, fontWeight: 700, color: R.accentText, background: 'none', border: 'none', cursor: 'pointer' }}
+                              type="button"
+                              onClick={() => copyWasToBecame(row.id)}
+                              title="Скопировать исходный текст в новую редакцию"
+                              style={{
+                                width: 28,
+                                height: 28,
+                                display: 'grid',
+                                placeItems: 'center',
+                                background: 'transparent',
+                                border: 'none',
+                                color: R.textMuted,
+                                cursor: 'pointer',
+                              }}
                             >
-                              + Ранее не было
+                              <Copy size={13} />
+                            </button>
+                          )}
+
+                          <button
+                            type="button"
+                            onClick={() => setExpandedRow(row)}
+                            title="На весь экран"
+                            style={{
+                              width: 28,
+                              height: 28,
+                              display: 'grid',
+                              placeItems: 'center',
+                              background: 'transparent',
+                              border: 'none',
+                              color: R.textMuted,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            <Maximize2 size={13} />
+                          </button>
+
+                          {canEdit && !isReadOnly && bill.comparisons.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => setConfirmDeleteArticleId(row.id)}
+                              data-tooltip="Удалить статью"
+                              style={{
+                                width: 28,
+                                height: 28,
+                                display: 'grid',
+                                placeItems: 'center',
+                                background: 'transparent',
+                                border: 'none',
+                                color: R.danger,
+                                cursor: 'pointer',
+                              }}
+                            >
+                              <Trash2 size={13} />
                             </button>
                           )}
                         </div>
-                        <textarea
-                          value={row.wasContent}
-                          onChange={(e) => updateComparisonRow(row.id, 'wasContent', e.target.value)}
-                          disabled={!canEdit || isReadOnly}
-                          style={{
-                            width: '100%',
-                            flex: '1 1 auto',
-                            padding: 12,
-                            background: R.bgInput,
-                            border: 'none',
-                            fontSize: 13,
-                            color: R.textSecondary,
-                            outline: 'none',
-                            resize: 'none',
-                            lineHeight: 1.5,
-                          }}
-                          placeholder="Исходный текст статьи..."
-                        />
                       </div>
 
-                      <div style={{ display: 'flex', flexDirection: 'column' }}>
-                        <div style={{ padding: '6px 12px', background: R.bg, borderBottom: ft.hair }}>
-                          <span style={{ ...label, fontSize: 9.5 }}>Новая редакция</span>
+                      {/* TAB 1: Editor Side-by-Side */}
+                      {activeTab === 'editor' && (
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', minHeight: 180 }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', borderRight: ft.hair }}>
+                            <div style={{ padding: '6px 12px', background: R.bg, borderBottom: ft.hair, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                              <span style={{ ...label, fontSize: 9.5 }}>Действующий текст</span>
+                              {canEdit && !isReadOnly && (
+                                <button
+                                  type="button"
+                                  onClick={() => updateComparisonRow(row.id, 'wasContent', '[Ранее статья в законе отсутствовала]')}
+                                  style={{ fontSize: 10, fontFamily: mono, fontWeight: 700, color: R.accentText, background: 'none', border: 'none', cursor: 'pointer' }}
+                                >
+                                  + Ранее не было
+                                </button>
+                              )}
+                            </div>
+                            <textarea
+                              value={row.wasContent}
+                              onChange={(e) => updateComparisonRow(row.id, 'wasContent', e.target.value)}
+                              disabled={!canEdit || isReadOnly}
+                              style={{
+                                width: '100%',
+                                flex: '1 1 auto',
+                                padding: 12,
+                                background: R.bgInput,
+                                border: 'none',
+                                fontSize: 13,
+                                color: R.textSecondary,
+                                outline: 'none',
+                                resize: 'none',
+                                lineHeight: 1.5,
+                              }}
+                              placeholder="Исходный текст статьи..."
+                            />
+                          </div>
+
+                          <div style={{ display: 'flex', flexDirection: 'column' }}>
+                            <div style={{ padding: '6px 12px', background: R.bg, borderBottom: ft.hair }}>
+                              <span style={{ ...label, fontSize: 9.5 }}>Новая редакция</span>
+                            </div>
+                            <textarea
+                              value={row.becameContent}
+                              onChange={(e) => updateComparisonRow(row.id, 'becameContent', e.target.value)}
+                              disabled={!canEdit || isReadOnly}
+                              style={{
+                                width: '100%',
+                                flex: '1 1 auto',
+                                padding: 12,
+                                background: R.bgInput,
+                                border: 'none',
+                                fontSize: 13,
+                                color: R.text,
+                                outline: 'none',
+                                resize: 'none',
+                                lineHeight: 1.5,
+                              }}
+                              placeholder="Предлагаемая редакция статьи..."
+                            />
+                          </div>
                         </div>
-                        <textarea
-                          value={row.becameContent}
-                          onChange={(e) => updateComparisonRow(row.id, 'becameContent', e.target.value)}
-                          disabled={!canEdit || isReadOnly}
-                          style={{
-                            width: '100%',
-                            flex: '1 1 auto',
-                            padding: 12,
-                            background: R.bgInput,
-                            border: 'none',
-                            fontSize: 13,
-                            color: R.text,
-                            outline: 'none',
-                            resize: 'none',
-                            lineHeight: 1.5,
-                          }}
-                          placeholder="Предлагаемая редакция статьи..."
-                        />
-                      </div>
+                      )}
+
+                      {/* TAB 2: Diff */}
+                      {activeTab === 'diff' && (
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', minHeight: 180 }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', borderRight: ft.hair }}>
+                            <div style={{ padding: '6px 12px', background: R.bg, borderBottom: ft.hair }}>
+                              <span style={{ ...label, fontSize: 9.5, color: R.danger }}>Действующий текст</span>
+                            </div>
+                            <div style={{ padding: 12, fontSize: 13, color: R.text, lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
+                              {diff.wasFormatted.length > 0 ? diff.wasFormatted : <span style={{ color: R.textMuted }}>Текст не заполнен</span>}
+                            </div>
+                          </div>
+
+                          <div style={{ display: 'flex', flexDirection: 'column' }}>
+                            <div style={{ padding: '6px 12px', background: R.bg, borderBottom: ft.hair }}>
+                              <span style={{ ...label, fontSize: 9.5, color: R.success }}>Новая редакция</span>
+                            </div>
+                            <div style={{ padding: 12, fontSize: 13, color: R.text, lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
+                              {diff.becameFormatted.length > 0 ? diff.becameFormatted : <span style={{ color: R.textMuted }}>Текст не заполнен</span>}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
                     </div>
-                  )}
-
-                  {/* TAB 2: Diff */}
-                  {activeTab === 'diff' && (
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', minHeight: 180 }}>
-                      <div style={{ display: 'flex', flexDirection: 'column', borderRight: ft.hair }}>
-                        <div style={{ padding: '6px 12px', background: R.bg, borderBottom: ft.hair }}>
-                          <span style={{ ...label, fontSize: 9.5, color: R.danger }}>Действующий текст</span>
-                        </div>
-                        <div style={{ padding: 12, fontSize: 13, color: R.text, lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
-                          {diff.wasFormatted.length > 0 ? diff.wasFormatted : <span style={{ color: R.textMuted }}>Текст не заполнен</span>}
-                        </div>
-                      </div>
-
-                      <div style={{ display: 'flex', flexDirection: 'column' }}>
-                        <div style={{ padding: '6px 12px', background: R.bg, borderBottom: ft.hair }}>
-                          <span style={{ ...label, fontSize: 9.5, color: R.success }}>Новая редакция</span>
-                        </div>
-                        <div style={{ padding: 12, fontSize: 13, color: R.text, lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
-                          {diff.becameFormatted.length > 0 ? diff.becameFormatted : <span style={{ color: R.textMuted }}>Текст не заполнен</span>}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                </div>
-              );
-            })}
-          </div>
+                  );
+                })}
+              </div>
+            </>
+          )}
 
           {/* Attachments (Media) */}
           <div id="section-photos" style={{ background: R.bgPanel, border: ft.edge, borderRadius: 2, padding: 20 }}>

@@ -350,7 +350,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               }}
             />
 
-            {onOpenDbConfig && (
+            {isAdmin && onOpenDbConfig && (
               <MenuItem
                 icon={Database}
                 label="Подключение БД"

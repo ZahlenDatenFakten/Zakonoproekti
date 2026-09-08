@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import type { UserProfile, OfficialRole, RolePinRegistry, AuditLogEntry } from '../types/bill';
 import { OFFICIAL_ROLE_LABELS } from '../types/bill';
@@ -62,9 +62,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         onUpdateProfile(firstName.trim(), lastName.trim(), targetRole, true);
         onToast('success', `Активирован служебный статус: ${OFFICIAL_ROLE_LABELS[targetRole]}`);
         setRolePin('');
-        onClose();
+        if (targetRole === 'admin') {
+          setActiveTab('admin');
+        } else {
+          onClose();
+        }
       } else {
-        onToast('error', 'Неверный служебный PIN-код для выбранной должности');
+        onToast('error', targetRole === 'admin' ? 'Неверный Секретный Код Администратора' : 'Неверный служебный PIN-код для выбранной должности');
       }
     } catch (err: any) {
       onToast('error', err.message || 'Ошибка авторизации');
@@ -123,13 +127,32 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     onClose();
   };
 
-  const tabs = [
-    { id: 'profile', label: 'Профиль' },
-    { id: 'official', label: 'Авторизация' },
-    { id: 'changepin', label: 'Смена PIN' },
-    { id: 'admin', label: 'Админ-панель' },
-    { id: 'audit', label: 'Аудит' },
-  ] as const;
+  const isAdmin = isSystemAdmin(user);
+  const isOfficial = user.isOfficialVerified && user.officialRole !== 'civilian';
+
+  const tabs = useMemo(() => {
+    const list: { id: 'profile' | 'official' | 'changepin' | 'admin' | 'audit'; label: string }[] = [
+      { id: 'profile', label: 'Профиль' },
+      { id: 'official', label: 'Авторизация' },
+    ];
+    if (isOfficial) {
+      list.push({ id: 'changepin', label: 'Смена PIN' });
+    }
+    if (isAdmin) {
+      list.push({ id: 'admin', label: 'Админ-панель' });
+      list.push({ id: 'audit', label: 'Аудит' });
+    }
+    return list;
+  }, [isOfficial, isAdmin]);
+
+  useEffect(() => {
+    if (!isAdmin && (activeTab === 'admin' || activeTab === 'audit')) {
+      setActiveTab('profile');
+    }
+    if (!isOfficial && activeTab === 'changepin') {
+      setActiveTab('profile');
+    }
+  }, [isAdmin, isOfficial, activeTab]);
 
   return (
     <div
@@ -290,12 +313,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               </p>
 
               <div>
-                <label style={{ ...label, display: 'block', marginBottom: 6 }}>Должность Законодательной Комиссии:</label>
+                <label style={{ ...label, display: 'block', marginBottom: 6 }}>Должность или статус авторизации:</label>
                 <CustomSelect
                   options={[
                     { value: 'prosecutor', label: '⚖️ Генеральный прокурор' },
                     { value: 'judge', label: '🏛️ Председатель Верховного суда' },
-                    { value: 'governor', label: '📜 Губернатор Штата' }
+                    { value: 'governor', label: '📜 Губернатор Штата' },
+                    { value: 'admin', label: '👑 Федеральное Правительство (Администратор)' }
                   ]}
                   value={targetRole}
                   onChange={(val) => setTargetRole(val as OfficialRole)}
@@ -303,11 +327,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               </div>
 
               <div>
-                <label style={{ ...label, display: 'block', marginBottom: 6 }}>Персональный PIN-код служащего:</label>
+                <label style={{ ...label, display: 'block', marginBottom: 6 }}>
+                  {targetRole === 'admin' ? 'Секретный Код Администратора:' : 'Персональный PIN-код служащего:'}
+                </label>
                 <input
                   type="password"
                   autoComplete="new-password"
-                  placeholder="Введите PIN-код..."
+                  placeholder={targetRole === 'admin' ? 'Введите код доступа...' : 'Введите PIN-код...'}
                   value={rolePin}
                   onChange={(e) => setRolePin(e.target.value)}
                   style={{
@@ -435,7 +461,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           )}
 
           {/* TAB 4: Admin Panel */}
-          {activeTab === 'admin' && (
+          {activeTab === 'admin' && isAdmin && (
             <div>
               {!isSystemAdmin(user) ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -543,7 +569,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           )}
 
           {/* TAB 5: Audit Logs */}
-          {activeTab === 'audit' && (
+          {activeTab === 'audit' && isAdmin && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               <div style={{ background: R.bgInput, border: ft.hair, borderRadius: 2, padding: 12 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700, color: R.text }}>
