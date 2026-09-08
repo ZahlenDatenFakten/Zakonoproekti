@@ -16,7 +16,8 @@ import {
   FileText,
   Edit3,
   ChevronDown,
-  X
+  X,
+  Database
 } from 'lucide-react';
 import { R, ft, shadow, mono, btnAccent, btnOutline, fieldLabel } from '../lib/ui';
 import { ConfirmModal } from './ConfirmModal';
@@ -27,6 +28,7 @@ interface AdminWorkspaceProps {
   onSelectBill: (bill: Bill) => void;
   onSaveBill: (updatedBill: Bill) => void;
   onToast: (type: 'success' | 'error' | 'info', text: string) => void;
+  onOpenDbConfig?: () => void;
 }
 
 export const AdminWorkspace: React.FC<AdminWorkspaceProps> = ({
@@ -35,6 +37,7 @@ export const AdminWorkspace: React.FC<AdminWorkspaceProps> = ({
   onSelectBill,
   onSaveBill,
   onToast,
+  onOpenDbConfig,
 }) => {
   const isAdmin = isSystemAdmin(user);
   const isAuthorizedToAccess = isAdmin;
@@ -241,26 +244,49 @@ export const AdminWorkspace: React.FC<AdminWorkspaceProps> = ({
           </div>
         </div>
 
-        {/* ENACT BUTTON */}
-        <button
-          type="button"
-          onClick={() => setShowConfirmEnactAll(true)}
-          disabled={pendingEnactmentBills.length === 0}
-          data-tooltip="Официально внести все утверждённые акты в законы"
-          style={{
-            ...btnAccent,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-            opacity: pendingEnactmentBills.length === 0 ? 0.5 : 1,
-            cursor: pendingEnactmentBills.length === 0 ? 'not-allowed' : 'pointer',
-          }}
-        >
-          <Zap size={16} />
-          <span>
-            Внести в законы {pendingEnactmentBills.length > 0 ? `(${pendingEnactmentBills.length})` : '(0)'}
-          </span>
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          {onOpenDbConfig && (
+            <button
+              type="button"
+              onClick={onOpenDbConfig}
+              data-tooltip="Управление подключением к базе данных"
+              style={{
+                ...btnOutline,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                padding: '0 14px',
+                height: 38,
+                fontSize: 12,
+                cursor: 'pointer',
+              }}
+            >
+              <Database size={15} color={R.accent} />
+              <span>База данных</span>
+            </button>
+          )}
+
+          {/* ENACT BUTTON */}
+          <button
+            type="button"
+            onClick={() => setShowConfirmEnactAll(true)}
+            disabled={pendingEnactmentBills.length === 0}
+            data-tooltip="Официально внести все утверждённые акты в законы"
+            style={{
+              ...btnAccent,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              opacity: pendingEnactmentBills.length === 0 ? 0.5 : 1,
+              cursor: pendingEnactmentBills.length === 0 ? 'not-allowed' : 'pointer',
+            }}
+          >
+            <Zap size={16} />
+            <span>
+              Внести в законы {pendingEnactmentBills.length > 0 ? `(${pendingEnactmentBills.length})` : '(0)'}
+            </span>
+          </button>
+        </div>
       </div>
 
       {/* BILLS LIST */}

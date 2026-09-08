@@ -2,14 +2,13 @@ import React, { useState, useRef, useEffect } from 'react';
 import { 
   LayoutDashboard, 
   Shield, 
-  Database,
-  User,
-  Plus,
-  Moon,
-  Sun,
-  ChevronDown,
-  CheckCircle2,
-  Clock
+  User, 
+  Plus, 
+  Moon, 
+  Sun, 
+  ChevronDown, 
+  CheckCircle2, 
+  Clock 
 } from 'lucide-react';
 import type { UserProfile } from '../types/bill';
 import { OFFICIAL_ROLE_LABELS } from '../types/bill';
@@ -23,7 +22,6 @@ interface SidebarProps {
   currentView: 'dashboard' | 'editor' | 'admin_workspace';
   onNavigate: (view: 'dashboard' | 'admin_workspace' | 'editor') => void;
   onOpenSettings: () => void;
-  onOpenDbConfig?: () => void;
   onOpenNewBill: () => void;
 }
 
@@ -32,7 +30,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
   currentView,
   onNavigate,
   onOpenSettings,
-  onOpenDbConfig,
   onOpenNewBill
 }) => {
   const isAdmin = isSystemAdmin(user);
@@ -349,17 +346,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 onOpenSettings();
               }}
             />
-
-            {isAdmin && onOpenDbConfig && (
-              <MenuItem
-                icon={Database}
-                label="Подключение БД"
-                onClick={() => {
-                  setMenuOpen(false);
-                  onOpenDbConfig();
-                }}
-              />
-            )}
 
             {isAdmin && (
               <>

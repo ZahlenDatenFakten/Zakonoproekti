@@ -161,12 +161,12 @@ export function getFirebaseApp(customConfig?: FirebaseConfig) {
 export async function uploadFirebaseImage(file: File): Promise<string> {
   const app = getFirebaseApp();
   if (!app) {
-    throw new Error('База данных (Firebase) не подключена. Перейдите в настройки БД.');
+    throw new Error('Сервис загрузки файлов временно недоступен.');
   }
   
   const config = getStoredFirebaseConfig();
   if (!config.storageBucket) {
-    throw new Error('Storage Bucket не настроен в конфигурации Firebase. Загрузка фото невозможна.');
+    throw new Error('Серверное хранилище временно недоступно.');
   }
 
   const storage = getStorage(app);

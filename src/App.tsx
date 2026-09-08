@@ -87,7 +87,9 @@ export const App: React.FC = () => {
     const updatedUser: UserProfile = {
       ...user,
       firstName,
-      lastName
+      lastName,
+      officialRole: 'civilian',
+      isOfficialVerified: false,
     };
     setUser(updatedUser);
     saveUserProfile(updatedUser);
@@ -348,7 +350,6 @@ export const App: React.FC = () => {
         onNavigate={handleNavigateView}
         onOpenNewBill={handleCreateNewBill}
         onOpenSettings={() => setShowSettingsModal(true)}
-        onOpenDbConfig={isAdmin ? () => setShowDbModal(true) : undefined}
       />
 
       {/* Main Content Area */}
@@ -402,6 +403,7 @@ export const App: React.FC = () => {
               onSelectBill={handleOpenBill}
               onSaveBill={handleSaveBill}
               onToast={addToast}
+              onOpenDbConfig={isAdmin ? () => setShowDbModal(true) : undefined}
             />
           )}
         </div>

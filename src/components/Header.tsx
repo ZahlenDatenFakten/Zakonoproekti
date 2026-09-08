@@ -9,8 +9,7 @@ import {
   LayoutDashboard,
   ShieldCheck,
   Moon,
-  Sun,
-  Database
+  Sun
 } from 'lucide-react';
 
 interface HeaderProps {
@@ -21,7 +20,6 @@ interface HeaderProps {
   onToggleTheme: () => void;
   onOpenNewBill: () => void;
   onOpenSettings: () => void;
-  onOpenDbConfig?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -30,8 +28,7 @@ export const Header: React.FC<HeaderProps> = ({
   currentView,
   onNavigate,
   onToggleTheme,
-  onOpenSettings,
-  onOpenDbConfig
+  onOpenSettings
 }) => {
   const isAdmin = isSystemAdmin(user);
 
@@ -136,17 +133,6 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
 
           {/* SYSTEM ICONS */}
-          {isAdmin && onOpenDbConfig && (
-            <button 
-              className="btn btn-ghost btn-icon" 
-              onClick={onOpenDbConfig} 
-              style={{ width: '30px', height: '30px' }} 
-              title="База данных"
-            >
-              <Database size={14} color="var(--text-muted)" />
-            </button>
-          )}
-
           <button 
             onClick={onToggleTheme} 
             className="btn btn-ghost btn-icon" 
