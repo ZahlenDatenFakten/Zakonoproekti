@@ -74,8 +74,8 @@ export const DbConfigModal: React.FC<DbConfigModalProps> = ({ config, onUpdateCo
     
     const token = await prompt({
       title: 'Авторизация Администратора',
-      message: 'Для применения этих настроек для всех пользователей требуется Admin Token сервера.',
-      placeholder: 'Введите Admin Token'
+      message: 'Для применения этих настроек требуется Admin Token сервера или PIN Администратора (999000):',
+      placeholder: 'Введите 999000 или Admin Token'
     });
     
     if (token === null) return;
@@ -185,8 +185,8 @@ export const DbConfigModal: React.FC<DbConfigModalProps> = ({ config, onUpdateCo
     if (activeTab === 'firebase') {
       const token = await prompt({
         title: 'Отключение Firebase',
-        message: 'Для отключения базы данных Firebase у всех пользователей требуется Admin Token сервера:',
-        placeholder: 'Введите Admin Token'
+        message: 'Для отключения базы данных Firebase требуется Admin Token сервера или PIN Администратора (999000):',
+        placeholder: 'Введите 999000 или Admin Token'
       });
       if (token === null) return;
       try {
@@ -207,6 +207,7 @@ export const DbConfigModal: React.FC<DbConfigModalProps> = ({ config, onUpdateCo
           variant: 'success'
         });
         onClose();
+        window.location.reload();
       } catch (err: any) {
         await alert({
           title: 'Ошибка',

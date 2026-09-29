@@ -8,7 +8,8 @@ import {
   Sun, 
   ChevronDown, 
   CheckCircle2, 
-  Clock 
+  Clock,
+  BookOpen
 } from 'lucide-react';
 import type { UserProfile } from '../types/bill';
 import { OFFICIAL_ROLE_LABELS } from '../types/bill';
@@ -23,6 +24,7 @@ interface SidebarProps {
   onNavigate: (view: 'dashboard' | 'admin_workspace' | 'editor') => void;
   onOpenSettings: () => void;
   onOpenNewBill: () => void;
+  onOpenLawStudio: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -30,7 +32,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   currentView,
   onNavigate,
   onOpenSettings,
-  onOpenNewBill
+  onOpenNewBill,
+  onOpenLawStudio
 }) => {
   const isAdmin = isSystemAdmin(user);
   const theme = useTheme();
@@ -192,6 +195,49 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <span style={{ flex: '1 1 auto' }}>Администрирование</span>
           </button>
         )}
+
+        {/* LAW STUDIO / LEGISLATION DATABASE BUTTON */}
+        <button
+          onClick={onOpenLawStudio}
+          title="Открыть кабинет законодательства (27 кодексов и законов, экспорт BB-кода)"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            width: '100%',
+            height: 34,
+            padding: '0 10px',
+            fontSize: 13,
+            fontWeight: 500,
+            color: R.text,
+            background: 'transparent',
+            border: '1px solid transparent',
+            cursor: 'pointer',
+            textAlign: 'left',
+            borderRadius: 2,
+            marginTop: 4,
+            transition: 'all 0.12s ease',
+          }}
+          onMouseEnter={(e) => (e.currentTarget.style.background = R.bgElevated)}
+          onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+        >
+          <BookOpen size={16} color={R.accent} />
+          <span style={{ flex: '1 1 auto' }}>База законов</span>
+          <span
+            style={{
+              fontFamily: mono,
+              fontSize: 10,
+              fontWeight: 700,
+              padding: '1px 6px',
+              background: 'rgba(236,199,129,0.12)',
+              color: R.accent,
+              borderRadius: 2,
+              border: ft.edge,
+            }}
+          >
+            27
+          </span>
+        </button>
       </div>
 
       {/* Information / Sections Area */}

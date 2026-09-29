@@ -13,14 +13,16 @@ import {
   Crown,
   FileCode2,
   Zap,
-  FileText,
   Edit3,
   ChevronDown,
-  X,
-  Database
+  X, 
+  Database,
+  BookOpen
 } from 'lucide-react';
 import { R, ft, shadow, mono, btnAccent, btnOutline, fieldLabel } from '../lib/ui';
 import { ConfirmModal } from './ConfirmModal';
+import { EnactLawModal } from './laws/EnactLawModal';
+import { LawStudioModal } from './laws/LawStudioModal';
 
 interface AdminWorkspaceProps {
   user: UserProfile;
@@ -46,6 +48,8 @@ export const AdminWorkspace: React.FC<AdminWorkspaceProps> = ({
   const [pendingDecision, setPendingDecision] = useState<VoteDecision | null>(null);
   const [adminNoteInput, setAdminNoteInput] = useState('');
   const [showConfirmEnactAll, setShowConfirmEnactAll] = useState(false);
+  const [enactingBill, setEnactingBill] = useState<Bill | null>(null);
+  const [isLawStudioOpen, setIsLawStudioOpen] = useState(false);
 
   // Pack Accordeons
   const [expandedPacks, setExpandedPacks] = useSessionState<Record<string, boolean>>('admin_expanded_packs', {});
@@ -265,6 +269,27 @@ export const AdminWorkspace: React.FC<AdminWorkspaceProps> = ({
               <span>База данных</span>
             </button>
           )}
+
+          {/* LAW STUDIO BUTTON */}
+          <button
+            type="button"
+            onClick={() => setIsLawStudioOpen(true)}
+            data-tooltip="Просмотр и редактирование Дорожного Кодекса, экспорт актуального BB-кода"
+            style={{
+              ...btnOutline,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              padding: '0 14px',
+              height: 38,
+              fontSize: 12,
+              cursor: 'pointer',
+              borderColor: R.accentBorder,
+            }}
+          >
+            <BookOpen size={15} color={R.accent} />
+            <span>База законов (BB-код)</span>
+          </button>
 
           {/* ENACT BUTTON */}
           <button
@@ -511,16 +536,8 @@ export const AdminWorkspace: React.FC<AdminWorkspaceProps> = ({
                               {isStage2ApprovedPendingEnactment && (
                                 <button
                                   type="button"
-                                  onClick={async () => {
-                                    const updated: Bill = {
-                                      ...bill,
-                                      status: 'approved',
-                                      statusReason: 'Официально внесены в законодательную базу SA.',
-                                      updatedAt: new Date().toISOString(),
-                                    };
-                                    await onSaveBill(updated);
-                                    onToast('success', 'Закон внесен в базу');
-                                  }}
+                                  onClick={() => setEnactingBill(bill)}
+                                  data-tooltip="Внести изменения в Кодекс и сгенерировать BB-код"
                                   style={{
                                     ...btnAccent,
                                     display: 'flex',
@@ -530,7 +547,27 @@ export const AdminWorkspace: React.FC<AdminWorkspaceProps> = ({
                                     fontSize: 12,
                                   }}
                                 >
-                                  <FileText size={13} /> Внести
+                                  <Zap size={13} /> Внести в закон (BB-код)
+                                </button>
+                              )}
+
+                              {isEnacted && (
+                                <button
+                                  type="button"
+                                  onClick={() => setEnactingBill(bill)}
+                                  data-tooltip="Посмотреть актуальный BB-код статьи и кодекса"
+                                  style={{
+                                    ...btnOutline,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 6,
+                                    padding: '6px 12px',
+                                    fontSize: 12,
+                                    borderColor: R.accentBorder,
+                                    color: R.accent,
+                                  }}
+                                >
+                                  <FileCode2 size={13} /> BB-код
                                 </button>
                               )}
 
@@ -803,6 +840,26 @@ export const AdminWorkspace: React.FC<AdminWorkspaceProps> = ({
           isDanger={false}
           onConfirm={handleEnactAllApprovedBills}
           onCancel={() => setShowConfirmEnactAll(false)}
+        />
+      )}
+
+      {enactingBill && (
+        <EnactLawModal
+          bill={enactingBill}
+          isOpen={true}
+          onClose={() => setEnactingBill(null)}
+          onEnacted={async (updatedBill) => {
+            await onSaveBill(updatedBill);
+          }}
+          onToast={onToast}
+        />
+      )}
+
+      {isLawStudioOpen && (
+        <LawStudioModal
+          isOpen={true}
+          onClose={() => setIsLawStudioOpen(false)}
+          onToast={onToast}
         />
       )}
     </div>

@@ -30,16 +30,28 @@ import {
   Image as ImageIcon,
   AlertTriangle,
   Layers,
-  Minimize2
+  Minimize2,
+  Zap
 } from 'lucide-react';
 import { R, ft, label, mono, btnAccent, btnOutline, btnDanger } from '../lib/ui';
+import { getLatestArticleContent, getActiveLaw, findLawByTitleOrCode } from '../services/lawStorageService';
+import { LAWS_METADATA } from '../data/lawsMetadata';
 import { Popover, MenuItem } from './Primitives';
+import { EnactLawModal } from './laws/EnactLawModal';
+import { 
+  validateBillForPublishing, 
+  checkAuthorQuota, 
+  checkPublishCooldown, 
+  checkDuplicateBill, 
+  recordPublishTimestamp 
+} from '../services/antiSpamService';
 
 interface BillEditorProps {
   bill: Bill;
   user: UserProfile;
   permission: AccessPermission;
   returnView?: 'dashboard' | 'admin_workspace';
+  existingBills?: Bill[];
   onSave: (updatedBill: Bill) => void;
   onDelete?: (billId: string) => void;
   onBack: () => void;
@@ -52,6 +64,7 @@ export const BillEditor: React.FC<BillEditorProps> = ({
   user,
   permission,
   returnView = 'dashboard',
+  existingBills,
   onSave,
   onDelete,
   onBack,
@@ -60,6 +73,7 @@ export const BillEditor: React.FC<BillEditorProps> = ({
 }) => {
   const [bill, setBill] = useState<Bill>(initialBill);
   const [isSavedNotice, setIsSavedNotice] = useState(false);
+  const [isPublishing, setIsPublishing] = useState(false);
   const [expandedRow, setExpandedRow] = useState<ComparisonRow | null>(null);
   const [activeTabMap, setActiveTabMap] = useState<{ [rowId: string]: 'editor' | 'diff' }>({});
   const [showMoreMenu, setShowMoreMenu] = useState(false);
@@ -69,6 +83,7 @@ export const BillEditor: React.FC<BillEditorProps> = ({
   const [isEditingAdminVerdict, setIsEditingAdminVerdict] = useState(false);
   const [confirmDeleteArticleId, setConfirmDeleteArticleId] = useState<string | null>(null);
   const [isFullscreenReform, setIsFullscreenReform] = useState(false);
+  const [showEnactModal, setShowEnactModal] = useState(false);
 
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -119,6 +134,7 @@ export const BillEditor: React.FC<BillEditorProps> = ({
     const newRow: ComparisonRow = {
       id: newId,
       articleTitle: '',
+      targetLaw: bill.targetLaw || 'Дорожный кодекс (ДК)',
       wasContent: '',
       becameContent: '',
       notes: ''
@@ -134,6 +150,15 @@ export const BillEditor: React.FC<BillEditorProps> = ({
         const newRow = { ...row, [field]: value };
         if (field === 'wasContent' && (row.becameContent === '' || row.becameContent === row.wasContent)) {
           newRow.becameContent = value;
+        }
+        // Auto-fetch latest edition from active frontend Law Store if user enters article number and wasContent is empty
+        if (field === 'articleTitle' && (!row.wasContent || row.wasContent.trim() === '')) {
+          const lawToQuery = newRow.targetLaw || prev.targetLaw || 'road_code';
+          const latest = getLatestArticleContent(lawToQuery, value);
+          if (latest) {
+            newRow.wasContent = latest;
+            newRow.becameContent = latest;
+          }
         }
         return newRow;
       });
@@ -161,15 +186,62 @@ export const BillEditor: React.FC<BillEditorProps> = ({
   };
 
   const handlePublish = async () => {
-    const updated: Bill = { 
-      ...bill, 
-      status: 'under_review' as BillStatus,
-      statusReason: 'Опубликован автором и передан на рассмотрение Законодательной Комиссии.',
-      updatedAt: new Date().toISOString()
-    };
-    setBill(updated);
-    await onSave(updated);
-    onToast('success', 'Законопроект передан на рассмотрение Комиссии');
+    if (isPublishing) return;
+
+    // 1. Anti-spam Content Validation
+    const validation = validateBillForPublishing(bill);
+    if (!validation.isValid) {
+      onToast('error', validation.error || 'Ошибка валидации законопроекта');
+      return;
+    }
+
+    // 2. Cooldown check
+    const cooldown = checkPublishCooldown(bill.author, isOfficial || isAdmin);
+    if (!cooldown.allowed) {
+      onToast('error', `Защита от спама: подождите еще ${cooldown.remainingSeconds} сек. перед следующей публикацией.`);
+      return;
+    }
+
+    // 3. Author Quota check (max active under review)
+    const currentBills = existingBills || [];
+    const quota = checkAuthorQuota(bill.author, currentBills, isOfficial || isAdmin);
+    if (!quota.allowed) {
+      onToast('error', quota.message || 'Превышен лимит активных законопроектов');
+      return;
+    }
+
+    // 4. Duplicate bill check
+    const dupCheck = checkDuplicateBill(bill, currentBills);
+    if (dupCheck.isDuplicate) {
+      onToast('error', 'Защита от спама: у вас уже есть отправленный законопроект с идентичным содержанием.');
+      return;
+    }
+
+    setIsPublishing(true);
+    try {
+      // Calculate affected distinct laws for omnibus multi-law support
+      const distinctLaws = Array.from(
+        new Set(bill.comparisons.map((c) => c.targetLaw || bill.targetLaw).filter(Boolean))
+      );
+      const isMultiLaw = distinctLaws.length > 1;
+
+      const updated: Bill = { 
+        ...bill, 
+        isMultiLaw,
+        targetLaws: distinctLaws,
+        status: 'under_review' as BillStatus,
+        statusReason: 'Опубликован автором и передан на рассмотрение Законодательной Комиссии.',
+        updatedAt: new Date().toISOString()
+      };
+      setBill(updated);
+      await onSave(updated);
+      recordPublishTimestamp(bill.author);
+      onToast('success', 'Законопроект передан на рассмотрение Законодательной Комиссии');
+    } catch (err: any) {
+      onToast('error', err.message || 'Ошибка при отправке законопроекта');
+    } finally {
+      setIsPublishing(false);
+    }
   };
 
   const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
@@ -299,16 +371,8 @@ export const BillEditor: React.FC<BillEditorProps> = ({
     onToast('success', `Вердикт вынесен: ${decision === 'approved' ? 'Утверждено' : decision === 'rejected' ? 'Отклонено' : 'Направлено на доработку'}`);
   };
 
-  const handleEnactLaws = async () => {
-    const updated: Bill = {
-      ...bill,
-      status: 'approved',
-      statusReason: 'Изменения официально внесены в законодательную базу Штата San Andreas.',
-      updatedAt: new Date().toISOString()
-    };
-    setBill(updated);
-    await onSave(updated);
-    onToast('success', 'Изменения внесены в законодательную базу!');
+  const handleEnactLaws = () => {
+    setShowEnactModal(true);
   };
 
   const getStatusBadge = (status: BillStatus) => {
@@ -499,6 +563,36 @@ export const BillEditor: React.FC<BillEditorProps> = ({
             {bill.targetLaw || 'Новый законопроект'}
           </h2>
 
+          {/* Multi-law badge if comparisons touch > 1 law */}
+          {(() => {
+            const distinctLaws = Array.from(
+              new Set(bill.comparisons.map((c) => c.targetLaw || bill.targetLaw).filter(Boolean))
+            );
+            if (distinctLaws.length > 1) {
+              return (
+                <span
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 4,
+                    padding: '2px 7px',
+                    fontSize: 10.5,
+                    fontWeight: 800,
+                    background: 'rgba(59, 130, 246, 0.15)',
+                    color: '#60a5fa',
+                    border: '1px solid rgba(59, 130, 246, 0.4)',
+                    borderRadius: 2,
+                    letterSpacing: '0.03em',
+                  }}
+                >
+                  <Layers size={11} />
+                  ПАКЕТНЫЙ ({distinctLaws.length} ЗАКОНА)
+                </span>
+              );
+            }
+            return null;
+          })()}
+
           <div style={{ display: 'flex', alignItems: 'center' }}>
             {getStatusBadge(bill.status)}
           </div>
@@ -530,9 +624,10 @@ export const BillEditor: React.FC<BillEditorProps> = ({
           {bill.status === 'draft' && canEdit && (
             <button
               onClick={handlePublish}
-              style={{ ...btnAccent, height: 32, fontSize: 12 }}
+              disabled={isPublishing}
+              style={{ ...btnAccent, height: 32, fontSize: 12, opacity: isPublishing ? 0.7 : 1 }}
             >
-              <Send size={13} /> Опубликовать
+              <Send size={13} /> {isPublishing ? 'Проверка...' : 'Опубликовать'}
             </button>
           )}
 
@@ -882,26 +977,84 @@ export const BillEditor: React.FC<BillEditorProps> = ({
             }}
           >
             <div>
-              <label style={{ ...label, display: 'block', marginBottom: 6 }}>Целевой нормативно-правовой акт</label>
-              <input
-                type="text"
-                value={bill.targetLaw}
-                onChange={(e) => handleFieldChange('targetLaw', e.target.value)}
-                disabled={!canEdit || isReadOnly}
-                style={{
-                  width: '100%',
-                  height: 38,
-                  padding: '0 12px',
-                  fontSize: 14,
-                  fontWeight: 700,
-                  background: R.bgInput,
-                  border: ft.edge,
-                  color: R.text,
-                  borderRadius: 2,
-                  outline: 'none',
-                }}
-                placeholder="Например: Уголовный Кодекс Штата San Andreas"
-              />
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                <label style={{ ...label, margin: 0 }}>Целевой нормативно-правовой акт</label>
+                <span style={{ fontSize: 11, color: R.textMuted }}>Выберите из базы или укажите вручную</span>
+              </div>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <input
+                  type="text"
+                  value={bill.targetLaw}
+                  onChange={(e) => handleFieldChange('targetLaw', e.target.value)}
+                  disabled={!canEdit || isReadOnly}
+                  style={{
+                    flex: '1 1 320px',
+                    height: 38,
+                    padding: '0 12px',
+                    fontSize: 13.5,
+                    fontWeight: 700,
+                    background: R.bgInput,
+                    border: ft.edge,
+                    color: R.text,
+                    borderRadius: 2,
+                    outline: 'none',
+                  }}
+                  placeholder="Например: Уголовно-Административный Кодекс штата Сан-Андреас"
+                />
+
+                <select
+                  value=""
+                  onChange={(e) => {
+                    const selected = LAWS_METADATA.find((m) => m.id === e.target.value);
+                    if (selected) {
+                      handleFieldChange('targetLaw', selected.title);
+                      handleFieldChange('lawCode', selected.code);
+                      onToast('info', `Выбран закон: ${selected.shortTitle || selected.title}`);
+                    }
+                  }}
+                  disabled={!canEdit || isReadOnly}
+                  style={{
+                    height: 38,
+                    padding: '0 10px',
+                    fontSize: 12,
+                    fontWeight: 700,
+                    background: R.bgElevated,
+                    border: `1px solid ${R.accentBorder}`,
+                    color: R.accent,
+                    borderRadius: 2,
+                    outline: 'none',
+                    cursor: 'pointer',
+                    maxWidth: 260,
+                  }}
+                >
+                  <option value="">⚡ Выбрать из 27 законов...</option>
+                  <optgroup label="📜 Конституция">
+                    {LAWS_METADATA.filter(m => m.category === 'constitution').map(m => (
+                      <option key={m.id} value={m.id}>[{m.code}] {m.shortTitle}</option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="⚖️ Кодексы (6)">
+                    {LAWS_METADATA.filter(m => m.category === 'code').map(m => (
+                      <option key={m.id} value={m.id}>[{m.code}] {m.shortTitle}</option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="🛡️ Силовые ведомства (5)">
+                    {LAWS_METADATA.filter(m => m.subCategory === 'security').map(m => (
+                      <option key={m.id} value={m.id}>[{m.code}] {m.shortTitle}</option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="🏛️ Органы власти и юстиция (6)">
+                    {LAWS_METADATA.filter(m => m.subCategory === 'government').map(m => (
+                      <option key={m.id} value={m.id}>[{m.code}] {m.shortTitle}</option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="📋 Гражданские и спец. законы (11)">
+                    {LAWS_METADATA.filter(m => m.subCategory === 'civil').map(m => (
+                      <option key={m.id} value={m.id}>[{m.code}] {m.shortTitle}</option>
+                    ))}
+                  </optgroup>
+                </select>
+              </div>
             </div>
 
             <div>
@@ -1113,6 +1266,24 @@ export const BillEditor: React.FC<BillEditorProps> = ({
                   <span style={{ fontFamily: mono, fontSize: 11, color: R.textMuted, padding: '3px 8px', background: R.bgInput, borderRadius: 2, border: ft.edge }}>
                     Символов: {(bill.totalReformContent || '').length} · Слов: {(bill.totalReformContent || '').trim() ? (bill.totalReformContent || '').trim().split(/\s+/).length : 0}
                   </span>
+                  {canEdit && !isReadOnly && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const activeDoc = findLawByTitleOrCode(bill.targetLaw) || getActiveLaw('road_code');
+                        if (activeDoc && activeDoc.activeBBCode) {
+                          handleFieldChange('totalReformContent', activeDoc.activeBBCode);
+                          onToast('success', `Загружен актуальный текст «${activeDoc.title}» в поле общей реформы!`);
+                        } else {
+                          onToast('info', 'Не удалось автоматически найти текст закона');
+                        }
+                      }}
+                      style={{ ...btnOutline, height: 28, fontSize: 11, padding: '0 8px', display: 'flex', alignItems: 'center', gap: 4, color: R.accent, borderColor: R.accentBorder }}
+                      title="Загрузить текущий текст нормативного акта целиком"
+                    >
+                      <Zap size={12} /> Загрузить текущий закон
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={() => {
@@ -1255,10 +1426,38 @@ export const BillEditor: React.FC<BillEditorProps> = ({
                           flexWrap: 'wrap',
                         }}
                       >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: '1 1 260px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: '1 1 360px', flexWrap: 'wrap' }}>
                           <span style={{ fontFamily: mono, fontSize: 12, fontWeight: 700, color: R.textMuted }}>
                             §{index + 1}
                           </span>
+
+                          {/* Target Law selector per row for multi-law legislation */}
+                          <select
+                            value={row.targetLaw || bill.targetLaw || 'Дорожный кодекс (ДК)'}
+                            onChange={(e) => updateComparisonRow(row.id, 'targetLaw', e.target.value)}
+                            disabled={!canEdit || isReadOnly}
+                            title="Целевой закон для данной статьи (позволяет писать комплексные законопроекты по нескольким законам)"
+                            style={{
+                              height: 26,
+                              padding: '0 6px',
+                              fontSize: 11,
+                              fontWeight: 700,
+                              background: R.bgInput,
+                              color: R.accent,
+                              border: `1px solid ${R.accentBorder}`,
+                              borderRadius: 2,
+                              outline: 'none',
+                              maxWidth: 165,
+                              cursor: canEdit && !isReadOnly ? 'pointer' : 'default',
+                            }}
+                          >
+                            {LAWS_METADATA.map((l) => (
+                              <option key={l.id} value={l.title}>
+                                {l.code ? `[${l.code}] ` : ''}{l.shortTitle || l.title}
+                              </option>
+                            ))}
+                          </select>
+
                           <input
                             type="text"
                             value={row.articleTitle}
@@ -1266,7 +1465,7 @@ export const BillEditor: React.FC<BillEditorProps> = ({
                             disabled={!canEdit || isReadOnly}
                             style={{
                               flex: '1 1 auto',
-                              maxWidth: 380,
+                              minWidth: 160,
                               background: 'transparent',
                               border: 'none',
                               fontSize: 13,
@@ -1323,6 +1522,44 @@ export const BillEditor: React.FC<BillEditorProps> = ({
                               Сравнение
                             </button>
                           </div>
+
+                          {canEdit && !isReadOnly && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (!row.articleTitle || !row.articleTitle.trim()) {
+                                  onToast('info', 'Укажите номер или название статьи (например: 9.1 или Статья 1)');
+                                  return;
+                                }
+                                const lawToFetch = row.targetLaw || bill.targetLaw || 'Дорожный кодекс (ДК)';
+                                const latestText = getLatestArticleContent(lawToFetch, row.articleTitle);
+                                if (latestText) {
+                                  updateComparisonRow(row.id, 'wasContent', latestText);
+                                  onToast('success', `Исходный текст статьи «${row.articleTitle}» загружен из «${lawToFetch}»!`);
+                                } else {
+                                  onToast('error', `Статья «${row.articleTitle}» не найдена в законе «${lawToFetch}»`);
+                                }
+                              }}
+                              title="Загрузить актуальный текст статьи из действующей редакции выбранного закона в «Было»"
+                              style={{
+                                height: 26,
+                                padding: '0 8px',
+                                fontSize: 11,
+                                fontWeight: 700,
+                                background: 'rgba(236, 199, 129, 0.1)',
+                                border: `1px solid ${R.accentBorder}`,
+                                borderRadius: 2,
+                                color: R.accent,
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 4,
+                                cursor: 'pointer',
+                              }}
+                            >
+                              <Zap size={11} />
+                              <span>Из закона</span>
+                            </button>
+                          )}
 
                           {canEdit && !isReadOnly && (
                             <button
@@ -1391,13 +1628,31 @@ export const BillEditor: React.FC<BillEditorProps> = ({
                             <div style={{ padding: '6px 12px', background: R.bg, borderBottom: ft.hair, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                               <span style={{ ...label, fontSize: 9.5 }}>Действующий текст</span>
                               {canEdit && !isReadOnly && (
-                                <button
-                                  type="button"
-                                  onClick={() => updateComparisonRow(row.id, 'wasContent', '[Ранее статья в законе отсутствовала]')}
-                                  style={{ fontSize: 10, fontFamily: mono, fontWeight: 700, color: R.accentText, background: 'none', border: 'none', cursor: 'pointer' }}
-                                >
-                                  + Ранее не было
-                                </button>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const latest = getLatestArticleContent(bill.targetLaw || 'road_code', row.articleTitle);
+                                        if (latest) {
+                                          updateComparisonRow(row.id, 'wasContent', latest);
+                                          onToast('success', 'Подтянута актуальная редакция из закона!');
+                                        } else {
+                                          onToast('info', 'Статья не найдена в действующей редакции закона');
+                                        }
+                                      }}
+                                      data-tooltip="Подтянуть действующий текст из актуального закона"
+                                      style={{ fontSize: 10, fontFamily: mono, fontWeight: 700, color: '#ecc781', background: 'none', border: 'none', cursor: 'pointer' }}
+                                    >
+                                      ⚡ Из закона
+                                    </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => updateComparisonRow(row.id, 'wasContent', '[Ранее статья в законе отсутствовала]')}
+                                    style={{ fontSize: 10, fontFamily: mono, fontWeight: 700, color: R.accentText, background: 'none', border: 'none', cursor: 'pointer' }}
+                                  >
+                                    + Ранее не было
+                                  </button>
+                                </div>
                               )}
                             </div>
                             <textarea
@@ -1825,6 +2080,19 @@ export const BillEditor: React.FC<BillEditorProps> = ({
             setConfirmDeleteArticleId(null);
           }}
           onCancel={() => setConfirmDeleteArticleId(null)}
+        />
+      )}
+
+      {showEnactModal && (
+        <EnactLawModal
+          bill={bill}
+          isOpen={true}
+          onClose={() => setShowEnactModal(false)}
+          onEnacted={async (updatedBill) => {
+            setBill(updatedBill);
+            await onSave(updatedBill);
+          }}
+          onToast={onToast}
         />
       )}
     </div>

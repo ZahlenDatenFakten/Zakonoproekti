@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { Bill, BillStatus, UserProfile } from '../types/bill';
 import { isSystemAdmin } from '../services/securityService';
+import { isSuspectedSpamBill } from '../services/antiSpamService';
 import { 
   Search, 
   ChevronDown,
@@ -15,7 +16,8 @@ import {
   Share2,
   Clock,
   ExternalLink,
-  Crown
+  Crown,
+  AlertTriangle
 } from 'lucide-react';
 import { groupBillsByWeek } from '../utils/dateUtils';
 import { useSessionState } from '../hooks/useSessionState';
@@ -27,6 +29,7 @@ interface DashboardProps {
   onSelectBill: (bill: Bill) => void;
   onShareBill: (bill: Bill) => void;
   onDeleteBill: (billId: string) => void;
+  onPurgeSpamByAuthor?: (authorName: string) => void;
   onNewBill: () => void;
 }
 
@@ -36,6 +39,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
   onSelectBill,
   onShareBill,
   onDeleteBill,
+  onPurgeSpamByAuthor,
   onNewBill
 }) => {
   const [activeTab, setActiveTab] = useSessionState<'all' | 'my' | 'active' | 'approved'>('dashboard_tab', 'all');
@@ -55,6 +59,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
   };
 
   const currentFullName = `${user.firstName} ${user.lastName}`.trim();
+  const isAdmin = isSystemAdmin(user);
 
   // Filter out private drafts of other users first
   const visibleBills = useMemo(() => {
@@ -741,6 +746,48 @@ export const Dashboard: React.FC<DashboardProps> = ({
                                         {bill.targetLaw}
                                       </span>
                                     )}
+
+                                    {bill.isMultiLaw && (
+                                      <span
+                                        style={{
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          gap: 4,
+                                          padding: '1px 6px',
+                                          fontSize: 10.5,
+                                          fontWeight: 800,
+                                          background: 'rgba(59, 130, 246, 0.15)',
+                                          color: '#60a5fa',
+                                          border: '1px solid rgba(59, 130, 246, 0.4)',
+                                          borderRadius: 2,
+                                          letterSpacing: '0.03em',
+                                        }}
+                                      >
+                                        <Layers size={10} />
+                                        ПАКЕТ ЗАКОНОВ
+                                      </span>
+                                    )}
+
+                                    {isSuspectedSpamBill(bill) && (
+                                      <span
+                                        style={{
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          gap: 4,
+                                          padding: '1px 6px',
+                                          fontSize: 10,
+                                          fontWeight: 800,
+                                          background: 'rgba(239, 68, 68, 0.15)',
+                                          color: '#ef4444',
+                                          border: '1px solid rgba(239, 68, 68, 0.4)',
+                                          borderRadius: 2,
+                                        }}
+                                        title="Законопроект содержит стандартные шаблонные заголовки и пустые поправки"
+                                      >
+                                        <AlertTriangle size={10} color="#ef4444" />
+                                        ШАБЛОН / СПАМ
+                                      </span>
+                                    )}
                                   </div>
 
                                   {/* Bill Title */}
@@ -902,6 +949,34 @@ export const Dashboard: React.FC<DashboardProps> = ({
                                       }}
                                     >
                                       <Trash2 size={13} />
+                                    </button>
+                                  )}
+
+                                  {isAdmin && onPurgeSpamByAuthor && isSuspectedSpamBill(bill) && bill.author && (
+                                    <button
+                                      onClick={() => {
+                                        if (window.confirm(`ВНИМАНИЕ: Удалить ВСЕ спам-законопроекты автора «${bill.author}»?`)) {
+                                          onPurgeSpamByAuthor(bill.author);
+                                        }
+                                      }}
+                                      data-tooltip={`Очистить спам: удалить все акты автора «${bill.author}»`}
+                                      style={{
+                                        height: 30,
+                                        padding: '0 8px',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: 4,
+                                        background: 'rgba(239, 68, 68, 0.14)',
+                                        border: '1px solid rgba(239, 68, 68, 0.4)',
+                                        borderRadius: 2,
+                                        color: '#ef4444',
+                                        fontSize: 11,
+                                        fontWeight: 700,
+                                        cursor: 'pointer',
+                                      }}
+                                    >
+                                      <Trash2 size={12} />
+                                      <span>Спам автора</span>
                                     </button>
                                   )}
 

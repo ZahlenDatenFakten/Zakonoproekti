@@ -17,6 +17,7 @@ import {
   initFirebaseConfigFromServer 
 } from './services/firebaseClient';
 import { isSystemAdmin } from './services/securityService';
+import { checkAuthorQuota, isSuspectedSpamBill } from './services/antiSpamService';
 import { Sidebar } from './components/Sidebar';
 import { Dashboard } from './components/Dashboard';
 import { BillEditor } from './components/BillEditor';
@@ -28,6 +29,7 @@ import { ConfirmModal } from './components/ConfirmModal';
 import { ToastContainer } from './components/Toast';
 import { IdentityModal } from './components/IdentityModal';
 import { ScrollControls } from './components/ScrollControls';
+import { LawStudioModal } from './components/laws/LawStudioModal';
 import type { ToastMessage } from './components/Toast';
 
 export const App: React.FC = () => {
@@ -53,6 +55,7 @@ export const App: React.FC = () => {
   const [showShareModal, setShowShareModal] = useState(false);
   const [showDbModal, setShowDbModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [showLawStudio, setShowLawStudio] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   // In-App Toast Notifications
@@ -227,6 +230,36 @@ export const App: React.FC = () => {
   // Create new bill
   const handleCreateNewBill = async () => {
     const authorFullName = `${user.firstName} ${user.lastName}`.trim();
+    const isOfficial = isAdmin || user.officialRole !== 'civilian';
+
+    // 1. Anti-spam Quota Check for non-official citizens
+    const quota = checkAuthorQuota(authorFullName, bills, isOfficial);
+    if (!quota.allowed) {
+      addToast('error', quota.message || 'Превышен лимит активных законопроектов');
+      return;
+    }
+
+    // 2. Anti-spam Draft Reuse: if author already has an empty/unmodified draft, open it
+    const existingBlankDraft = bills.find((b) => {
+      const isMine = b.author && b.author.trim().toLowerCase() === authorFullName.toLowerCase();
+      return isMine && b.status === 'draft' && isSuspectedSpamBill(b);
+    });
+
+    if (existingBlankDraft) {
+      addToast('info', 'Открыт ваш незавершенный черновик. Заполните его перед созданием нового.');
+      setReturnView('dashboard');
+      localStorage.setItem('legaldraft_return_view', 'dashboard');
+      setSelectedBill(existingBlankDraft);
+      setCurrentPermission('edit');
+      setCurrentView('editor');
+      localStorage.setItem('legaldraft_active_bill_id', existingBlankDraft.id);
+      localStorage.setItem('legaldraft_current_view', 'editor');
+      try {
+        window.history.pushState({ view: 'editor', billId: existingBlankDraft.id, returnView: 'dashboard' }, '', `?billId=${existingBlankDraft.id}`);
+      } catch (e) {}
+      return;
+    }
+
     const newBill: Bill = {
       id: 'bill_' + Date.now(),
       title: 'О внесении изменений в Законы Штата',
@@ -239,6 +272,7 @@ export const App: React.FC = () => {
         {
           id: 'comp_1',
           articleTitle: 'Статья 1. Общие положения',
+          targetLaw: 'Уголовный кодекс Штата (УК)',
           wasContent: 'Действующая редакция статьи...',
           becameContent: 'Проектируемая редакция статьи со всеми изменениями...',
           notes: ''
@@ -331,6 +365,23 @@ export const App: React.FC = () => {
     await loadData();
   };
 
+  const handlePurgeSpamByAuthor = async (authorName: string) => {
+    if (!isAdmin) return;
+    const authorBills = bills.filter(
+      (b) => b.author && b.author.trim().toLowerCase() === authorName.trim().toLowerCase()
+    );
+    if (authorBills.length === 0) return;
+
+    setBills((prev) =>
+      prev.filter((b) => !b.author || b.author.trim().toLowerCase() !== authorName.trim().toLowerCase())
+    );
+    for (const b of authorBills) {
+      await deleteBill(b.id);
+    }
+    addToast('success', `Успешно удалено ${authorBills.length} актов спам-автора «${authorName}»`);
+    await loadData();
+  };
+
   return (
     <DialogProvider>
       <div
@@ -350,6 +401,7 @@ export const App: React.FC = () => {
         onNavigate={handleNavigateView}
         onOpenNewBill={handleCreateNewBill}
         onOpenSettings={() => setShowSettingsModal(true)}
+        onOpenLawStudio={() => setShowLawStudio(true)}
       />
 
       {/* Main Content Area */}
@@ -372,6 +424,7 @@ export const App: React.FC = () => {
               onSelectBill={handleOpenBill}
               onNewBill={handleCreateNewBill}
               onDeleteBill={(id) => setConfirmDeleteId(id)}
+              onPurgeSpamByAuthor={handlePurgeSpamByAuthor}
               onShareBill={(b) => {
                 setSelectedBill(b);
                 setShowShareModal(true);
@@ -385,6 +438,7 @@ export const App: React.FC = () => {
               user={user}
               permission={currentPermission}
               returnView={returnView}
+              existingBills={bills}
               onSave={handleSaveBill}
               onDelete={(id) => setConfirmDeleteId(id)}
               onBack={handleBackFromEditor}
@@ -458,6 +512,14 @@ export const App: React.FC = () => {
           confirmLabel="Отозвать и удалить"
           onConfirm={() => handleDeleteBill(confirmDeleteId)}
           onCancel={() => setConfirmDeleteId(null)}
+        />
+      )}
+
+      {showLawStudio && (
+        <LawStudioModal
+          isOpen={true}
+          onClose={() => setShowLawStudio(false)}
+          onToast={addToast}
         />
       )}
       </div>

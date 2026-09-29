@@ -35,6 +35,7 @@ export interface ComparisonRow {
   wasContent: string;
   becameContent: string;
   notes?: string;
+  targetLaw?: string; // Specific law for this amendment in multi-law bills
 }
 
 export interface BillComment {
@@ -77,6 +78,8 @@ export interface Bill {
   title: string;
   targetLaw: string;
   lawCode?: string;
+  isMultiLaw?: boolean; // Комплексный законопроект по нескольким законам
+  targetLaws?: string[]; // Список затрагиваемых законов
   author: string;
   authorRole: string;
   status: BillStatus;
