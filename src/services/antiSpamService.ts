@@ -54,7 +54,7 @@ export function validateBillForPublishing(bill: Bill): AntiSpamValidationResult 
     return {
       isValid: false,
       field: 'title',
-      error: 'Пожалуйста, измените стандартное шаблонное название законопроекта («' + trimmedTitle + '») на осмысленное наименование вашей инициативы.'
+      error: 'Пожалуйста, укажите суть инициативы в поле «Наименование законопроекта» (например: О внесении изменений в ' + (bill.targetLaw || 'закон') + ').'
     };
   }
 

@@ -602,13 +602,14 @@ export const BillEditor: React.FC<BillEditorProps> = ({
               fontWeight: 800,
               color: R.text,
               margin: 0,
+              maxWidth: 320,
               whiteSpace: 'nowrap',
               overflow: 'hidden',
               textOverflow: 'ellipsis',
-              maxWidth: 320,
             }}
+            title={bill.title || bill.targetLaw || 'Новый законопроект'}
           >
-            {bill.targetLaw || 'Новый законопроект'}
+            {bill.title || bill.targetLaw || 'Новый законопроект'}
           </h2>
 
           {/* Multi-law badge if comparisons touch > 1 law */}
@@ -1117,6 +1118,41 @@ export const BillEditor: React.FC<BillEditorProps> = ({
               gap: 14,
             }}
           >
+            {/* Bill Title / Initiative Name */}
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                <label style={{ ...label, margin: 0 }}>Наименование законопроекта</label>
+                <span style={{ fontSize: 11, color: R.textMuted }}>Официальный заголовок инициативы</span>
+              </div>
+              <input
+                type="text"
+                id="input-bill-title"
+                value={bill.title || ''}
+                onChange={(e) => handleFieldChange('title', e.target.value)}
+                disabled={!canEdit || isReadOnly}
+                placeholder="Например: О внесении изменений в Закон о взаимодействии государственных структур..."
+                style={{
+                  width: '100%',
+                  height: 38,
+                  padding: '0 12px',
+                  fontSize: 13.5,
+                  fontWeight: 600,
+                  background: R.bgInput,
+                  border: ft.edge,
+                  color: R.text,
+                  borderRadius: 2,
+                  outline: 'none',
+                  transition: 'border-color 0.2s ease',
+                }}
+                onFocus={(e) => {
+                  e.currentTarget.style.borderColor = R.accent;
+                }}
+                onBlur={(e) => {
+                  e.currentTarget.style.borderColor = '';
+                }}
+              />
+            </div>
+
             <div>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
                 <label style={{ ...label, margin: 0 }}>Целевой нормативно-правовой акт</label>
@@ -1127,6 +1163,9 @@ export const BillEditor: React.FC<BillEditorProps> = ({
                 onChange={(lawTitle, lawCode) => {
                   handleFieldChange('targetLaw', lawTitle);
                   if (lawCode) handleFieldChange('lawCode', lawCode);
+                  if (!bill.title || bill.title === 'О внесении изменений в Законы Штата' || bill.title === 'Новый законопроект') {
+                    handleFieldChange('title', `О внесении изменений в ${lawTitle}`);
+                  }
                   onToast('info', `Выбран закон: ${lawTitle}`);
                 }}
                 disabled={!canEdit || isReadOnly}
