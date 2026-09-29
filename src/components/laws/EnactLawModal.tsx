@@ -1,7 +1,13 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import type { Bill } from '../../types/bill';
 import type { StateLawDocument, LawPatchResult } from '../../types/lawAst';
-import { getActiveLaw, patchLawWithBill, findLawByTitleOrCode, getLawPartBBCode } from '../../services/lawStorageService';
+import { 
+  getActiveLaw, 
+  patchLawWithBill, 
+  findLawByTitleOrCode, 
+  getLawPartBBCode,
+  extractArticleNumber 
+} from '../../services/lawStorageService';
 import { copyToClipboard } from '../../lib/clipboard';
 import { ForumLivePreview } from './ForumLivePreview';
 import { 
@@ -47,6 +53,31 @@ export const EnactLawModal: React.FC<EnactLawModalProps> = ({
     return findLawByTitleOrCode(bill.targetLaw) || getActiveLaw('road_code');
   }, [bill.targetLaw]);
 
+  // Compute all distinct laws referenced in this bill (for multi-law packages)
+  const distinctBillLaws = useMemo(() => {
+    const map = new Map<string, StateLawDocument>();
+    const defaultLaw = findLawByTitleOrCode(bill.targetLaw) || getActiveLaw('road_code');
+    if (defaultLaw) map.set(defaultLaw.id, defaultLaw);
+
+    if (bill.targetLaws && bill.targetLaws.length > 0) {
+      for (const t of bill.targetLaws) {
+        const found = findLawByTitleOrCode(t) || getActiveLaw(t);
+        if (found) map.set(found.id, found);
+      }
+    }
+
+    if (bill.comparisons && bill.comparisons.length > 0) {
+      for (const comp of bill.comparisons) {
+        const target = comp.targetLaw || bill.targetLaw;
+        if (target) {
+          const found = findLawByTitleOrCode(target) || getActiveLaw(target);
+          if (found) map.set(found.id, found);
+        }
+      }
+    }
+    return Array.from(map.values());
+  }, [bill]);
+
   const [currentLaw, setCurrentLaw] = useState<StateLawDocument>(initialTargetLaw);
   const [patchResult, setPatchResult] = useState<LawPatchResult | null>(null);
   const [copiedArticle, setCopiedArticle] = useState<string | null>(null);
@@ -68,6 +99,15 @@ export const EnactLawModal: React.FC<EnactLawModalProps> = ({
     }
   }, [isOpen, initialTargetLaw, bill.id]);
 
+  // Current active sub-result for multi-law or single-law
+  const activeSubResult = useMemo(() => {
+    if (!patchResult) return null;
+    if (patchResult.multiLawResults && patchResult.multiLawResults[activeLawId]) {
+      return patchResult.multiLawResults[activeLawId];
+    }
+    return patchResult;
+  }, [patchResult, activeLawId]);
+
   // Handle clicking "Внести"
   const handleExecuteEnact = () => {
     if (!isAdmin) {
@@ -77,10 +117,14 @@ export const EnactLawModal: React.FC<EnactLawModalProps> = ({
     try {
       const result = patchLawWithBill(bill, initialTargetLaw.id);
       setPatchResult(result);
-      setCurrentLaw(result.updatedLaw);
-      setActiveLawId(result.updatedLaw.id);
 
-      if (result.affectedArticleNumbers.length > 0) {
+      // Set current law to the active sub-result or primary
+      const activeRes = result.multiLawResults?.[activeLawId] || result;
+      setCurrentLaw(activeRes.updatedLaw);
+
+      if (activeRes.affectedArticleNumbers.length > 0) {
+        setSelectedArticleNum(activeRes.affectedArticleNumbers[0]);
+      } else if (result.affectedArticleNumbers.length > 0) {
         setSelectedArticleNum(result.affectedArticleNumbers[0]);
       }
 
@@ -97,44 +141,64 @@ export const EnactLawModal: React.FC<EnactLawModalProps> = ({
       };
 
       onEnacted(updatedBill, result.updatedLaw);
-      onToast('success', `Поправки внесены! База законов успешно синхронизирована.`);
+      onToast('success', `Поправки успешно внесены во все затронутые законы!`);
     } catch (err: any) {
       console.error('Enact error:', err);
       onToast('error', 'Ошибка при обновлении закона: ' + (err.message || 'Неизвестная ошибка'));
     }
   };
 
-  // Switch active law when examining multi-law result
+  // Switch active law when examining multi-law result or previewing tabs
   const handleSelectLawTab = (lawId: string) => {
-    if (!patchResult?.multiLawResults?.[lawId]) return;
-    const targetSubResult = patchResult.multiLawResults[lawId];
     setActiveLawId(lawId);
-    setCurrentLaw(targetSubResult.updatedLaw);
-    if (targetSubResult.affectedArticleNumbers.length > 0) {
-      setSelectedArticleNum(targetSubResult.affectedArticleNumbers[0]);
+    if (patchResult?.multiLawResults?.[lawId]) {
+      const targetSubResult = patchResult.multiLawResults[lawId];
+      setCurrentLaw(targetSubResult.updatedLaw);
+      if (targetSubResult.affectedArticleNumbers.length > 0) {
+        setSelectedArticleNum(targetSubResult.affectedArticleNumbers[0]);
+      }
+    } else {
+      const found = getActiveLaw(lawId) || findLawByTitleOrCode(lawId);
+      if (found) {
+        setCurrentLaw(found);
+      }
     }
   };
 
-  const handleCopyArticle = async (artNum: string) => {
-    const code = patchResult?.articleBBCodes[artNum];
-    if (!code) return;
+  const handleCopyArticle = async (artNumOrTitle: string, targetLawId?: string) => {
+    const lawId = targetLawId || activeLawId;
+    const subRes = patchResult?.multiLawResults?.[lawId] || activeSubResult || patchResult;
+    const cleanNum = extractArticleNumber(artNumOrTitle);
+
+    const code = 
+      subRes?.articleBBCodes[artNumOrTitle] ||
+      subRes?.articleBBCodes[cleanNum] ||
+      patchResult?.articleBBCodes[artNumOrTitle] ||
+      patchResult?.articleBBCodes[cleanNum];
+
+    if (!code) {
+      onToast('error', `BB-код для «${artNumOrTitle}» пока не сформирован.`);
+      return;
+    }
+
     const ok = await copyToClipboard(code);
     if (ok) {
-      setCopiedArticle(artNum);
-      onToast('success', `BB-код статьи ${artNum} скопирован в буфер!`);
+      setCopiedArticle(artNumOrTitle);
+      const lawName = subRes?.updatedLaw.shortTitle || subRes?.updatedLaw.code || 'закона';
+      onToast('success', `BB-код статьи скопирован для темы «${lawName}»!`);
       setTimeout(() => setCopiedArticle(null), 2500);
     } else {
-      onToast('error', 'Не удалось скопировать.');
+      onToast('error', 'Не удалось скопировать в буфер.');
     }
   };
 
   const handleCopyPart = async (partIndex: number) => {
-    const code = patchResult?.partBBCodes?.[partIndex] || getLawPartBBCode(currentLaw.id, partIndex);
+    const code = activeSubResult?.partBBCodes?.[partIndex] || getLawPartBBCode(currentLaw.id, partIndex);
     if (!code) return;
     const ok = await copyToClipboard(code);
     if (ok) {
       setCopiedPart(partIndex);
-      onToast('success', `BB-код Части ${partIndex} скопирован в буфер!`);
+      onToast('success', `BB-код Части ${partIndex} для «${currentLaw.shortTitle || currentLaw.title}» скопирован!`);
       setTimeout(() => setCopiedPart(null), 2500);
     } else {
       onToast('error', 'Не удалось скопировать.');
@@ -142,12 +206,12 @@ export const EnactLawModal: React.FC<EnactLawModalProps> = ({
   };
 
   const handleCopyFullLaw = async () => {
-    const code = patchResult ? patchResult.fullLawBBCode : currentLaw.activeBBCode || '';
+    const code = activeSubResult ? activeSubResult.fullLawBBCode : currentLaw.activeBBCode || '';
     if (!code) return;
     const ok = await copyToClipboard(code);
     if (ok) {
       setCopiedFull(true);
-      onToast('success', `Полный BB-код «${currentLaw.title}» скопирован в буфер!`);
+      onToast('success', `Полный BB-код «${currentLaw.shortTitle || currentLaw.title}» скопирован в буфер!`);
       setTimeout(() => setCopiedFull(false), 2500);
     } else {
       onToast('error', 'Не удалось скопировать.');
@@ -215,7 +279,7 @@ export const EnactLawModal: React.FC<EnactLawModalProps> = ({
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <h3 style={{ fontSize: 16, fontWeight: 700, color: R.text, margin: 0 }}>
-                  Внесение в закон: {currentLaw.title}
+                  {distinctBillLaws.length > 1 ? `Пакет законов: ${currentLaw.title}` : `Внесение в закон: ${currentLaw.title}`}
                 </h3>
                 <span
                   style={{
@@ -229,7 +293,7 @@ export const EnactLawModal: React.FC<EnactLawModalProps> = ({
                     border: ft.edge,
                   }}
                 >
-                  {patchResult ? `РЕДАКЦИЯ v${patchResult.updatedLaw.version}` : `ТЕКУЩАЯ v${currentLaw.version}`}
+                  {patchResult ? `РЕДАКЦИЯ v${currentLaw.version}` : `ТЕКУЩАЯ v${currentLaw.version}`}
                 </span>
               </div>
               <p style={{ fontSize: 12, color: R.textMuted, margin: '2px 0 0 0' }}>
@@ -259,7 +323,7 @@ export const EnactLawModal: React.FC<EnactLawModalProps> = ({
           {/* Left Column: Diff & Enactment Action */}
           <div
             style={{
-              width: '45%',
+              width: '46%',
               borderRight: ft.edge,
               display: 'flex',
               flexDirection: 'column',
@@ -286,8 +350,9 @@ export const EnactLawModal: React.FC<EnactLawModalProps> = ({
                   </span>
                 </div>
                 <p style={{ fontSize: 12, color: R.textMuted, margin: 0, lineHeight: 1.5 }}>
-                  Нажмите кнопку ниже, чтобы автоматически обновить статьи в памяти фронтенда. BB-код закона
-                  сформируется моментально, и все последующие законопроекты будут опираться на эту новую редакцию.
+                  {distinctBillLaws.length > 1
+                    ? `Законопроект затрагивает ${distinctBillLaws.length} законодательных актов. Для каждого закона и каждой поправки сформируется собственный обособленный BB-код для форума.`
+                    : 'Нажмите кнопку ниже, чтобы автоматически обновить статьи в памяти реестра. BB-код закона сформируется моментально.'}
                 </p>
               </div>
             ) : (
@@ -306,42 +371,57 @@ export const EnactLawModal: React.FC<EnactLawModalProps> = ({
                   </span>
                 </div>
                 <p style={{ fontSize: 12, color: R.textMuted, margin: 0, lineHeight: 1.5 }}>
-                  Кодекс v{patchResult.updatedLaw.version} сохранён во фронтенде. Теперь скопируйте готовый BB-код для вставки на форум GTA5RP.
+                  {distinctBillLaws.length > 1
+                    ? `Обновлено законов: ${Object.keys(patchResult.multiLawResults || {}).length || distinctBillLaws.length}. Переключайтесь между законами ниже, чтобы копировать BB-коды для соответствующих тем форума.`
+                    : `Кодекс v${currentLaw.version} сохранён. Скопируйте готовый BB-код для темы форума GTA5RP.`}
                 </p>
               </div>
             )}
 
-            {/* Multi-law Law Tabs if bill touched multiple laws */}
-            {patchResult?.multiLawResults && Object.keys(patchResult.multiLawResults).length > 1 && (
+            {/* Multi-law Law Tabs (visible whenever multiple laws are involved) */}
+            {distinctBillLaws.length > 1 && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <span style={{ fontSize: 10.5, fontFamily: mono, color: R.textMuted, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                  Затронутые нормативно-правовые акты:
-                </span>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span style={{ fontSize: 10.5, fontFamily: mono, color: R.textMuted, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                    Законы в пакете ({distinctBillLaws.length}):
+                  </span>
+                  <span style={{ fontSize: 10.5, color: R.accent, fontFamily: mono }}>
+                    {patchResult ? 'Каждый закон имеет свой BB-код' : 'Выберите закон для предпросмотра'}
+                  </span>
+                </div>
                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                  {Object.entries(patchResult.multiLawResults).map(([lawKey, subRes]) => {
-                    const isSelected = activeLawId === lawKey;
+                  {distinctBillLaws.map((lawItem) => {
+                    const isSelected = activeLawId === lawItem.id;
+                    const subRes = patchResult?.multiLawResults?.[lawItem.id];
+                    const ver = subRes ? subRes.updatedLaw.version : lawItem.version;
                     return (
                       <button
-                        key={lawKey}
+                        key={lawItem.id}
                         type="button"
-                        onClick={() => handleSelectLawTab(lawKey)}
+                        onClick={() => handleSelectLawTab(lawItem.id)}
                         style={{
-                          padding: '5px 10px',
-                          fontSize: 11,
+                          padding: '6px 12px',
+                          fontSize: 11.5,
                           fontWeight: 700,
                           background: isSelected ? R.accentSubtle : R.bgPanel,
                           color: isSelected ? R.accent : R.textMuted,
                           border: isSelected ? `1px solid ${R.accent}` : ft.hair,
-                          borderRadius: 3,
+                          borderRadius: 4,
                           cursor: 'pointer',
                           display: 'inline-flex',
                           alignItems: 'center',
-                          gap: 5,
+                          gap: 6,
+                          transition: 'all 0.15s ease',
                         }}
                       >
-                        <Layers size={12} color={isSelected ? R.accent : R.textMuted} />
-                        <span>{subRes.updatedLaw.code ? `[${subRes.updatedLaw.code}] ` : ''}{subRes.updatedLaw.shortTitle || subRes.updatedLaw.title}</span>
-                        <span style={{ fontSize: 10, opacity: 0.75, fontFamily: mono }}>v{subRes.updatedLaw.version}</span>
+                        <Layers size={13} color={isSelected ? R.accent : R.textMuted} />
+                        <span>{lawItem.code ? `[${lawItem.code}] ` : ''}{lawItem.shortTitle || lawItem.title}</span>
+                        <span style={{ fontSize: 10, opacity: 0.8, fontFamily: mono, padding: '1px 4px', background: 'rgba(255,255,255,0.06)', borderRadius: 2 }}>
+                          v{ver}
+                        </span>
+                        {subRes && (
+                          <span style={{ fontSize: 10, color: '#10b981', fontWeight: 800 }}>✓</span>
+                        )}
                       </button>
                     );
                   })}
@@ -351,11 +431,18 @@ export const EnactLawModal: React.FC<EnactLawModalProps> = ({
 
             {/* List of Affected Articles / Amendments */}
             <div>
-              <span style={{ fontSize: 11, fontWeight: 700, color: R.textMuted, textTransform: 'uppercase', fontFamily: mono, letterSpacing: '0.06em' }}>
-                Поправки к внесению:
-              </span>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: R.textMuted, textTransform: 'uppercase', fontFamily: mono, letterSpacing: '0.06em' }}>
+                  Поправки пакета ({bill.comparisons?.length || 0}):
+                </span>
+                {patchResult && (
+                  <span style={{ fontSize: 10, color: R.textMuted, fontFamily: mono }}>
+                    Нажмите «BB-код» у нужной поправки
+                  </span>
+                )}
+              </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 8 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {bill.isTotalReform ? (
                   <div style={{ padding: 12, background: R.bgPanel, border: ft.strong, borderRadius: 4 }}>
                     <div style={{ fontWeight: 700, fontSize: 13, color: R.accent, marginBottom: 6 }}>
@@ -366,44 +453,97 @@ export const EnactLawModal: React.FC<EnactLawModalProps> = ({
                     </div>
                   </div>
                 ) : (
-                  bill.comparisons.map((comp, idx) => (
-                    <div
-                      key={comp.id || idx}
-                      onClick={() => patchResult && setSelectedArticleNum(comp.articleTitle)}
-                      style={{
-                        padding: 12,
-                        background: R.bgPanel,
-                        border: selectedArticleNum === comp.articleTitle ? `1px solid ${R.accent}` : ft.strong,
-                        borderRadius: 4,
-                        cursor: patchResult ? 'pointer' : 'default',
-                      }}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-                        <span style={{ fontWeight: 700, fontSize: 13, color: R.accent }}>
-                          {comp.articleTitle || `Статья ${idx + 1}`}
-                        </span>
-                        {patchResult && (
-                          <span style={{ fontSize: 10, color: '#10b981', fontFamily: mono, fontWeight: 700 }}>
-                            ✓ ОБНОВЛЕНО
-                          </span>
-                        )}
-                      </div>
+                  bill.comparisons.map((comp, idx) => {
+                    const compLaw = findLawByTitleOrCode(comp.targetLaw || bill.targetLaw) || initialTargetLaw;
+                    const isThisLawActive = activeLawId === compLaw.id;
+                    const artNum = extractArticleNumber(comp.articleTitle) || comp.articleTitle;
+                    const isSelected = isThisLawActive && (selectedArticleNum === comp.articleTitle || selectedArticleNum === artNum);
+                    const isCopied = copiedArticle === comp.articleTitle || copiedArticle === artNum;
 
-                      {/* Was -> Became */}
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12 }}>
-                        {comp.wasContent && (
-                          <div style={{ color: '#f87171', background: 'rgba(239, 68, 68, 0.08)', padding: 6, borderRadius: 2 }}>
-                            <span style={{ fontWeight: 700, fontSize: 10, textTransform: 'uppercase' }}>Было: </span>
-                            {comp.wasContent}
+                    return (
+                      <div
+                        key={comp.id || idx}
+                        onClick={() => {
+                          handleSelectLawTab(compLaw.id);
+                          setSelectedArticleNum(comp.articleTitle);
+                        }}
+                        style={{
+                          padding: 12,
+                          background: R.bgPanel,
+                          border: isSelected ? `1px solid ${R.accent}` : ft.strong,
+                          borderRadius: 4,
+                          cursor: 'pointer',
+                          transition: 'border-color 0.2s, background 0.2s',
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6, gap: 8 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                            {/* Law Badge */}
+                            <span
+                              style={{
+                                fontSize: 10,
+                                fontFamily: mono,
+                                fontWeight: 700,
+                                padding: '2px 6px',
+                                borderRadius: 2,
+                                background: isThisLawActive ? R.accentSubtle : 'rgba(255, 255, 255, 0.05)',
+                                color: isThisLawActive ? R.accent : R.textMuted,
+                                border: ft.hair,
+                              }}
+                            >
+                              {compLaw.code ? `[${compLaw.code}]` : compLaw.shortTitle}
+                            </span>
+                            <span style={{ fontWeight: 700, fontSize: 13, color: isSelected ? R.accent : R.text }}>
+                              {comp.articleTitle || `Статья ${idx + 1}`}
+                            </span>
                           </div>
-                        )}
-                        <div style={{ color: '#34d399', background: 'rgba(16, 185, 129, 0.08)', padding: 6, borderRadius: 2 }}>
-                          <span style={{ fontWeight: 700, fontSize: 10, textTransform: 'uppercase' }}>Стало: </span>
-                          {comp.becameContent}
+
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            {patchResult && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleSelectLawTab(compLaw.id);
+                                  handleCopyArticle(comp.articleTitle, compLaw.id);
+                                }}
+                                title={`Скопировать BB-код по закону «${compLaw.shortTitle || compLaw.title}»`}
+                                style={{
+                                  ...btnOutline,
+                                  padding: '3px 8px',
+                                  height: 24,
+                                  fontSize: 10.5,
+                                  fontWeight: 700,
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: 4,
+                                  borderColor: isCopied ? '#10b981' : undefined,
+                                  color: isCopied ? '#10b981' : R.accent,
+                                }}
+                              >
+                                {isCopied ? <Check size={12} /> : <Copy size={12} />}
+                                <span>{isCopied ? 'Скопировано!' : 'BB-код'}</span>
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Was -> Became */}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12 }}>
+                          {comp.wasContent && (
+                            <div style={{ color: '#f87171', background: 'rgba(239, 68, 68, 0.08)', padding: 6, borderRadius: 2 }}>
+                              <span style={{ fontWeight: 700, fontSize: 10, textTransform: 'uppercase' }}>Было: </span>
+                              {comp.wasContent}
+                            </div>
+                          )}
+                          <div style={{ color: '#34d399', background: 'rgba(16, 185, 129, 0.08)', padding: 6, borderRadius: 2 }}>
+                            <span style={{ fontWeight: 700, fontSize: 10, textTransform: 'uppercase' }}>Стало: </span>
+                            {comp.becameContent}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))
+                    );
+                  })
                 )}
               </div>
             </div>
@@ -427,15 +567,15 @@ export const EnactLawModal: React.FC<EnactLawModalProps> = ({
                   }}
                 >
                   <Zap size={17} />
-                  <span>Внести поправки и перегенерировать BB-код</span>
+                  <span>Внести поправки и сформировать BB-коды</span>
                 </button>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {/* Copy Article Button */}
-                  {selectedArticleNum && patchResult.articleBBCodes[selectedArticleNum] && (
+                  {selectedArticleNum && (
                     <button
                       type="button"
-                      onClick={() => handleCopyArticle(selectedArticleNum)}
+                      onClick={() => handleCopyArticle(selectedArticleNum, activeLawId)}
                       style={{
                         ...btnAccent,
                         width: '100%',
@@ -452,8 +592,8 @@ export const EnactLawModal: React.FC<EnactLawModalProps> = ({
                       {copiedArticle === selectedArticleNum ? <Check size={16} /> : <Copy size={15} />}
                       <span>
                         {copiedArticle === selectedArticleNum
-                          ? 'Скопировано!'
-                          : `Скопировать BB-код (${selectedArticleNum})`}
+                          ? 'Скопировано в буфер!'
+                          : `Скопировать BB-код статьи (${selectedArticleNum})`}
                       </span>
                     </button>
                   )}
@@ -462,7 +602,7 @@ export const EnactLawModal: React.FC<EnactLawModalProps> = ({
                   {currentLaw.partsMeta && currentLaw.partsMeta.length > 1 && (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                       <span style={{ fontSize: 10, fontFamily: mono, color: R.textMuted, textTransform: 'uppercase' }}>
-                        Копирование частей для тем форума:
+                        Копирование частей для тем форума ({currentLaw.shortTitle || currentLaw.title}):
                       </span>
                       <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.min(currentLaw.partsMeta.length, 2)}, 1fr)`, gap: 6 }}>
                         {currentLaw.partsMeta.map((p) => (
@@ -518,19 +658,22 @@ export const EnactLawModal: React.FC<EnactLawModalProps> = ({
 
 
           {/* Right Column: Forum Live Preview */}
-          <div style={{ width: '55%', display: 'flex', flexDirection: 'column', background: '#121214' }}>
+          <div style={{ width: '54%', display: 'flex', flexDirection: 'column', background: '#121214' }}>
             <ForumLivePreview
-              law={patchResult ? patchResult.updatedLaw : currentLaw}
+              law={currentLaw}
               rawBBCode={
-                patchResult && selectedArticleNum && patchResult.articleBBCodes[selectedArticleNum]
-                  ? patchResult.articleBBCodes[selectedArticleNum]
+                patchResult && selectedArticleNum
+                  ? (activeSubResult?.articleBBCodes[selectedArticleNum] ||
+                     activeSubResult?.articleBBCodes[extractArticleNumber(selectedArticleNum)] ||
+                     patchResult.articleBBCodes[selectedArticleNum] ||
+                     patchResult.articleBBCodes[extractArticleNumber(selectedArticleNum)])
                   : undefined
               }
               onToast={onToast}
               title={
                 patchResult && selectedArticleNum
-                  ? `Предпросмотр: ${selectedArticleNum}`
-                  : `Предпросмотр Кодекса (v${patchResult ? patchResult.updatedLaw.version : currentLaw.version})`
+                  ? `Предпросмотр: [${currentLaw.code || currentLaw.shortTitle}] ${selectedArticleNum}`
+                  : `Предпросмотр: ${currentLaw.title} (v${currentLaw.version})`
               }
             />
           </div>

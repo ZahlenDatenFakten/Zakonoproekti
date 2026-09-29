@@ -596,11 +596,27 @@ export function patchLawWithBill(bill: Bill, targetLawId?: string): LawPatchResu
   // Multi-law bill: patch each law independently and combine results
   const multiLawResults: Record<string, LawPatchResult> = {};
   const allAffectedArticles: string[] = [];
+  const mergedArticleBBCodes: Record<string, string> = {};
   let primaryResult: LawPatchResult | null = null;
 
   for (const [lawId, comps] of lawGroups.entries()) {
     const res = patchSingleLaw(lawId, comps, bill, false, undefined);
     multiLawResults[lawId] = res;
+
+    // Merge article BB-codes from each law with multiple lookup keys
+    for (const [artNum, code] of Object.entries(res.articleBBCodes)) {
+      mergedArticleBBCodes[artNum] = code;
+      const lawPrefix = res.updatedLaw.code || res.updatedLaw.shortTitle || res.updatedLaw.title;
+      mergedArticleBBCodes[`[${lawPrefix}] ${artNum}`] = code;
+    }
+
+    for (const comp of comps) {
+      const artNum = extractArticleNumber(comp.articleTitle);
+      if (res.articleBBCodes[artNum]) {
+        mergedArticleBBCodes[comp.articleTitle] = res.articleBBCodes[artNum];
+      }
+    }
+
     allAffectedArticles.push(...res.affectedArticleNumbers.map((art) => `[${res.updatedLaw.code || res.updatedLaw.title}] ${art}`));
     if (!primaryResult) {
       primaryResult = res;
@@ -613,6 +629,7 @@ export function patchLawWithBill(bill: Bill, targetLawId?: string): LawPatchResu
 
   return {
     ...primaryResult,
+    articleBBCodes: mergedArticleBBCodes,
     affectedArticleNumbers: allAffectedArticles,
     multiLawResults
   };
