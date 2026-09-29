@@ -14,6 +14,8 @@ import {
   Sparkles
 } from 'lucide-react';
 import { R, ft, mono, btnAccent, btnOutline, shadow } from '../../lib/ui';
+import { isSystemAdmin } from '../../services/securityService';
+import { getUserProfile } from '../../services/storageService';
 
 interface EnactLawModalProps {
   bill: Bill;
@@ -30,6 +32,16 @@ export const EnactLawModal: React.FC<EnactLawModalProps> = ({
   onEnacted,
   onToast,
 }) => {
+  const activeUser = getUserProfile();
+  const isAdmin = isSystemAdmin(activeUser);
+
+  useEffect(() => {
+    if (isOpen && !isAdmin) {
+      onToast('error', 'Внесение изменений в законы разрешено исключительно администратору.');
+      onClose();
+    }
+  }, [isOpen, isAdmin, onClose, onToast]);
+
   // Dynamically resolve target law from the bill
   const initialTargetLaw = useMemo(() => {
     return findLawByTitleOrCode(bill.targetLaw) || getActiveLaw('road_code');
@@ -58,6 +70,10 @@ export const EnactLawModal: React.FC<EnactLawModalProps> = ({
 
   // Handle clicking "Внести"
   const handleExecuteEnact = () => {
+    if (!isAdmin) {
+      onToast('error', 'Отказано в доступе: внесение изменений доступно только администратору.');
+      return;
+    }
     try {
       const result = patchLawWithBill(bill, initialTargetLaw.id);
       setPatchResult(result);
@@ -138,7 +154,7 @@ export const EnactLawModal: React.FC<EnactLawModalProps> = ({
     }
   };
 
-  if (!isOpen) return null;
+  if (!isOpen || !isAdmin) return null;
 
   return (
     <div

@@ -24,7 +24,7 @@ interface SidebarProps {
   onNavigate: (view: 'dashboard' | 'admin_workspace' | 'editor') => void;
   onOpenSettings: () => void;
   onOpenNewBill: () => void;
-  onOpenLawStudio: () => void;
+  onOpenLawStudio?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -196,48 +196,50 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </button>
         )}
 
-        {/* LAW STUDIO / LEGISLATION DATABASE BUTTON */}
-        <button
-          onClick={onOpenLawStudio}
-          title="Открыть кабинет законодательства (27 кодексов и законов, экспорт BB-кода)"
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 10,
-            width: '100%',
-            height: 34,
-            padding: '0 10px',
-            fontSize: 13,
-            fontWeight: 500,
-            color: R.text,
-            background: 'transparent',
-            border: '1px solid transparent',
-            cursor: 'pointer',
-            textAlign: 'left',
-            borderRadius: 2,
-            marginTop: 4,
-            transition: 'all 0.12s ease',
-          }}
-          onMouseEnter={(e) => (e.currentTarget.style.background = R.bgElevated)}
-          onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
-        >
-          <BookOpen size={16} color={R.accent} />
-          <span style={{ flex: '1 1 auto' }}>База законов</span>
-          <span
+        {/* LAW STUDIO / LEGISLATION DATABASE BUTTON (ADMIN ONLY) */}
+        {isAdmin && onOpenLawStudio && (
+          <button
+            onClick={onOpenLawStudio}
+            title="Открыть кабинет законодательства (27 кодексов и законов, экспорт BB-кода)"
             style={{
-              fontFamily: mono,
-              fontSize: 10,
-              fontWeight: 700,
-              padding: '1px 6px',
-              background: 'rgba(236,199,129,0.12)',
-              color: R.accent,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+              width: '100%',
+              height: 34,
+              padding: '0 10px',
+              fontSize: 13,
+              fontWeight: 500,
+              color: R.text,
+              background: 'transparent',
+              border: '1px solid transparent',
+              cursor: 'pointer',
+              textAlign: 'left',
               borderRadius: 2,
-              border: ft.edge,
+              marginTop: 4,
+              transition: 'all 0.12s ease',
             }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = R.bgElevated)}
+            onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
           >
-            27
-          </span>
-        </button>
+            <BookOpen size={16} color={R.accent} />
+            <span style={{ flex: '1 1 auto' }}>База законов</span>
+            <span
+              style={{
+                fontFamily: mono,
+                fontSize: 10,
+                fontWeight: 700,
+                padding: '1px 6px',
+                background: 'rgba(236,199,129,0.12)',
+                color: R.accent,
+                borderRadius: 2,
+                border: ft.edge,
+              }}
+            >
+              27
+            </span>
+          </button>
+        )}
       </div>
 
       {/* Information / Sections Area */}

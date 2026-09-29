@@ -416,6 +416,10 @@ export const BillEditor: React.FC<BillEditorProps> = ({
   };
 
   const handleEnactLaws = () => {
+    if (!isAdmin) {
+      if (onToast) onToast('error', 'Внесение изменений в законы доступно только Администратору.');
+      return;
+    }
     setShowEnactModal(true);
   };
 
@@ -756,7 +760,7 @@ export const BillEditor: React.FC<BillEditorProps> = ({
             </button>
           )}
 
-          {bill.status === 'approved' && !bill.statusReason?.includes('внесены в законодательную базу') && (
+          {isAdmin && bill.status === 'approved' && !bill.statusReason?.includes('внесены в законодательную базу') && (
             <button
               onClick={handleEnactLaws}
               style={{ ...btnAccent, height: 32, fontSize: 12 }}
@@ -2140,7 +2144,7 @@ export const BillEditor: React.FC<BillEditorProps> = ({
         />
       )}
 
-      {showEnactModal && (
+      {showEnactModal && isAdmin && (
         <EnactLawModal
           bill={bill}
           isOpen={true}

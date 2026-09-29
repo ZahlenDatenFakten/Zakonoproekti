@@ -72,7 +72,11 @@ export const App: React.FC = () => {
   useEffect(() => {
     const handlePopState = (event: PopStateEvent) => {
       if (event.state && event.state.view) {
-        setCurrentView(event.state.view);
+        if (event.state.view === 'admin_workspace' && !isAdmin) {
+          setCurrentView('dashboard');
+        } else {
+          setCurrentView(event.state.view);
+        }
         if (event.state.returnView) {
           setReturnView(event.state.returnView);
         }
@@ -331,7 +335,22 @@ export const App: React.FC = () => {
     handleNavigateView(target);
   };
 
+  // Proactively guard administrative views and modals if role or verification changes
+  useEffect(() => {
+    if (!isAdmin) {
+      setShowLawStudio(false);
+      setShowDbModal(false);
+      if (currentView === 'admin_workspace') {
+        setCurrentView('dashboard');
+      }
+    }
+  }, [isAdmin, currentView]);
+
   const handleNavigateView = (view: 'dashboard' | 'admin_workspace' | 'editor') => {
+    if (view === 'admin_workspace' && !isAdmin) {
+      addToast('error', 'Доступ ограничен: только для системных администраторов');
+      return;
+    }
     setCurrentView(view);
     localStorage.setItem('legaldraft_current_view', view);
     if (view !== 'editor') {
@@ -401,7 +420,7 @@ export const App: React.FC = () => {
         onNavigate={handleNavigateView}
         onOpenNewBill={handleCreateNewBill}
         onOpenSettings={() => setShowSettingsModal(true)}
-        onOpenLawStudio={() => setShowLawStudio(true)}
+        onOpenLawStudio={isAdmin ? () => setShowLawStudio(true) : undefined}
       />
 
       {/* Main Content Area */}
@@ -450,7 +469,7 @@ export const App: React.FC = () => {
             />
           )}
 
-          {currentView === 'admin_workspace' && (
+          {currentView === 'admin_workspace' && isAdmin && (
             <AdminWorkspace
               bills={bills}
               user={user}
@@ -515,9 +534,10 @@ export const App: React.FC = () => {
         />
       )}
 
-      {showLawStudio && (
+      {showLawStudio && isAdmin && (
         <LawStudioModal
           isOpen={true}
+          user={user}
           onClose={() => setShowLawStudio(false)}
           onToast={addToast}
         />

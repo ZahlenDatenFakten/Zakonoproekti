@@ -23,12 +23,16 @@ import {
 import { R, ft, mono, btnAccent, btnOutline, shadow } from '../../lib/ui';
 
 import { copyToClipboard } from '../../lib/clipboard';
+import type { UserProfile } from '../../types/bill';
+import { isSystemAdmin } from '../../services/securityService';
+import { getUserProfile } from '../../services/storageService';
 
 interface LawStudioModalProps {
   isOpen: boolean;
   onClose: () => void;
   onToast: (type: 'success' | 'error' | 'info', text: string) => void;
   initialLawId?: string;
+  user?: UserProfile;
 }
 
 export const LawStudioModal: React.FC<LawStudioModalProps> = ({
@@ -36,7 +40,19 @@ export const LawStudioModal: React.FC<LawStudioModalProps> = ({
   onClose,
   onToast,
   initialLawId = 'road_code',
+  user,
 }) => {
+  const activeUser = user || getUserProfile();
+  const isAdmin = isSystemAdmin(activeUser);
+
+  // Security gate: strictly prohibit access to non-admin users
+  useEffect(() => {
+    if (isOpen && !isAdmin) {
+      onToast('error', 'Доступ запрещён: раздел «База законов» доступен исключительно системному администратору.');
+      onClose();
+    }
+  }, [isOpen, isAdmin, onClose, onToast]);
+
   const [selectedLawId, setSelectedLawId] = useState<string>(initialLawId);
   const [law, setLaw] = useState<StateLawDocument>(() => getActiveLaw(initialLawId));
   const [selectedArticleId, setSelectedArticleId] = useState<string | null>(null);
@@ -101,6 +117,10 @@ export const LawStudioModal: React.FC<LawStudioModalProps> = ({
 
   // Handle saving direct article edit
   const handleSaveArticle = () => {
+    if (!isAdmin) {
+      onToast('error', 'Отказано в доступе: внесение изменений доступно только администратору.');
+      return;
+    }
     if (!selectedArticle) return;
 
     const updatedChapters = law.chapters.map((ch) => ({
@@ -134,6 +154,10 @@ export const LawStudioModal: React.FC<LawStudioModalProps> = ({
 
   // Reset to default
   const handleResetToDefault = () => {
+    if (!isAdmin) {
+      onToast('error', 'Отказано в доступе: сброс закона доступен только администратору.');
+      return;
+    }
     if (window.confirm(`Сбросить «${law.title}» к исходной эталонной редакции? Все внесенные поправки будут отменены.`)) {
       const reset = resetLawToDefault(law.id);
       setLaw(reset);
@@ -185,7 +209,7 @@ export const LawStudioModal: React.FC<LawStudioModalProps> = ({
       .filter((ch) => ch.articles.length > 0 || !searchQuery);
   }, [law.chapters, activePartIndex, searchQuery]);
 
-  if (!isOpen) return null;
+  if (!isOpen || !isAdmin) return null;
 
   return (
     <div
