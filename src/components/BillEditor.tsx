@@ -31,9 +31,12 @@ import {
   AlertTriangle,
   Layers,
   Minimize2,
-  Zap
+  Zap,
+  Undo2,
+  Redo2
 } from 'lucide-react';
 import { R, ft, label, mono, btnAccent, btnOutline, btnDanger } from '../lib/ui';
+import { useBillHistory } from '../hooks/useBillHistory';
 import { getLatestArticleContent, getActiveLaw, findLawByTitleOrCode } from '../services/lawStorageService';
 import { Popover, MenuItem } from './Primitives';
 import { EnactLawModal } from './laws/EnactLawModal';
@@ -71,7 +74,7 @@ export const BillEditor: React.FC<BillEditorProps> = ({
   onShare,
   onToast
 }) => {
-  const [bill, setBill] = useState<Bill>(initialBill);
+  const { bill, setBill, undo, redo, canUndo, canRedo } = useBillHistory(initialBill);
   const [isSavedNotice, setIsSavedNotice] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
   const [expandedRow, setExpandedRow] = useState<ComparisonRow | null>(null);
@@ -105,6 +108,47 @@ export const BillEditor: React.FC<BillEditorProps> = ({
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  // Global Undo / Redo keyboard shortcuts (Ctrl+Z, Ctrl+Shift+Z, Ctrl+Y)
+  useEffect(() => {
+    if (!canEdit) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Must have Ctrl or Meta
+      if (!e.ctrlKey && !e.metaKey) return;
+
+      // Don't intercept inside comments section
+      const target = e.target as HTMLElement | null;
+      if (target?.closest('.comments-container')) return;
+
+      // Check for Ctrl+Z (or Cmd+Z on Mac)
+      // Note: In Russian keyboard layout, 'z' key produces key: 'я' or 'Я', code: 'KeyZ'
+      const isZ = e.code === 'KeyZ' || e.key.toLowerCase() === 'z' || e.key.toLowerCase() === 'я';
+      const isY = e.code === 'KeyY' || e.key.toLowerCase() === 'y' || e.key.toLowerCase() === 'н';
+
+      if (isZ) {
+        if (e.shiftKey) {
+          // Ctrl + Shift + Z -> Redo
+          e.preventDefault();
+          e.stopPropagation();
+          redo();
+        } else {
+          // Ctrl + Z -> Undo
+          e.preventDefault();
+          e.stopPropagation();
+          undo();
+        }
+      } else if (isY) {
+        // Ctrl + Y -> Redo
+        e.preventDefault();
+        e.stopPropagation();
+        redo();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown, true);
+    return () => window.removeEventListener('keydown', handleKeyDown, true);
+  }, [canEdit, undo, redo]);
 
   // Auto-save draft on changes
   const isInitialMount = useRef(true);
@@ -600,6 +644,78 @@ export const BillEditor: React.FC<BillEditorProps> = ({
 
         {/* Right: Actions */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+          {/* Undo / Redo Toolbar Controls */}
+          {canEdit && (
+            <div
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                background: R.bgInput,
+                border: ft.edge,
+                borderRadius: 3,
+                padding: 1,
+                gap: 1,
+                marginRight: 2,
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => undo()}
+                disabled={!canUndo}
+                title="Отменить последнее действие (Ctrl+Z)"
+                style={{
+                  width: 30,
+                  height: 30,
+                  display: 'grid',
+                  placeItems: 'center',
+                  background: 'transparent',
+                  border: 'none',
+                  color: canUndo ? R.text : R.textMuted,
+                  opacity: canUndo ? 1 : 0.35,
+                  cursor: canUndo ? 'pointer' : 'not-allowed',
+                  borderRadius: 2,
+                  transition: 'all 0.15s ease',
+                }}
+                onMouseEnter={(e) => {
+                  if (canUndo) e.currentTarget.style.background = R.bgElevated;
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'transparent';
+                }}
+              >
+                <Undo2 size={15} />
+              </button>
+              <div style={{ width: 1, height: 16, background: R.border }} />
+              <button
+                type="button"
+                onClick={() => redo()}
+                disabled={!canRedo}
+                title="Повторить отменённое действие (Ctrl+Y / Ctrl+Shift+Z)"
+                style={{
+                  width: 30,
+                  height: 30,
+                  display: 'grid',
+                  placeItems: 'center',
+                  background: 'transparent',
+                  border: 'none',
+                  color: canRedo ? R.text : R.textMuted,
+                  opacity: canRedo ? 1 : 0.35,
+                  cursor: canRedo ? 'pointer' : 'not-allowed',
+                  borderRadius: 2,
+                  transition: 'all 0.15s ease',
+                }}
+                onMouseEnter={(e) => {
+                  if (canRedo) e.currentTarget.style.background = R.bgElevated;
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'transparent';
+                }}
+              >
+                <Redo2 size={15} />
+              </button>
+            </div>
+          )}
+
           <AnimatePresence>
             {isSavedNotice && (
               <motion.span
@@ -687,6 +803,27 @@ export const BillEditor: React.FC<BillEditorProps> = ({
                     zIndex: 50,
                   }}
                 >
+                  {canEdit && (
+                    <>
+                      <MenuItem
+                        icon={Undo2}
+                        label="Отменить (Ctrl+Z)"
+                        onClick={() => {
+                          setShowMoreMenu(false);
+                          undo();
+                        }}
+                      />
+                      <MenuItem
+                        icon={Redo2}
+                        label="Повторить (Ctrl+Y)"
+                        onClick={() => {
+                          setShowMoreMenu(false);
+                          redo();
+                        }}
+                      />
+                      <div style={{ height: 1, background: R.border, margin: '4px 0' }} />
+                    </>
+                  )}
                   <MenuItem
                     icon={Download}
                     label={isDownloadingPdf ? "Скачивание..." : "Скачать в PDF"}
@@ -1972,7 +2109,7 @@ export const BillEditor: React.FC<BillEditorProps> = ({
 
       {expandedRow && (
         <ExpandedArticleModal
-          row={expandedRow}
+          row={bill.comparisons.find(r => r.id === expandedRow.id) || expandedRow}
           canEdit={canEdit && !isReadOnly}
           onUpdateRow={(id, field, val) => {
             updateComparisonRow(id, field, val);
