@@ -141,14 +141,18 @@ export const LawSelectPicker: React.FC<LawSelectPickerProps> = ({
   const currentLaw = useMemo(() => {
     if (!value || !value.trim()) return null;
     const clean = value.trim().toLowerCase();
+    const unquoted = clean.replace(/["'«»“”]/g, '').trim();
     return LAWS_METADATA.find(
       (m) =>
         m.id.toLowerCase() === clean ||
         m.title.toLowerCase() === clean ||
         (m.shortTitle && m.shortTitle.toLowerCase() === clean) ||
         m.code.toLowerCase() === clean ||
+        m.title.toLowerCase().replace(/["'«»“”]/g, '').trim() === unquoted ||
+        (m.shortTitle && m.shortTitle.toLowerCase().replace(/["'«»“”]/g, '').trim() === unquoted) ||
         clean.includes(m.title.toLowerCase()) ||
-        (m.shortTitle && clean.includes(m.shortTitle.toLowerCase()))
+        (m.shortTitle && clean.includes(m.shortTitle.toLowerCase())) ||
+        unquoted.includes(m.title.toLowerCase().replace(/["'«»“”]/g, '').trim())
     ) || null;
   }, [value]);
 

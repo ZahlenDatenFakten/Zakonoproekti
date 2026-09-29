@@ -6,141 +6,183 @@ import { compileArticleBBCode, compileFullLawBBCode, compileLawPartBBCode } from
 const LAW_STORAGE_PREFIX = 'legaldraft_law_doc_';
 
 /**
- * Normalizes article titles like "Статья 9.1.", "ст. 9.1", "9.1 " -> "9.1"
+ * Normalizes article titles like "Статья 9.1.", "ст. 9.1", "9.1 ", "Гл. 1, ст. 1.5.6" -> "1.5.6"
  */
 export function extractArticleNumber(title: string): string {
   if (!title) return '';
-  const match = title.match(/(?:ст(?:атья|\.)?\s*)?([0-9]+(?:\.[0-9]+)*)/i);
-  if (match) {
-    return match[1];
+  const trimmed = title.trim();
+
+  // 1. Explicit "ст. 1.5.6" or "статья 1.5.6" anywhere in string
+  const explicitMatch = trimmed.match(/(?:ст(?:атья|\.)?\s*)([0-9]+(?:\.[0-9]+)*)/i);
+  if (explicitMatch) {
+    return explicitMatch[1];
   }
-  return title.replace(/^статья\s+/i, '').replace(/[\.:]$/, '').trim();
+
+  // 2. Standalone number or number at start of string: "1.5.6", "1.5.6.", "1.5.6 Название"
+  const startMatch = trimmed.match(/^([0-9]+(?:\.[0-9]+)*)/);
+  if (startMatch) {
+    return startMatch[1];
+  }
+
+  // 3. Any number sequence in the string
+  const anyMatch = trimmed.match(/([0-9]+(?:\.[0-9]+)*)/);
+  if (anyMatch) {
+    return anyMatch[1];
+  }
+
+  return trimmed.replace(/^статья\s+/i, '').replace(/[\.:]$/, '').trim();
+}
+
+function cleanStr(s: string): string {
+  return (s || '')
+    .toLowerCase()
+    .replace(/["'«»“”]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 /**
- * Alias dictionary for instant fuzzy matching of law titles and abbreviations
+ * Exact standalone words / abbreviations (Cyrillic-safe)
  */
-const LAW_ALIAS_MAP: Record<string, string> = {
+const EXACT_WORD_ALIASES: Record<string, string> = {
   // Codes
-  'дорожный': 'road_code',
-  'дорожный кодекс': 'road_code',
   'дк': 'road_code',
-  'уголовный': 'criminal_code',
-  'уголовно-административный': 'criminal_code',
-  'уголовный кодекс': 'criminal_code',
-  'уак': 'criminal_code',
   'ук': 'criminal_code',
-  'процессуальный': 'procedural_code',
-  'процессуальный кодекс': 'procedural_code',
+  'уак': 'criminal_code',
   'пк': 'procedural_code',
-  'судебный': 'judicial_code',
-  'судебный кодекс': 'judicial_code',
   'ск': 'judicial_code',
-  'трудовой': 'labor_code',
-  'трудовой кодекс': 'labor_code',
   'тк': 'labor_code',
-  'этический': 'ethical_code',
-  'этический кодекс': 'ethical_code',
   'эк': 'ethical_code',
-  'конституция': 'constitution',
-
-  // Security / Law Enforcement
-  'fib': 'law_fib',
-  'фиб': 'law_fib',
-  'расследовательского': 'law_fib',
-  'sang': 'law_sang',
-  'санг': 'law_sang',
-  'нацгвардия': 'law_sang',
-  'гвардия': 'law_sang',
-  'национальная гвардия': 'law_sang',
-  'usss': 'law_usss',
-  'юссс': 'law_usss',
-  'секретная служба': 'law_usss',
-  'lspd': 'law_police',
-  'lssd': 'law_police',
-  'полиция': 'law_police',
-  'региональные правоохранительные': 'law_police',
-  'fp': 'law_prison',
-  'тюрьма': 'law_prison',
-  'федеральная тюрьма': 'law_prison',
-
-  // Government
-  'правительство': 'law_government',
-  'о правительстве': 'law_government',
-  'минюст': 'law_prosecutor',
-  'прокуратура': 'law_prosecutor',
-  'генпрокурор': 'law_prosecutor',
-  'прокурор': 'law_prosecutor',
-  'минфин': 'law_finance',
-  'финансы': 'law_finance',
-  'министерство финансов': 'law_finance',
-  'адвокаты': 'law_bar',
-  'адвокатура': 'law_bar',
-  'коллегия адвокатов': 'law_bar',
-  'неприкосновенность': 'law_immunity',
-  'закрытые территории': 'law_territories',
-  'территории': 'law_territories',
-  'взаимодействие': 'law_state_coop',
-  'оружие': 'law_weapons',
-  'оборот оружия': 'law_weapons',
-  'здравоохранение': 'law_health',
-  'медицина': 'law_health',
-  'ems': 'law_health',
-  'сми': 'law_media',
-  'weazel': 'law_media',
-  'гостайна': 'law_docs',
-  'документация': 'law_docs',
-  'дипломатические': 'law_diplomatic',
-  'посольства': 'law_diplomatic',
-  'партии': 'law_parties',
-  'политические партии': 'law_parties',
-  'бизнес': 'law_business',
+  // Special/Agencies & Laws
   'чп': 'law_emergency',
   'вп': 'law_emergency',
-  'чрезвычайн': 'law_emergency',
-  'чрезвычайное': 'law_emergency',
-  'чрезвычайное положение': 'law_emergency',
-  'военное положение': 'law_emergency',
-  'военном': 'law_emergency',
-  'аренда': 'law_rent',
-  'природа': 'law_nature',
-  'природные ресурсы': 'law_nature',
-  'награды': 'law_awards'
+  'сми': 'law_media',
+  'ems': 'law_health',
+  'fp': 'law_prison',
+  'fib': 'law_fib',
+  'фиб': 'law_fib',
+  'фбр': 'law_fib',
+  'sang': 'law_sang',
+  'санг': 'law_sang',
+  'usss': 'law_usss',
+  'юссс': 'law_usss',
+  'lspd': 'law_police',
+  'lssd': 'law_police'
 };
 
 /**
- * Highly intelligent fuzzy law matcher.
- * Matches by ID, Code ("ДК", "УАК"), title, shortTitle, or natural keywords.
+ * Multi-word or root patterns for high-confidence legal domain identification
+ */
+const LAW_ROOT_PATTERNS: Array<{ re: RegExp; id: string }> = [
+  { re: /взаимодейств/i, id: 'law_state_coop' },
+  { re: /неприкосновенн/i, id: 'law_immunity' },
+  { re: /коллеги[яи].*адвокат|адвокат/i, id: 'law_bar' },
+  { re: /закрыт.*территор|охраняем.*территор/i, id: 'law_territories' },
+  { re: /оружи|боеприпас|спецсредств/i, id: 'law_weapons' },
+  { re: /здравоохран|медицин/i, id: 'law_health' },
+  { re: /массов.*информ|weazel/i, id: 'law_media' },
+  { re: /гостайн|служебн.*тайн|документаци/i, id: 'law_docs' },
+  { re: /дипломатическ|посольств/i, id: 'law_diplomatic' },
+  { re: /политическ.*парти|парти[яий]/i, id: 'law_parties' },
+  { re: /предпринимательск|бизнес/i, id: 'law_business' },
+  { re: /чрезвычайн|военн.*положени/i, id: 'law_emergency' },
+  { re: /аренд.*государственн|аренд/i, id: 'law_rent' },
+  { re: /природн.*ресурс|природ/i, id: 'law_nature' },
+  { re: /наград|знак.*отличи/i, id: 'law_awards' },
+  { re: /секретн.*служб/i, id: 'law_usss' },
+  { re: /нацгварди|национальн.*гварди|гварди/i, id: 'law_sang' },
+  { re: /расследовательск.*бюро/i, id: 'law_fib' },
+  { re: /федеральн.*тюрьм|тюрьм|prison/i, id: 'law_prison' },
+  { re: /региональн.*правоохран|полици/i, id: 'law_police' },
+  { re: /прокуратур|прокурор|минюст/i, id: 'law_prosecutor' },
+  { re: /министерств.*финанс|минфин|финанс/i, id: 'law_finance' },
+  { re: /правительств/i, id: 'law_government' },
+  { re: /конституци/i, id: 'constitution' },
+  { re: /дорожн.*кодекс|дорожн/i, id: 'road_code' },
+  { re: /уголовн.*кодекс|уголовн/i, id: 'criminal_code' },
+  { re: /процессуальн.*кодекс|процессуальн/i, id: 'procedural_code' },
+  { re: /судебн.*кодекс|судебн/i, id: 'judicial_code' },
+  { re: /трудов.*кодекс|трудов/i, id: 'labor_code' },
+  { re: /этическ.*кодекс|этическ/i, id: 'ethical_code' },
+  { re: /территор/i, id: 'law_territories' }
+];
+
+/**
+ * Highly intelligent and robust law matcher.
+ * Reliably resolves law by ID, Code, exact title, short title, domain root, or abbreviation.
  */
 export function findLawByTitleOrCode(query?: string): StateLawDocument | null {
   if (!query || !query.trim()) return null;
-  const q = query.trim().toLowerCase();
+  const rawQ = query.trim();
+  const q = rawQ.toLowerCase();
+  const cleanQ = cleanStr(rawQ);
+  const allLaws = Object.values(COMPILED_LAWS_REGISTRY);
 
   // 1. Direct ID match
   if (COMPILED_LAWS_REGISTRY[q]) {
     return getActiveLaw(q);
   }
+  const byId = allLaws.find((l) => l.id.toLowerCase() === q);
+  if (byId) return getActiveLaw(byId.id);
 
-  // 2. Check alias map
-  for (const [alias, id] of Object.entries(LAW_ALIAS_MAP)) {
-    if (q === alias || q.includes(alias) || alias.includes(q)) {
+  // 2. Exact Code match
+  const byCode = allLaws.find((l) => l.code.toLowerCase() === q);
+  if (byCode) return getActiveLaw(byCode.id);
+
+  // 3. Exact Title or ShortTitle match
+  const byTitle = allLaws.find(
+    (l) => l.title.toLowerCase() === q || (l.shortTitle && l.shortTitle.toLowerCase() === q)
+  );
+  if (byTitle) return getActiveLaw(byTitle.id);
+
+  // 4. Exact cleaned Title / ShortTitle (without quotes and punctuation)
+  const byCleanTitle = allLaws.find(
+    (l) => cleanStr(l.title) === cleanQ || (l.shortTitle && cleanStr(l.shortTitle) === cleanQ)
+  );
+  if (byCleanTitle) return getActiveLaw(byCleanTitle.id);
+
+  // 5. Standalone exact alias / word match (e.g. "ук", "дк", "usss", "юссс", "сми", "чп")
+  if (EXACT_WORD_ALIASES[cleanQ]) {
+    return getActiveLaw(EXACT_WORD_ALIASES[cleanQ]);
+  }
+
+  // Check if any word in query matches exact abbreviation (separated by whitespace or punctuation)
+  const words = cleanQ.split(/[^a-zA-Zа-яА-ЯёЁ0-9_]+/).filter(Boolean);
+  for (const w of words) {
+    if (EXACT_WORD_ALIASES[w]) {
+      return getActiveLaw(EXACT_WORD_ALIASES[w]);
+    }
+  }
+
+  // 6. Query contains full clean title or clean short title
+  const byContained = allLaws
+    .filter((l) => {
+      const cTitle = cleanStr(l.title);
+      const cShort = l.shortTitle ? cleanStr(l.shortTitle) : '';
+      return (cTitle && cleanQ.includes(cTitle)) || (cShort && cleanQ.includes(cShort));
+    })
+    .sort((a, b) => cleanStr(b.title).length - cleanStr(a.title).length)[0];
+  if (byContained) return getActiveLaw(byContained.id);
+
+  // 7. Distinct root patterns (high-confidence legal keywords)
+  for (const { re, id } of LAW_ROOT_PATTERNS) {
+    if (re.test(rawQ)) {
       return getActiveLaw(id);
     }
   }
 
-  // 3. Match by Code or Title
-  const allLaws = Object.values(COMPILED_LAWS_REGISTRY);
-  const found = allLaws.find((law) => {
-    return (
-      law.code.toLowerCase() === q ||
-      law.title.toLowerCase() === q ||
-      law.shortTitle?.toLowerCase() === q ||
-      law.title.toLowerCase().includes(q) ||
-      q.includes(law.shortTitle?.toLowerCase() || '')
-    );
-  });
+  // 8. Substring fallback ONLY for non-abbreviation queries (length >= 5)
+  if (cleanQ.length >= 5) {
+    const bySub = allLaws
+      .filter((l) => {
+        const cTitle = cleanStr(l.title);
+        return cTitle.includes(cleanQ) || (l.shortTitle && cleanStr(l.shortTitle).includes(cleanQ));
+      })
+      .sort((a, b) => cleanStr(b.title).length - cleanStr(a.title).length)[0];
+    if (bySub) return getActiveLaw(bySub.id);
+  }
 
-  return found ? getActiveLaw(found.id) : null;
+  return null;
 }
 
 /**
@@ -585,7 +627,9 @@ export function stripBBCode(text: string): string {
     .replace(/\[SPOILER="?([^"\]]*)"?\][\s\S]*?\[\/SPOILER\]/gi, '')
     .replace(/\[ATTACH[^\]]*\][0-9]+\[\/ATTACH\]/gi, '')
     .replace(/\[IMG[^\]]*\][\s\S]*?\[\/IMG\]/gi, '')
-    .replace(/\[\/?[a-zA-Z0-9_-]+(?:\s+[^\]]*|=[^\]]*)?\]/g, '')
+    .replace(/\[\*\]\s*/gi, '')
+    .replace(/\[\/?list(?:\s+[^\]]*|=[^\]]*)?\]/gi, '')
+    .replace(/\[\/?[a-zA-Z0-9_*#-]+(?:\s+[^\]]*|=[^\]]*)?\]/g, '')
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter((line) => line.length > 0)
@@ -666,6 +710,8 @@ function formatArticleFullText(art: LawArticle): string {
 export function getLatestArticleContent(lawIdOrQuery: string = 'road_code', articleTitleOrNumber: string): string | null {
   const resolved = findLawByTitleOrCode(lawIdOrQuery);
   const law = resolved || getActiveLaw(lawIdOrQuery);
+  if (!law || !law.chapters) return null;
+
   const num = extractArticleNumber(articleTitleOrNumber);
   if (!num) return null;
 
@@ -684,11 +730,24 @@ export function getLatestArticleContent(lawIdOrQuery: string = 'road_code', arti
     }
   }
 
+  // 1. Direct article search by number across all chapters
   for (const ch of law.chapters) {
     const art = ch.articles.find((a) => extractArticleNumber(a.articleNumber) === num || a.articleNumber === num);
     if (art) {
       return formatArticleFullText(art);
     }
   }
+
+  // 2. Fallback: match by title text if user typed article title instead of number
+  const cleanQuery = articleTitleOrNumber.toLowerCase().replace(/^статья\s+/i, '').trim();
+  if (cleanQuery.length >= 4) {
+    for (const ch of law.chapters) {
+      const art = ch.articles.find((a) => a.title && a.title.toLowerCase().includes(cleanQuery));
+      if (art) {
+        return formatArticleFullText(art);
+      }
+    }
+  }
+
   return null;
 }
