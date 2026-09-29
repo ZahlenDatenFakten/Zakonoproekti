@@ -259,40 +259,79 @@ export function getLawPartBBCode(lawId: string, partIndex: number): string {
 }
 
 /**
- * Parses raw becameContent into content, exceptions, and sanctions.
+ * Parses raw becameContent into title, content, exceptions, and sanctions.
  */
-function parseRawArticleContent(raw: string, targetArtNum?: string): { content: string; sanctionText?: string; exceptionText?: string } {
+function parseRawArticleContent(
+  raw: string,
+  targetArtNum?: string,
+  existingTitle?: string
+): { title?: string; content: string; sanctionText?: string; exceptionText?: string } {
   let text = raw.trim();
   let sanctionText: string | undefined;
   let exceptionText: string | undefined;
+  let parsedTitle: string | undefined = existingTitle;
 
-  // Check for sanction line (e.g. "- Штраф...")
+  // 1. Strip redundant article number prefix if user typed "Статья 9.1.", "ст. 9.1:" or "9.1." inside becameContent
+  if (targetArtNum) {
+    const cleanNum = extractArticleNumber(targetArtNum);
+    if (cleanNum) {
+      const escaped = cleanNum.replace(/\./g, '\\.');
+      const numRegex = new RegExp(`^(?:ст(?:атья|\\.)?\\s*)?${escaped}[\\.:\\s—–-]*`, 'i');
+      text = text.replace(numRegex, '').trim();
+    }
+  } else {
+    text = text.replace(/^(?:ст(?:атья|\\.)?\\s*)?([0-9]+(?:\.[0-9]+)*)[\\.:\\s—–-]*\\s*/i, '').trim();
+  }
+
+  // 2. Extract Title if present at the start of text
+  // Pattern A: Title on separate first line: "Территориальная юрисдикция Секретной Службы\n⁃ На территории..."
+  const lines = text.split(/\r?\n/);
+  if (lines.length > 1) {
+    const firstLine = lines[0].trim();
+    const isBulletOrSentence = /^[-—⁃*#\d]/.test(firstLine) || /(?:признается|является|наказывается|имеет\s+право|влечет|обязан|запрещено|состоит|включает|может|подлежит|относится)/i.test(firstLine);
+    if (!isBulletOrSentence && firstLine.length <= 80 && !firstLine.endsWith('.')) {
+      parsedTitle = firstLine.replace(/[:]$/, '').trim();
+      text = lines.slice(1).join('\n').trim();
+    }
+  }
+
+  // Pattern B: Title inline with dot: "Agent Training Department (ATD). Сотрудники отдела..."
+  if (!parsedTitle || parsedTitle === existingTitle) {
+    const inlineMatch = text.match(/^([А-ЯЁA-Z][^.:\n]{2,60})[.:]\s+(.*)$/s);
+    if (inlineMatch) {
+      const candidate = inlineMatch[1].trim();
+      const isSentence = /(?:признается|является|наказывается|имеет\s+право|влечет|обязан|запрещено|состоит|включает|может|подлежит|относится)/i.test(candidate);
+      if (!isSentence) {
+        parsedTitle = candidate;
+        text = inlineMatch[2].trim();
+      }
+    }
+  }
+
+  // If text still starts with the title, strip it so it doesn't get duplicated in BBCode
+  if (parsedTitle && text.startsWith(parsedTitle)) {
+    text = text.substring(parsedTitle.length).replace(/^[:.\s—–-]+/, '').trim();
+  }
+
+  // 3. Sanction line (e.g. "- Штраф...")
   const sanctionMatch = text.match(/(?:^|\n)\s*[-—⁃]\s*(?:штраф|наказание|административный|лишение|изъятие)[^\n]*/i);
   if (sanctionMatch) {
     sanctionText = sanctionMatch[0].replace(/^[\n\s*[-—⁃]\s*/, '').trim();
     text = text.replace(sanctionMatch[0], '').trim();
   }
 
-  // Check for exception (e.g. "Исключение: ...")
+  // 4. Exception (e.g. "Исключение: ...")
   const exceptionMatch = text.match(/(?:^|\n)\s*исключение:\s*([^\n]+)/i);
   if (exceptionMatch) {
-    exceptionText = exceptionMatch[1].trim();
-    text = text.replace(exceptionMatch[0], '').trim();
-  }
-
-  // Strip redundant article number prefix if user typed "Статья 9.1.", "ст. 9.1:" or "9.1." inside becameContent
-  if (targetArtNum) {
-    const cleanNum = extractArticleNumber(targetArtNum);
-    if (cleanNum) {
-      const escaped = cleanNum.replace(/\./g, '\\.');
-      const numRegex = new RegExp(`^(?:ст(?:атья|\\.)?\\s*)?${escaped}[\\.:\\s—–-]+\\s*`, 'i');
-      text = text.replace(numRegex, '');
+    const cand = exceptionMatch[1].trim();
+    if (cand) {
+      exceptionText = cand;
+      text = text.replace(exceptionMatch[0], '').trim();
     }
-  } else {
-    text = text.replace(/^(?:ст(?:атья|\\.)?\\s*)?([0-9]+(?:\.[0-9]+)*)[\\.:\\s—–-]+\\s*/i, '');
   }
 
   return {
+    title: parsedTitle,
     content: text,
     sanctionText,
     exceptionText
@@ -369,10 +408,13 @@ function patchSingleLaw(
       if (!num) continue;
 
       const found = findArticle(num);
-      const parsed = parseRawArticleContent(comp.becameContent, num);
+      const parsed = parseRawArticleContent(comp.becameContent, num, found?.article.title);
 
       if (found) {
         // Update existing article
+        if (parsed.title) {
+          found.article.title = parsed.title;
+        }
         found.article.content = parsed.content;
         found.article.rawBBCode = undefined; // Force recompilation using forum theme
         found.article.updatedAt = new Date().toISOString();
@@ -399,6 +441,7 @@ function patchSingleLaw(
         const newArt: LawArticle = {
           id: 'art_' + num.replace(/\./g, '_') + '_' + Date.now(),
           articleNumber: num,
+          title: parsed.title,
           content: parsed.content,
           updatedAt: new Date().toISOString(),
           sourceBillId: bill.id,
@@ -533,19 +576,88 @@ export function patchLawWithBill(bill: Bill, targetLawId?: string): LawPatchResu
   };
 }
 
+/**
+ * Strips XenForo BBCode tags cleanly to produce plain text with authentic layout.
+ */
+export function stripBBCode(text: string): string {
+  if (!text) return '';
+  return text
+    .replace(/\[SPOILER="?([^"\]]*)"?\][\s\S]*?\[\/SPOILER\]/gi, '')
+    .replace(/\[ATTACH[^\]]*\][0-9]+\[\/ATTACH\]/gi, '')
+    .replace(/\[IMG[^\]]*\][\s\S]*?\[\/IMG\]/gi, '')
+    .replace(/\[\/?[a-zA-Z0-9_-]+(?:\s+[^\]]*|=[^\]]*)?\]/g, '')
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0)
+    .join('\n');
+}
+
+/**
+ * Returns the 100% complete and authentic text of an article for the "Было" / "Стало" editor.
+ * Preserves the official article number, authentic title, disposition, bullet points, exceptions, and sanctions.
+ */
 function formatArticleFullText(art: LawArticle): string {
-  let fullText = art.content;
+  // 1. If pristine authentic forum rawBBCode exists and article wasn't altered by a bill,
+  // stripping BBCode yields the exact original forum typography and layout.
+  if (art.rawBBCode && !art.sourceBillId) {
+    const stripped = stripBBCode(art.rawBBCode);
+    if (stripped) {
+      return stripped;
+    }
+  }
+
+  // 2. Programmatic reconstruction with full article header and title
+  const numClean = art.articleNumber.replace(/^статья\s+/i, '').trim();
+  let header = `Статья ${numClean}`;
+  let body = (art.content || '').trim();
+
+  if (art.title && art.title.trim()) {
+    const titleTrimmed = art.title.trim();
+    // If body already starts with the title, strip it from body to prevent duplicate title
+    if (body.startsWith(titleTrimmed)) {
+      body = body.substring(titleTrimmed.length).replace(/^[:.\s—–-]+/, '').trim();
+    }
+
+    if (body.startsWith('⁃') || body.startsWith('-') || body.startsWith('\n')) {
+      header = `${header} ${titleTrimmed}\n`;
+    } else {
+      const punct = /[.:]$/.test(titleTrimmed) ? '' : '.';
+      header = `${header} ${titleTrimmed}${punct} `;
+    }
+  } else {
+    if (!body.startsWith('⁃') && !body.startsWith('-') && !body.startsWith('\n')) {
+      header = `${header}. `;
+    } else {
+      header = `${header}\n`;
+    }
+  }
+
+  let fullText = header.endsWith('\n') ? `${header}${body}` : `${header}${body}`;
+
+  // Only append non-empty clauses that aren't already included in content
   if (art.clauses && art.clauses.length > 0) {
     for (const c of art.clauses) {
-      fullText += `\n${c.prefix || 'Исключение:'} ${c.content}`;
+      const cContent = (c.content || '').trim();
+      if (!cContent) continue; // Skip empty clauses!
+      const prefix = c.prefix || 'Исключение:';
+      if (!fullText.includes(cContent) && !fullText.includes(prefix)) {
+        fullText += `\n${prefix} ${cContent}`;
+      }
     }
   }
+
+  // Only append non-empty sanctions that aren't already included in content
   if (art.sanctions && art.sanctions.length > 0) {
     for (const s of art.sanctions) {
-      fullText += `\n- ${s.text}`;
+      const sText = (s.text || '').trim();
+      if (!sText) continue;
+      if (!fullText.includes(sText)) {
+        fullText += `\n- ${sText}`;
+      }
     }
   }
-  return fullText;
+
+  return fullText.trim();
 }
 
 /**

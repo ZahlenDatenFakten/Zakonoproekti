@@ -82,17 +82,27 @@ export function compileArticleBBCode(article: LawArticle): string {
   const numClean = article.articleNumber.replace(/^статья\s+/i, '').trim();
 
   // 1. Article header & main content
-  const articleTitle = article.title ? `[COLOR=${textColor}][B]${article.title}:[/B][/COLOR] ` : '';
+  let cleanContent = article.content.trim();
+  if (article.title) {
+    const t = article.title.trim();
+    if (cleanContent.startsWith(t)) {
+      cleanContent = cleanContent.substring(t.length).replace(/^[:.\s—–-]+/, '').trim();
+    }
+  }
+
+  const articleTitle = article.title ? `[COLOR=${textColor}][B]${article.title.replace(/[:.]+$/, '')}:[/B][/COLOR] ` : '';
   lines.push(
-    `[INDENT=2][FONT=${font}][SIZE=${size}][B][COLOR=${accentColor}]Статья ${numClean}[/COLOR][/B] ${articleTitle}[COLOR=${textColor}]${article.content.trim()}[/COLOR][/SIZE][/FONT][/INDENT]`
+    `[INDENT=2][FONT=${font}][SIZE=${size}][B][COLOR=${accentColor}]Статья ${numClean}[/COLOR][/B] ${articleTitle}[COLOR=${textColor}]${cleanContent}[/COLOR][/SIZE][/FONT][/INDENT]`
   );
 
   // 2. Clauses (Exceptions, Notes, subclauses)
   if (article.clauses && article.clauses.length > 0) {
     for (const clause of article.clauses) {
+      const cContent = (clause.content || '').trim();
+      if (!cContent) continue; // Skip empty clauses
       const prefix = clause.prefix || 'Исключение:';
       lines.push(
-        `[INDENT=2][FONT=${font}][SIZE=${size}][I][COLOR=${accentColor}]${prefix}[/COLOR][/I] [COLOR=${textColor}]${clause.content.trim()}[/COLOR][/SIZE][/FONT][/INDENT]`
+        `[INDENT=2][FONT=${font}][SIZE=${size}][I][COLOR=${accentColor}]${prefix}[/COLOR][/I] [COLOR=${textColor}]${cContent}[/COLOR][/SIZE][/FONT][/INDENT]`
       );
 
       if (clause.subclauses && clause.subclauses.length > 0) {

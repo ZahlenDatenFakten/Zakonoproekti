@@ -1693,12 +1693,13 @@ export const BillEditor: React.FC<BillEditorProps> = ({
                                     <button
                                       type="button"
                                       onClick={() => {
-                                        const latest = getLatestArticleContent(bill.targetLaw || 'road_code', row.articleTitle);
+                                        const lawToFetch = row.targetLaw || bill.targetLaw || 'Дорожный кодекс (ДК)';
+                                        const latest = getLatestArticleContent(lawToFetch, row.articleTitle);
                                         if (latest) {
                                           updateComparisonRow(row.id, 'wasContent', latest);
-                                          onToast('success', 'Подтянута актуальная редакция из закона!');
+                                          onToast('success', `Исходный текст статьи «${row.articleTitle}» загружен из «${lawToFetch}»!`);
                                         } else {
-                                          onToast('info', 'Статья не найдена в действующей редакции закона');
+                                          onToast('info', `Статья «${row.articleTitle}» не найдена в действующей редакции «${lawToFetch}»`);
                                         }
                                       }}
                                       data-tooltip="Подтянуть действующий текст из актуального закона"
