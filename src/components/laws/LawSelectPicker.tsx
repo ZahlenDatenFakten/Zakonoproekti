@@ -468,90 +468,117 @@ export const LawSelectPicker: React.FC<LawSelectPickerProps> = ({
                 </div>
               ) : (
                 groupedLaws.map(({ category, laws }) => (
-                  <div key={category.key} style={{ marginBottom: 6 }}>
+                  <div key={category.key} style={{ marginBottom: 14 }}>
+                    {/* Category Header with bottom margin */}
                     <div
                       style={{
-                        padding: '4px 10px',
-                        fontSize: 10,
+                        padding: '6px 10px',
+                        margin: '0 6px 8px 6px',
+                        borderRadius: 4,
+                        fontSize: 10.5,
                         fontWeight: 800,
                         textTransform: 'uppercase',
                         letterSpacing: '0.06em',
                         color: category.badgeColor,
-                        background: 'rgba(255, 255, 255, 0.02)',
-                        borderBottom: '1px solid rgba(255, 255, 255, 0.04)',
+                        background: 'rgba(255, 255, 255, 0.035)',
+                        border: '1px solid rgba(255, 255, 255, 0.05)',
+                        borderLeft: `3px solid ${category.badgeColor}`,
                         display: 'flex',
                         alignItems: 'center',
-                        gap: 6,
+                        justifyContent: 'space-between',
                       }}
                     >
-                      <span>{category.icon}</span>
-                      <span>{category.label}</span>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span>{category.icon}</span>
+                        <span>{category.label}</span>
+                      </span>
+                      <span
+                        style={{
+                          fontSize: 9.5,
+                          fontFamily: mono,
+                          fontWeight: 700,
+                          padding: '1px 6px',
+                          borderRadius: 8,
+                          background: 'rgba(255, 255, 255, 0.06)',
+                          color: category.badgeColor,
+                        }}
+                      >
+                        {laws.length}
+                      </span>
                     </div>
 
-                    {laws.map((law) => {
-                      const isSelected = currentLaw?.id === law.id;
-                      const style = getCategoryStyle(category.key);
-                      return (
-                        <div
-                          key={law.id}
-                          onClick={() => handleSelectLaw(law)}
-                          style={{
-                            padding: '6px 10px',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            gap: 8,
-                            cursor: 'pointer',
-                            background: isSelected ? 'rgba(236, 199, 129, 0.12)' : 'transparent',
-                            borderLeft: isSelected ? `3px solid ${R.accent}` : '3px solid transparent',
-                            transition: 'all 0.1s ease',
-                          }}
-                          onMouseEnter={(e) => {
-                            if (!isSelected) {
-                              e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
-                              e.currentTarget.style.borderLeftColor = R.accent;
-                            }
-                          }}
-                          onMouseLeave={(e) => {
-                            if (!isSelected) {
-                              e.currentTarget.style.background = 'transparent';
-                              e.currentTarget.style.borderLeftColor = 'transparent';
-                            }
-                          }}
-                        >
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 7, overflow: 'hidden' }}>
-                            <span
-                              style={{
-                                fontSize: 9.5,
-                                fontFamily: mono,
-                                fontWeight: 800,
-                                padding: '1px 5px',
-                                borderRadius: 2,
-                                background: style.bg,
-                                border: `1px solid ${style.border}`,
-                                color: style.color,
-                                flexShrink: 0,
-                              }}
-                            >
-                              {law.code}
-                            </span>
-                            <span
-                              style={{
-                                fontSize: 12,
-                                fontWeight: isSelected ? 700 : 500,
-                                color: isSelected ? '#ffffff' : '#e5e7eb',
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis',
-                                whiteSpace: 'nowrap',
-                              }}
-                            >
-                              {law.shortTitle || law.title}
-                            </span>
+                    {/* Laws inside category with gap and padding */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, padding: '0 6px' }}>
+                      {laws.map((law) => {
+                        const isSelected = currentLaw?.id === law.id;
+                        const style = getCategoryStyle(category.key);
+                        return (
+                          <div
+                            key={law.id}
+                            onClick={() => handleSelectLaw(law)}
+                            style={{
+                              padding: '7px 10px',
+                              borderRadius: 4,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              gap: 8,
+                              cursor: 'pointer',
+                              background: isSelected ? 'rgba(236, 199, 129, 0.12)' : 'rgba(255, 255, 255, 0.015)',
+                              border: isSelected ? '1px solid rgba(236, 199, 129, 0.35)' : '1px solid rgba(255, 255, 255, 0.03)',
+                              transition: 'all 0.12s ease',
+                            }}
+                            onMouseEnter={(e) => {
+                              if (!isSelected) {
+                                e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
+                                e.currentTarget.style.borderColor = 'rgba(236, 199, 129, 0.25)';
+                                e.currentTarget.style.transform = 'translateX(2px)';
+                              }
+                            }}
+                            onMouseLeave={(e) => {
+                              if (!isSelected) {
+                                e.currentTarget.style.background = 'rgba(255, 255, 255, 0.015)';
+                                e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.03)';
+                                e.currentTarget.style.transform = 'none';
+                              }
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 7, overflow: 'hidden' }}>
+                              <span
+                                style={{
+                                  fontSize: 10,
+                                  fontFamily: mono,
+                                  fontWeight: 800,
+                                  textTransform: 'uppercase',
+                                  letterSpacing: '0.04em',
+                                  padding: '1px 5px',
+                                  borderRadius: 2,
+                                  background: style.bg,
+                                  border: `1px solid ${style.border}`,
+                                  color: style.color,
+                                  flexShrink: 0,
+                                }}
+                              >
+                                {law.code}
+                              </span>
+                              <span
+                                style={{
+                                  fontSize: 12,
+                                  fontWeight: isSelected ? 700 : 500,
+                                  color: isSelected ? '#ffffff' : '#e5e7eb',
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                  whiteSpace: 'nowrap',
+                                }}
+                              >
+                                {law.shortTitle || law.title}
+                              </span>
+                            </div>
+                            {isSelected && <Check size={14} style={{ color: R.accent, flexShrink: 0 }} />}
                           </div>
-                          {isSelected && <Check size={14} style={{ color: R.accent, flexShrink: 0 }} />}
-                        </div>
-                      );
-                    })}
+                        );
+                      })}
+                    </div>
                   </div>
                 ))
               )}
@@ -652,6 +679,8 @@ export const LawSelectPicker: React.FC<LawSelectPickerProps> = ({
                     fontSize: 11,
                     fontFamily: mono,
                     fontWeight: 800,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.04em',
                     padding: '3px 8px',
                     borderRadius: 3,
                     background: catStyle?.bg,
@@ -802,7 +831,7 @@ export const LawSelectPicker: React.FC<LawSelectPickerProps> = ({
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="🔍 Быстрый поиск: введите код (УАК, ДК, FIB...) или название закона..."
+              placeholder="Быстрый поиск: введите код (УАК, ДК, FIB...) или название закона..."
               style={{
                 flex: 1,
                 background: 'transparent',
@@ -826,8 +855,8 @@ export const LawSelectPicker: React.FC<LawSelectPickerProps> = ({
               style={{
                 fontSize: 10.5,
                 fontFamily: mono,
-                padding: '2px 8px',
-                borderRadius: 2,
+                padding: '3px 10px',
+                borderRadius: 12,
                 background: 'rgba(255, 255, 255, 0.06)',
                 color: R.textMuted,
               }}
@@ -841,8 +870,8 @@ export const LawSelectPicker: React.FC<LawSelectPickerProps> = ({
             style={{
               display: 'flex',
               gap: 6,
-              padding: '8px 12px',
-              background: 'rgba(0, 0, 0, 0.35)',
+              padding: '10px 14px',
+              background: 'rgba(0, 0, 0, 0.4)',
               borderBottom: ft.hair,
               overflowX: 'auto',
             }}
@@ -860,10 +889,10 @@ export const LawSelectPicker: React.FC<LawSelectPickerProps> = ({
                   type="button"
                   onClick={() => setSelectedCategory(cat.key)}
                   style={{
-                    padding: '4px 10px',
+                    padding: '5px 12px',
                     fontSize: 11,
                     fontWeight: 700,
-                    borderRadius: 4,
+                    borderRadius: 20,
                     border: isActive ? `1px solid ${cat.badgeColor}` : '1px solid rgba(255, 255, 255, 0.08)',
                     background: isActive ? cat.badgeBg : 'rgba(255, 255, 255, 0.02)',
                     color: isActive ? cat.badgeColor : R.textMuted,
@@ -872,19 +901,20 @@ export const LawSelectPicker: React.FC<LawSelectPickerProps> = ({
                     display: 'flex',
                     alignItems: 'center',
                     gap: 6,
-                    transition: 'all 0.12s ease',
+                    boxShadow: isActive ? `0 0 12px ${cat.badgeBg}` : 'none',
+                    transition: 'all 0.15s ease',
                   }}
                 >
                   <span>{cat.icon}</span>
                   <span>{cat.shortLabel}</span>
-                  <span style={{ opacity: 0.7, fontSize: 10, fontFamily: mono }}>({count})</span>
+                  <span style={{ opacity: 0.75, fontSize: 10, fontFamily: mono }}>({count})</span>
                 </button>
               );
             })}
           </div>
 
           {/* Laws List */}
-          <div style={{ flex: 1, overflowY: 'auto', padding: '6px 0' }} className="rt-scroll">
+          <div style={{ flex: 1, overflowY: 'auto', padding: '10px 0' }} className="rt-scroll">
             {groupedLaws.length === 0 ? (
               <div style={{ padding: '24px 16px', textAlign: 'center' }}>
                 <p style={{ fontSize: 13, color: R.textMuted, margin: '0 0 12px 0' }}>
@@ -915,127 +945,151 @@ export const LawSelectPicker: React.FC<LawSelectPickerProps> = ({
               </div>
             ) : (
               groupedLaws.map(({ category, laws }) => (
-                <div key={category.key} style={{ marginBottom: 10 }}>
-                  {/* Category Header */}
+                <div key={category.key} style={{ marginBottom: 18 }}>
+                  {/* Category Header with generous bottom margin */}
                   <div
                     style={{
-                      padding: '6px 14px',
+                      padding: '8px 14px',
+                      margin: '0 10px 10px 10px',
+                      borderRadius: 6,
                       fontSize: 11,
                       fontWeight: 800,
                       textTransform: 'uppercase',
-                      letterSpacing: '0.06em',
+                      letterSpacing: '0.07em',
                       color: category.badgeColor,
-                      background: 'rgba(255, 255, 255, 0.02)',
-                      borderBottom: '1px solid rgba(255, 255, 255, 0.04)',
+                      background: 'rgba(255, 255, 255, 0.035)',
+                      border: '1px solid rgba(255, 255, 255, 0.06)',
+                      borderLeft: `3px solid ${category.badgeColor}`,
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'space-between',
+                      boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
                     }}
                   >
-                    <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
                       <span>{category.icon}</span>
                       <span>{category.label}</span>
                     </span>
-                    <span style={{ fontSize: 10, fontFamily: mono, opacity: 0.7 }}>
+                    <span
+                      style={{
+                        fontSize: 10.5,
+                        fontFamily: mono,
+                        fontWeight: 700,
+                        padding: '2px 8px',
+                        borderRadius: 10,
+                        background: 'rgba(255, 255, 255, 0.06)',
+                        color: category.badgeColor,
+                      }}
+                    >
                       {laws.length}
                     </span>
                   </div>
 
-                  {/* Category Law Items */}
-                  {laws.map((law) => {
-                    const isSelected = currentLaw?.id === law.id;
-                    const style = getCategoryStyle(category.key);
-                    return (
-                      <div
-                        key={law.id}
-                        onClick={() => handleSelectLaw(law)}
-                        style={{
-                          padding: '10px 14px',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
-                          gap: 12,
-                          cursor: 'pointer',
-                          background: isSelected ? 'rgba(236, 199, 129, 0.12)' : 'transparent',
-                          borderLeft: isSelected ? `3px solid ${R.accent}` : '3px solid transparent',
-                          transition: 'all 0.12s ease',
-                        }}
-                        onMouseEnter={(e) => {
-                          if (!isSelected) {
-                            e.currentTarget.style.background = 'rgba(255, 255, 255, 0.04)';
-                            e.currentTarget.style.borderLeftColor = R.accent;
-                          }
-                        }}
-                        onMouseLeave={(e) => {
-                          if (!isSelected) {
-                            e.currentTarget.style.background = 'transparent';
-                            e.currentTarget.style.borderLeftColor = 'transparent';
-                          }
-                        }}
-                      >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, overflow: 'hidden' }}>
-                          <span
-                            style={{
-                              fontSize: 10.5,
-                              fontFamily: mono,
-                              fontWeight: 800,
-                              padding: '2px 7px',
-                              borderRadius: 3,
-                              background: style.bg,
-                              border: `1px solid ${style.border}`,
-                              color: style.color,
-                              flexShrink: 0,
-                            }}
-                          >
-                            [{law.code}]
-                          </span>
-
-                          <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-                            <span
-                              style={{
-                                fontSize: 13,
-                                fontWeight: 700,
-                                color: isSelected ? '#ffffff' : '#f3f4f6',
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis',
-                                whiteSpace: 'nowrap',
-                              }}
-                            >
-                              {law.shortTitle || law.title}
-                            </span>
+                  {/* Laws Cards Container with clear gap and breathing room */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 5, padding: '0 10px' }}>
+                    {laws.map((law) => {
+                      const isSelected = currentLaw?.id === law.id;
+                      const style = getCategoryStyle(category.key);
+                      return (
+                        <div
+                          key={law.id}
+                          onClick={() => handleSelectLaw(law)}
+                          style={{
+                            padding: '10px 14px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            gap: 12,
+                            cursor: 'pointer',
+                            borderRadius: 6,
+                            background: isSelected ? 'rgba(236, 199, 129, 0.12)' : 'rgba(255, 255, 255, 0.015)',
+                            border: isSelected ? '1px solid rgba(236, 199, 129, 0.38)' : '1px solid rgba(255, 255, 255, 0.035)',
+                            transition: 'all 0.15s cubic-bezier(0.16, 1, 0.3, 1)',
+                          }}
+                          onMouseEnter={(e) => {
+                            if (!isSelected) {
+                              e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
+                              e.currentTarget.style.borderColor = 'rgba(236, 199, 129, 0.28)';
+                              e.currentTarget.style.transform = 'translateX(3px)';
+                            }
+                          }}
+                          onMouseLeave={(e) => {
+                            if (!isSelected) {
+                              e.currentTarget.style.background = 'rgba(255, 255, 255, 0.015)';
+                              e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.035)';
+                              e.currentTarget.style.transform = 'none';
+                            }
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, overflow: 'hidden' }}>
                             <span
                               style={{
                                 fontSize: 11,
-                                color: R.textMuted,
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis',
-                                whiteSpace: 'nowrap',
+                                fontFamily: mono,
+                                fontWeight: 800,
+                                textTransform: 'uppercase',
+                                letterSpacing: '0.04em',
+                                padding: '2px 7px',
+                                borderRadius: 3,
+                                background: style.bg,
+                                border: `1px solid ${style.border}`,
+                                color: style.color,
+                                flexShrink: 0,
                               }}
                             >
-                              {law.title} • {law.parts.length} {law.parts.length === 1 ? 'часть' : 'части'}
+                              [{law.code}]
                             </span>
-                          </div>
-                        </div>
 
-                        {isSelected && (
-                          <div
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: 6,
-                              color: R.accent,
-                              fontSize: 11,
-                              fontWeight: 700,
-                              flexShrink: 0,
-                            }}
-                          >
-                            <span>Выбран</span>
-                            <Check size={16} />
+                            <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden', gap: 2 }}>
+                              <span
+                                style={{
+                                  fontSize: 13.5,
+                                  fontWeight: 700,
+                                  color: isSelected ? '#ffffff' : '#f3f4f6',
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                  whiteSpace: 'nowrap',
+                                }}
+                              >
+                                {law.shortTitle || law.title}
+                              </span>
+                              <span
+                                style={{
+                                  fontSize: 11,
+                                  color: R.textMuted,
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                  whiteSpace: 'nowrap',
+                                }}
+                              >
+                                {law.title} • {law.parts.length} {law.parts.length === 1 ? 'часть' : 'части'}
+                              </span>
+                            </div>
                           </div>
-                        )}
-                      </div>
-                    );
-                  })}
+
+                          {isSelected && (
+                            <div
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 6,
+                                color: R.accent,
+                                fontSize: 11,
+                                fontWeight: 700,
+                                flexShrink: 0,
+                                background: 'rgba(236, 199, 129, 0.1)',
+                                padding: '3px 8px',
+                                borderRadius: 4,
+                              }}
+                            >
+                              <span>Выбран</span>
+                              <Check size={14} />
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               ))
             )}
