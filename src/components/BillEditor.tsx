@@ -35,9 +35,9 @@ import {
 } from 'lucide-react';
 import { R, ft, label, mono, btnAccent, btnOutline, btnDanger } from '../lib/ui';
 import { getLatestArticleContent, getActiveLaw, findLawByTitleOrCode } from '../services/lawStorageService';
-import { LAWS_METADATA } from '../data/lawsMetadata';
 import { Popover, MenuItem } from './Primitives';
 import { EnactLawModal } from './laws/EnactLawModal';
+import { LawSelectPicker } from './laws/LawSelectPicker';
 import { 
   validateBillForPublishing, 
   checkAuthorQuota, 
@@ -979,82 +979,18 @@ export const BillEditor: React.FC<BillEditorProps> = ({
             <div>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
                 <label style={{ ...label, margin: 0 }}>Целевой нормативно-правовой акт</label>
-                <span style={{ fontSize: 11, color: R.textMuted }}>Выберите из базы или укажите вручную</span>
+                <span style={{ fontSize: 11, color: R.textMuted }}>Официальный реестр штата Сан-Андреас (27 законов)</span>
               </div>
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                <input
-                  type="text"
-                  value={bill.targetLaw}
-                  onChange={(e) => handleFieldChange('targetLaw', e.target.value)}
-                  disabled={!canEdit || isReadOnly}
-                  style={{
-                    flex: '1 1 320px',
-                    height: 38,
-                    padding: '0 12px',
-                    fontSize: 13.5,
-                    fontWeight: 700,
-                    background: R.bgInput,
-                    border: ft.edge,
-                    color: R.text,
-                    borderRadius: 2,
-                    outline: 'none',
-                  }}
-                  placeholder="Например: Уголовно-Административный Кодекс штата Сан-Андреас"
-                />
-
-                <select
-                  value=""
-                  onChange={(e) => {
-                    const selected = LAWS_METADATA.find((m) => m.id === e.target.value);
-                    if (selected) {
-                      handleFieldChange('targetLaw', selected.title);
-                      handleFieldChange('lawCode', selected.code);
-                      onToast('info', `Выбран закон: ${selected.shortTitle || selected.title}`);
-                    }
-                  }}
-                  disabled={!canEdit || isReadOnly}
-                  style={{
-                    height: 38,
-                    padding: '0 10px',
-                    fontSize: 12,
-                    fontWeight: 700,
-                    background: R.bgElevated,
-                    border: `1px solid ${R.accentBorder}`,
-                    color: R.accent,
-                    borderRadius: 2,
-                    outline: 'none',
-                    cursor: 'pointer',
-                    maxWidth: 260,
-                  }}
-                >
-                  <option value="">⚡ Выбрать из 27 законов...</option>
-                  <optgroup label="📜 Конституция">
-                    {LAWS_METADATA.filter(m => m.category === 'constitution').map(m => (
-                      <option key={m.id} value={m.id}>[{m.code}] {m.shortTitle}</option>
-                    ))}
-                  </optgroup>
-                  <optgroup label="⚖️ Кодексы (6)">
-                    {LAWS_METADATA.filter(m => m.category === 'code').map(m => (
-                      <option key={m.id} value={m.id}>[{m.code}] {m.shortTitle}</option>
-                    ))}
-                  </optgroup>
-                  <optgroup label="🛡️ Силовые ведомства (5)">
-                    {LAWS_METADATA.filter(m => m.subCategory === 'security').map(m => (
-                      <option key={m.id} value={m.id}>[{m.code}] {m.shortTitle}</option>
-                    ))}
-                  </optgroup>
-                  <optgroup label="🏛️ Органы власти и юстиция (6)">
-                    {LAWS_METADATA.filter(m => m.subCategory === 'government').map(m => (
-                      <option key={m.id} value={m.id}>[{m.code}] {m.shortTitle}</option>
-                    ))}
-                  </optgroup>
-                  <optgroup label="📋 Гражданские и спец. законы (11)">
-                    {LAWS_METADATA.filter(m => m.subCategory === 'civil').map(m => (
-                      <option key={m.id} value={m.id}>[{m.code}] {m.shortTitle}</option>
-                    ))}
-                  </optgroup>
-                </select>
-              </div>
+              <LawSelectPicker
+                value={bill.targetLaw}
+                onChange={(lawTitle, lawCode) => {
+                  handleFieldChange('targetLaw', lawTitle);
+                  if (lawCode) handleFieldChange('lawCode', lawCode);
+                  onToast('info', `Выбран закон: ${lawTitle}`);
+                }}
+                disabled={!canEdit || isReadOnly}
+                placeholder="Выберите закон из официального реестра или укажите вручную..."
+              />
             </div>
 
             <div>
@@ -1432,31 +1368,15 @@ export const BillEditor: React.FC<BillEditorProps> = ({
                           </span>
 
                           {/* Target Law selector per row for multi-law legislation */}
-                          <select
-                            value={row.targetLaw || bill.targetLaw || 'Дорожный кодекс (ДК)'}
-                            onChange={(e) => updateComparisonRow(row.id, 'targetLaw', e.target.value)}
-                            disabled={!canEdit || isReadOnly}
-                            title="Целевой закон для данной статьи (позволяет писать комплексные законопроекты по нескольким законам)"
-                            style={{
-                              height: 26,
-                              padding: '0 6px',
-                              fontSize: 11,
-                              fontWeight: 700,
-                              background: R.bgInput,
-                              color: R.accent,
-                              border: `1px solid ${R.accentBorder}`,
-                              borderRadius: 2,
-                              outline: 'none',
-                              maxWidth: 165,
-                              cursor: canEdit && !isReadOnly ? 'pointer' : 'default',
+                          <LawSelectPicker
+                            variant="compact"
+                            value={row.targetLaw || bill.targetLaw || 'Дорожный Кодекс штата Сан-Андреас'}
+                            onChange={(lawTitle) => {
+                              updateComparisonRow(row.id, 'targetLaw', lawTitle);
+                              onToast('info', `Для §${index + 1} выбран закон: ${lawTitle}`);
                             }}
-                          >
-                            {LAWS_METADATA.map((l) => (
-                              <option key={l.id} value={l.title}>
-                                {l.code ? `[${l.code}] ` : ''}{l.shortTitle || l.title}
-                              </option>
-                            ))}
-                          </select>
+                            disabled={!canEdit || isReadOnly}
+                          />
 
                           <input
                             type="text"

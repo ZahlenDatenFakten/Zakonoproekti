@@ -6,8 +6,8 @@ import {
   resetLawToDefault, 
   getLawPartBBCode 
 } from '../../services/lawStorageService';
-import { LAWS_METADATA } from '../../data/lawsMetadata';
 import { ForumLivePreview } from './ForumLivePreview';
+import { LawSelectPicker } from './LawSelectPicker';
 import { 
   X, 
   Search, 
@@ -167,15 +167,6 @@ export const LawStudioModal: React.FC<LawStudioModalProps> = ({
     }
   };
 
-  // Grouped laws for dropdown
-  const categories = [
-    { key: 'constitution', label: '📜 Конституция' },
-    { key: 'code', label: '⚖️ Кодексы (6)' },
-    { key: 'security', label: '🛡️ Силовые ведомства (5)' },
-    { key: 'government', label: '🏛️ Органы власти и юстиция (6)' },
-    { key: 'civil', label: '📋 Гражданские и спец. законы (11)' },
-  ];
-
   // Filtered chapters/articles
   const filteredChapters = useMemo(() => {
     return law.chapters
@@ -258,40 +249,15 @@ export const LawStudioModal: React.FC<LawStudioModalProps> = ({
 
             <div style={{ flex: '1 1 auto' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                {/* Categorized Dropdown */}
-                <select
+                {/* Searchable Custom Law Picker */}
+                <LawSelectPicker
+                  variant="compact"
                   value={selectedLawId}
-                  onChange={(e) => setSelectedLawId(e.target.value)}
-                  style={{
-                    height: 32,
-                    padding: '0 12px',
-                    fontSize: 13,
-                    fontWeight: 700,
-                    background: R.bgInput,
-                    border: ft.edge,
-                    color: R.text,
-                    borderRadius: 3,
-                    outline: 'none',
-                    cursor: 'pointer',
-                    maxWidth: 380,
+                  onChange={(_title, _code, id) => {
+                    if (id) setSelectedLawId(id);
                   }}
-                >
-                  {categories.map((cat) => {
-                    const items = LAWS_METADATA.filter((m) => 
-                      m.category === cat.key || m.subCategory === cat.key
-                    );
-                    if (items.length === 0) return null;
-                    return (
-                      <optgroup key={cat.key} label={cat.label} style={{ background: '#1c1c1f', color: '#ecc781' }}>
-                        {items.map((item) => (
-                          <option key={item.id} value={item.id} style={{ background: '#141416', color: '#fff' }}>
-                            [{item.code}] {item.shortTitle || item.title}
-                          </option>
-                        ))}
-                      </optgroup>
-                    );
-                  })}
-                </select>
+                  style={{ maxWidth: 360 }}
+                />
 
                 <span
                   style={{
