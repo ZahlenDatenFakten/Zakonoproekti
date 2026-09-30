@@ -79,10 +79,28 @@ export function compileArticleBBCode(article: LawArticle): string {
   const { font, size, accentColor, textColor } = FORUM_THEME;
 
   // Clean article number (e.g. "9.1", "Статья 9.1" -> "9.1")
-  const numClean = article.articleNumber.replace(/^статья\s+/i, '').trim();
+  let numClean = article.articleNumber.replace(/^статья\s+/i, '').trim();
+
+  // If articleNumber accidentally got a chapter title or non-numeric label, extract true number from content
+  if (/^глава\s+/i.test(numClean) || !/\d/.test(numClean)) {
+    const m = article.content.trim().match(/^(?:ст(?:атья|\.)?\s*)?([0-9]+(?:\.[0-9]+)*)/i);
+    if (m) {
+      numClean = m[1];
+    }
+  }
 
   // 1. Article header & main content
   let cleanContent = article.content.trim();
+
+  // Strip duplicate article number from beginning of cleanContent (e.g. "Статья 5.6 ...")
+  if (numClean) {
+    const escaped = numClean.replace(/\./g, '\\.');
+    const leadRegex = new RegExp(`^(?:ст(?:атья|\\.)?\\s*)?${escaped}[\\.:\\s—–-]*\\s*`, 'i');
+    cleanContent = cleanContent.replace(leadRegex, '').trim();
+  } else {
+    cleanContent = cleanContent.replace(/^(?:ст(?:атья|\.)?\s*)?(?:[0-9]+(?:\.[0-9]+)*)[\.:\\s—–-]*\s*/i, '').trim();
+  }
+
   if (article.title) {
     const t = article.title.trim();
     if (cleanContent.startsWith(t)) {
@@ -229,4 +247,33 @@ export function compileFullLawBBCode(law: StateLawDocument): string {
   const { balancedBBCode } = validateAndBalanceBBCode(rawResult);
   return balancedBBCode;
 }
+
+/**
+ * Compiles a specific Chapter of a law for forum publishing with all amendments applied.
+ */
+export function compileLawChapterBBCode(law: StateLawDocument, chapterIdOrRomanOrIndex: string | number): string {
+  const { dividerImage } = FORUM_THEME;
+  const divider = law.dividerImageUrl || dividerImage;
+
+  let targetCh: LawChapter | undefined;
+  if (typeof chapterIdOrRomanOrIndex === 'number') {
+    targetCh = law.chapters[chapterIdOrRomanOrIndex];
+  } else {
+    const q = chapterIdOrRomanOrIndex.trim().toLowerCase();
+    targetCh = law.chapters.find(
+      (c) => c.id.toLowerCase() === q ||
+             c.numberRoman.toLowerCase() === q ||
+             c.numberRoman.replace(/^Глава\s+/i, '').replace(/\.$/, '').toLowerCase() === q ||
+             c.title.toLowerCase() === q ||
+             `глава ${c.numberRoman.toLowerCase()}` === q ||
+             `глава ${c.numberRoman.replace(/^Глава\s+/i, '').replace(/\.$/, '').toLowerCase()}` === q
+    );
+  }
+
+  if (!targetCh) return '';
+  const rawResult = compileChapterBBCode(targetCh, divider);
+  const { balancedBBCode } = validateAndBalanceBBCode(rawResult);
+  return balancedBBCode;
+}
+
 

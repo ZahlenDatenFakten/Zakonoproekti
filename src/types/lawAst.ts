@@ -79,5 +79,6 @@ export interface LawPatchResult {
   articleBBCodes: Record<string, string>; // articleNumber -> compiled BB-code
   fullLawBBCode: string;
   partBBCodes?: Record<number, string>;   // partIndex -> compiled BB-code для многочастных законов
+  chapterBBCodes?: Record<string, string>; // chapterId or numberRoman -> compiled BB-code главы
   multiLawResults?: Record<string, LawPatchResult>; // lawId -> LawPatchResult для комплексных актов по нескольким законам
 }

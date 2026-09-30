@@ -90,6 +90,13 @@ export interface Bill {
   comments: BillComment[];
   votes?: CommissionVotes;
   federalVerdict?: FederalGovernmentVerdict;
+  revisionHistory?: Array<{
+    instance: 'admin' | 'commission';
+    reason: string;
+    date: string;
+    resubmittedAt: string;
+    resubmitNote?: string;
+  }>;
   sha256Hash?: string; // Криптографический отпечаток целостности документа
   forumUrl?: string;
   attachments?: BillAttachment[];

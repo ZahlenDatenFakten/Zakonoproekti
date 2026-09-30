@@ -58,7 +58,9 @@ export const AdminWorkspace: React.FC<AdminWorkspaceProps> = ({
     setExpandedPacks((prev) => ({ ...prev, [label]: !prev[label] }));
   };
 
-  // STAGE 2 QUEUE FILTER:
+type AdminFilterType = 'my_pending' | 'pending_enact' | 'needs_revision' | 'approved' | 'rejected' | 'all';
+
+// STAGE 2 QUEUE FILTER:
   const adminQueueBills = useMemo(() => {
     return bills.filter((b) => {
       if (b.status === 'draft') return false;
@@ -72,6 +74,37 @@ export const AdminWorkspace: React.FC<AdminWorkspaceProps> = ({
       return isStage1Approved || isAlreadyProcessed;
     }).sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
   }, [bills]);
+
+  const [adminFilter, setAdminFilter] = useSessionState<AdminFilterType>('admin_queue_filter', 'my_pending');
+
+  const filterCounts = useMemo(() => {
+    return {
+      my_pending: adminQueueBills.filter(b => !b.federalVerdict && b.status !== 'approved' && b.status !== 'rejected').length,
+      pending_enact: adminQueueBills.filter(b => b.federalVerdict?.status === 'approved' && b.status !== 'approved').length,
+      needs_revision: adminQueueBills.filter(b => b.federalVerdict?.status === 'needs_revision' || b.status === 'needs_revision').length,
+      approved: adminQueueBills.filter(b => b.status === 'approved' || b.federalVerdict?.status === 'approved').length,
+      rejected: adminQueueBills.filter(b => b.status === 'rejected' || b.federalVerdict?.status === 'rejected').length,
+      all: adminQueueBills.length,
+    };
+  }, [adminQueueBills]);
+
+  const displayedBills = useMemo(() => {
+    switch (adminFilter) {
+      case 'my_pending':
+        return adminQueueBills.filter(b => !b.federalVerdict && b.status !== 'approved' && b.status !== 'rejected');
+      case 'pending_enact':
+        return adminQueueBills.filter(b => b.federalVerdict?.status === 'approved' && b.status !== 'approved');
+      case 'needs_revision':
+        return adminQueueBills.filter(b => b.federalVerdict?.status === 'needs_revision' || b.status === 'needs_revision');
+      case 'approved':
+        return adminQueueBills.filter(b => b.status === 'approved' || b.federalVerdict?.status === 'approved');
+      case 'rejected':
+        return adminQueueBills.filter(b => b.status === 'rejected' || b.federalVerdict?.status === 'rejected');
+      case 'all':
+      default:
+        return adminQueueBills;
+    }
+  }, [adminQueueBills, adminFilter]);
 
   // Stage 2 approved bills waiting for Admin to enact into laws
   const pendingEnactmentBills = useMemo(() => {
@@ -314,9 +347,216 @@ export const AdminWorkspace: React.FC<AdminWorkspaceProps> = ({
         </div>
       </div>
 
+      {/* FILTER TABS */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6,
+          background: R.bgPanel,
+          border: ft.strong,
+          borderRadius: 4,
+          padding: 6,
+          marginBottom: 16,
+          flexWrap: 'wrap',
+        }}
+      >
+        <button
+          type="button"
+          onClick={() => setAdminFilter('my_pending')}
+          style={{
+            ...btnOutline,
+            padding: '6px 12px',
+            fontSize: 12,
+            fontWeight: 700,
+            background: adminFilter === 'my_pending' ? R.accentSubtle : 'transparent',
+            color: adminFilter === 'my_pending' ? R.accent : R.textMuted,
+            borderColor: adminFilter === 'my_pending' ? R.accent : 'transparent',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            cursor: 'pointer',
+          }}
+        >
+          <Crown size={14} color={adminFilter === 'my_pending' ? R.accent : R.textMuted} />
+          <span>На рассмотрении у меня</span>
+          <span
+            style={{
+              padding: '1px 6px',
+              borderRadius: 10,
+              fontSize: 10.5,
+              fontFamily: mono,
+              background: adminFilter === 'my_pending' ? R.accent : 'rgba(255,255,255,0.06)',
+              color: adminFilter === 'my_pending' ? '#151517' : R.textMuted,
+              fontWeight: 800,
+            }}
+          >
+            {filterCounts.my_pending}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setAdminFilter('pending_enact')}
+          style={{
+            ...btnOutline,
+            padding: '6px 12px',
+            fontSize: 12,
+            fontWeight: 700,
+            background: adminFilter === 'pending_enact' ? 'rgba(16, 185, 129, 0.15)' : 'transparent',
+            color: adminFilter === 'pending_enact' ? '#10b981' : R.textMuted,
+            borderColor: adminFilter === 'pending_enact' ? 'rgba(16, 185, 129, 0.4)' : 'transparent',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            cursor: 'pointer',
+          }}
+        >
+          <Zap size={14} color={adminFilter === 'pending_enact' ? '#10b981' : R.textMuted} />
+          <span>Ожидают внесения</span>
+          <span
+            style={{
+              padding: '1px 6px',
+              borderRadius: 10,
+              fontSize: 10.5,
+              fontFamily: mono,
+              background: adminFilter === 'pending_enact' ? '#10b981' : 'rgba(255,255,255,0.06)',
+              color: adminFilter === 'pending_enact' ? '#151517' : R.textMuted,
+              fontWeight: 800,
+            }}
+          >
+            {filterCounts.pending_enact}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setAdminFilter('needs_revision')}
+          style={{
+            ...btnOutline,
+            padding: '6px 12px',
+            fontSize: 12,
+            fontWeight: 700,
+            background: adminFilter === 'needs_revision' ? 'rgba(234, 179, 8, 0.15)' : 'transparent',
+            color: adminFilter === 'needs_revision' ? '#eab308' : R.textMuted,
+            borderColor: adminFilter === 'needs_revision' ? 'rgba(234, 179, 8, 0.4)' : 'transparent',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            cursor: 'pointer',
+          }}
+        >
+          <RotateCcw size={14} color={adminFilter === 'needs_revision' ? '#eab308' : R.textMuted} />
+          <span>На доработке</span>
+          <span
+            style={{
+              padding: '1px 6px',
+              borderRadius: 10,
+              fontSize: 10.5,
+              fontFamily: mono,
+              background: adminFilter === 'needs_revision' ? '#eab308' : 'rgba(255,255,255,0.06)',
+              color: adminFilter === 'needs_revision' ? '#151517' : R.textMuted,
+              fontWeight: 800,
+            }}
+          >
+            {filterCounts.needs_revision}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setAdminFilter('approved')}
+          style={{
+            ...btnOutline,
+            padding: '6px 12px',
+            fontSize: 12,
+            fontWeight: 700,
+            background: adminFilter === 'approved' ? 'rgba(16, 185, 129, 0.15)' : 'transparent',
+            color: adminFilter === 'approved' ? '#10b981' : R.textMuted,
+            borderColor: adminFilter === 'approved' ? 'rgba(16, 185, 129, 0.4)' : 'transparent',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            cursor: 'pointer',
+          }}
+        >
+          <CheckCircle2 size={14} color={adminFilter === 'approved' ? '#10b981' : R.textMuted} />
+          <span>Одобренные</span>
+          <span
+            style={{
+              padding: '1px 6px',
+              borderRadius: 10,
+              fontSize: 10.5,
+              fontFamily: mono,
+              background: adminFilter === 'approved' ? '#10b981' : 'rgba(255,255,255,0.06)',
+              color: adminFilter === 'approved' ? '#10b981' : R.textMuted,
+              fontWeight: 800,
+            }}
+          >
+            {filterCounts.approved}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setAdminFilter('rejected')}
+          style={{
+            ...btnOutline,
+            padding: '6px 12px',
+            fontSize: 12,
+            fontWeight: 700,
+            background: adminFilter === 'rejected' ? 'rgba(239, 68, 68, 0.15)' : 'transparent',
+            color: adminFilter === 'rejected' ? '#f87171' : R.textMuted,
+            borderColor: adminFilter === 'rejected' ? 'rgba(239, 68, 68, 0.4)' : 'transparent',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            cursor: 'pointer',
+          }}
+        >
+          <XCircle size={14} color={adminFilter === 'rejected' ? '#f87171' : R.textMuted} />
+          <span>Отклонённые</span>
+          <span
+            style={{
+              padding: '1px 6px',
+              borderRadius: 10,
+              fontSize: 10.5,
+              fontFamily: mono,
+              background: adminFilter === 'rejected' ? '#f87171' : 'rgba(255,255,255,0.06)',
+              color: adminFilter === 'rejected' ? '#fff' : R.textMuted,
+              fontWeight: 800,
+            }}
+          >
+            {filterCounts.rejected}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setAdminFilter('all')}
+          style={{
+            ...btnOutline,
+            padding: '6px 12px',
+            fontSize: 12,
+            fontWeight: 700,
+            background: adminFilter === 'all' ? R.accentSubtle : 'transparent',
+            color: adminFilter === 'all' ? R.accent : R.textMuted,
+            borderColor: adminFilter === 'all' ? R.accent : 'transparent',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            cursor: 'pointer',
+            marginLeft: 'auto',
+          }}
+        >
+          <Layers size={14} color={adminFilter === 'all' ? R.accent : R.textMuted} />
+          <span>Все ({filterCounts.all})</span>
+        </button>
+      </div>
+
       {/* BILLS LIST */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-        {adminQueueBills.length === 0 ? (
+        {displayedBills.length === 0 ? (
           <div
             style={{
               display: 'flex',
@@ -331,12 +571,18 @@ export const AdminWorkspace: React.FC<AdminWorkspaceProps> = ({
           >
             <FileCode2 size={40} style={{ color: R.textMuted, marginBottom: 12, opacity: 0.4 }} />
             <p style={{ fontSize: 14, color: R.textMuted, margin: 0 }}>
-              Нет законопроектов, ожидающих официального утверждения.
+              {adminFilter === 'my_pending'
+                ? 'Нет законопроектов, ожидающих рассмотрения администратором.'
+                : adminFilter === 'pending_enact'
+                ? 'Нет законопроектов, ожидающих внесения в законы.'
+                : adminFilter === 'needs_revision'
+                ? 'Нет законопроектов, отправленных на доработку.'
+                : 'Нет законопроектов в данной категории.'}
             </p>
           </div>
         ) : (
           (() => {
-            const sortedGroups = groupBillsByWeek(adminQueueBills);
+            const sortedGroups = groupBillsByWeek(displayedBills);
 
             return sortedGroups.map((group) => {
               const isExpanded = expandedPacks[group.label] || false;

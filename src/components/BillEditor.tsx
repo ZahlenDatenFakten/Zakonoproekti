@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import type { Bill, ComparisonRow, AccessPermission, UserProfile, BillStatus, VoteDecision, FederalGovernmentVerdict } from '../types/bill';
+import type { Bill, ComparisonRow, AccessPermission, UserProfile, BillStatus, VoteDecision, FederalGovernmentVerdict, BillComment } from '../types/bill';
 import { CommentsSection } from './CommentsSection';
 import { ExpandedArticleModal } from './ExpandedArticleModal';
 import { ImageUploader } from './ImageUploader';
@@ -33,7 +33,9 @@ import {
   Minimize2,
   Zap,
   Undo2,
-  Redo2
+  Redo2,
+  RotateCcw,
+  X
 } from 'lucide-react';
 import { R, ft, label, mono, btnAccent, btnOutline, btnDanger } from '../lib/ui';
 import { useBillHistory } from '../hooks/useBillHistory';
@@ -87,6 +89,8 @@ export const BillEditor: React.FC<BillEditorProps> = ({
   const [confirmDeleteArticleId, setConfirmDeleteArticleId] = useState<string | null>(null);
   const [isFullscreenReform, setIsFullscreenReform] = useState(false);
   const [showEnactModal, setShowEnactModal] = useState(false);
+  const [showResubmitModal, setShowResubmitModal] = useState(false);
+  const [resubmitNote, setResubmitNote] = useState('');
 
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -97,6 +101,13 @@ export const BillEditor: React.FC<BillEditorProps> = ({
   const canEdit = permission === 'edit' || isAuthor || isAdmin;
   const canDelete = isAuthor || isAdmin;
   const canCreateTotalReform = (user.isOfficialVerified && (user.officialRole === 'governor' || user.officialRole === 'prosecutor' || user.officialRole === 'judge')) || isAdmin;
+
+  // Revision state and target instance resolution
+  const isNeedsRevision = bill.status === 'needs_revision' || bill.federalVerdict?.status === 'needs_revision';
+  const revisionInstance: 'admin' | 'commission' = bill.federalVerdict?.status === 'needs_revision' ? 'admin' : 'commission';
+  const revisionInstanceName = revisionInstance === 'admin'
+    ? 'Федеральное Правительство (Администрация)'
+    : 'Законодательная Комиссия';
 
   // Auto-close menu on outside click
   useEffect(() => {
@@ -344,6 +355,7 @@ export const BillEditor: React.FC<BillEditorProps> = ({
 
     const newApproved = [updatedVotes.prosecutor, updatedVotes.judge, updatedVotes.governor].filter((v) => v === 'approved').length;
     const newRejected = [updatedVotes.prosecutor, updatedVotes.judge, updatedVotes.governor].filter((v) => v === 'rejected').length;
+    const newRevision = [updatedVotes.prosecutor, updatedVotes.judge, updatedVotes.governor].filter((v) => v === 'needs_revision').length;
 
     if (newApproved >= 2) {
       newStatus = 'under_review';
@@ -351,6 +363,9 @@ export const BillEditor: React.FC<BillEditorProps> = ({
     } else if (newRejected >= 2) {
       newStatus = 'rejected';
       newStatusReason = 'Отклонен большинством голосов Законодательной Комиссии.';
+    } else if (newRevision >= 2) {
+      newStatus = 'needs_revision';
+      newStatusReason = 'Отправлен на доработку решением Законодательной Комиссии.';
     }
 
     const updated: Bill = {
@@ -413,6 +428,70 @@ export const BillEditor: React.FC<BillEditorProps> = ({
     setAdminVerdictReason('');
     setIsEditingAdminVerdict(false);
     onToast('success', `Вердикт вынесен: ${decision === 'approved' ? 'Утверждено' : decision === 'rejected' ? 'Отклонено' : 'Направлено на доработку'}`);
+  };
+
+  const handleResubmitToInstance = async () => {
+    if (!isAuthor && !isAdmin) {
+      onToast('error', 'Только автор законопроекта может отправить его на повторное рассмотрение.');
+      return;
+    }
+
+    const note = resubmitNote.trim();
+    const now = new Date().toISOString();
+    const authorFullName = `${user.firstName} ${user.lastName}`.trim() || bill.author;
+
+    const newComment: BillComment = {
+      id: 'comm_' + Date.now(),
+      billId: bill.id,
+      authorName: authorFullName,
+      authorRole: user.officialRole,
+      content: note 
+        ? `🔄 [Повторное направление в ${revisionInstanceName}]: ${note}`
+        : `🔄 [Повторное направление в ${revisionInstanceName} после внесения правок]`,
+      createdAt: now,
+    };
+
+    const updatedHistory = [
+      ...(bill.revisionHistory || []),
+      {
+        instance: revisionInstance,
+        reason: revisionInstance === 'admin' ? (bill.federalVerdict?.reason || '') : (bill.statusReason || ''),
+        date: bill.federalVerdict?.updatedAt || bill.updatedAt,
+        resubmittedAt: now,
+        resubmitNote: note,
+      }
+    ];
+
+    let updated: Bill;
+
+    if (revisionInstance === 'admin') {
+      updated = {
+        ...bill,
+        status: 'under_review',
+        statusReason: `Поправки внесены автором после доработки. Законопроект повторно направлен на рассмотрение в Федеральное Правительство.${note ? ` Комментарий автора: «${note}»` : ''}`,
+        federalVerdict: undefined,
+        revisionHistory: updatedHistory,
+        comments: [...(bill.comments || []), newComment],
+        updatedAt: now,
+      };
+    } else {
+      updated = {
+        ...bill,
+        status: 'under_review',
+        statusReason: `Поправки внесены автором после доработки. Законопроект повторно направлен на голосование Законодательной Комиссии.${note ? ` Комментарий автора: «${note}»` : ''}`,
+        votes: {},
+        federalVerdict: undefined,
+        revisionHistory: updatedHistory,
+        comments: [...(bill.comments || []), newComment],
+        updatedAt: now,
+      };
+    }
+
+    setBill(updated);
+    await onSave(updated);
+    setShowResubmitModal(false);
+    setResubmitNote('');
+    onToast('success', `Законопроект успешно отправлен на повторное рассмотрение в ${revisionInstanceName}!`);
   };
 
   const handleEnactLaws = () => {
@@ -1095,6 +1174,75 @@ export const BillEditor: React.FC<BillEditorProps> = ({
                 <strong>Указание автору:</strong> Ознакомьтесь с замечаниями выше и внесите необходимые правки в статьи законопроекта.
               </span>
             </div>
+          )}
+        </div>
+      )}
+
+      {/* REVISION CALLOUT & RESUBMISSION BANNER */}
+      {isNeedsRevision && (
+        <div
+          style={{
+            background: 'rgba(234, 179, 8, 0.1)',
+            border: '1px solid rgba(234, 179, 8, 0.4)',
+            borderRadius: 4,
+            padding: '16px 20px',
+            marginBottom: 20,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 16,
+            flexWrap: 'wrap',
+          }}
+        >
+          <div style={{ flex: 1, minWidth: 280 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+              <RotateCcw size={16} color="#eab308" />
+              <span style={{ fontWeight: 800, fontSize: 13, color: '#eab308', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                Законопроект направлен на доработку
+              </span>
+              <span
+                style={{
+                  fontSize: 10.5,
+                  fontFamily: mono,
+                  fontWeight: 700,
+                  padding: '2px 8px',
+                  borderRadius: 2,
+                  background: 'rgba(234, 179, 8, 0.2)',
+                  color: '#eab308',
+                  border: '1px solid rgba(234, 179, 8, 0.3)',
+                }}
+              >
+                Инстанция: {revisionInstance === 'admin' ? 'Администрация (2-й этап)' : 'Комиссия (1-й этап)'}
+              </span>
+            </div>
+            <p style={{ fontSize: 13, color: R.text, margin: '4px 0 0 0', lineHeight: 1.5 }}>
+              {revisionInstance === 'admin'
+                ? (bill.federalVerdict?.reason || 'Ознакомьтесь с замечаниями Федерального Правительства выше, внесите изменения в статьи и отправьте проект на повторное рассмотрение.')
+                : (bill.statusReason || 'Законодательная Комиссия вернула проект на доработку. Внесите правки в статьи и отправьте проект на повторное голосование.')}
+            </p>
+          </div>
+
+          {(isAuthor || isAdmin) && (
+            <button
+              type="button"
+              onClick={() => setShowResubmitModal(true)}
+              style={{
+                ...btnAccent,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                padding: '0 18px',
+                height: 40,
+                fontSize: 12.5,
+                fontWeight: 700,
+                cursor: 'pointer',
+                background: '#eab308',
+                color: '#151517',
+              }}
+            >
+              <RotateCcw size={15} />
+              <span>Отправить повторно в {revisionInstance === 'admin' ? 'Администрацию' : 'Комиссию'}</span>
+            </button>
           )}
         </div>
       )}
@@ -1981,6 +2129,18 @@ export const BillEditor: React.FC<BillEditorProps> = ({
                 </div>
               );
             })()}
+
+            {/* Author Resubmit Button for Commission */}
+            {isNeedsRevision && revisionInstance === 'commission' && (isAuthor || isAdmin) && (
+              <button
+                type="button"
+                onClick={() => setShowResubmitModal(true)}
+                style={{ ...btnAccent, width: '100%', height: 32, fontSize: 11, marginTop: 10, background: '#eab308', color: '#151517', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+              >
+                <RotateCcw size={13} />
+                <span>Отправить повторно в Комиссию</span>
+              </button>
+            )}
           </div>
 
           {/* Stage 2: Administration Verdict */}
@@ -2121,6 +2281,17 @@ export const BillEditor: React.FC<BillEditorProps> = ({
                     Внести в реестр законодательства
                   </button>
                 )}
+
+                {bill.federalVerdict.status === 'needs_revision' && (isAuthor || isAdmin) && (
+                  <button
+                    type="button"
+                    onClick={() => setShowResubmitModal(true)}
+                    style={{ ...btnAccent, height: 34, fontSize: 12, width: '100%', background: '#eab308', color: '#151517', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+                  >
+                    <RotateCcw size={14} />
+                    <span>Отправить повторно в Администрацию</span>
+                  </button>
+                )}
               </div>
             ) : (
               <div style={{ fontSize: 11, fontFamily: mono, color: R.textMuted, textAlign: 'center', padding: '8px 0' }}>
@@ -2195,6 +2366,133 @@ export const BillEditor: React.FC<BillEditorProps> = ({
           }}
           onToast={onToast}
         />
+      )}
+
+      {/* Resubmission Modal */}
+      {showResubmitModal && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 9999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 24,
+            background: 'rgba(0, 0, 0, 0.85)',
+            backdropFilter: 'blur(8px)',
+          }}
+        >
+          <div
+            style={{
+              width: '100%',
+              maxWidth: 560,
+              background: R.bgPanel,
+              border: ft.strong,
+              borderRadius: 6,
+              boxShadow: '0 20px 50px rgba(0,0,0,0.7)',
+              padding: 24,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 16,
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: ft.edge, paddingBottom: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div
+                  style={{
+                    width: 34,
+                    height: 34,
+                    borderRadius: 4,
+                    background: 'rgba(234, 179, 8, 0.15)',
+                    border: '1px solid rgba(234, 179, 8, 0.4)',
+                    color: '#eab308',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <RotateCcw size={18} />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: 16, fontWeight: 800, color: R.text, margin: 0 }}>
+                    Повторное направление законопроекта
+                  </h3>
+                  <div style={{ fontSize: 11.5, color: R.textMuted }}>
+                    Целевая инстанция: <strong style={{ color: '#eab308' }}>{revisionInstanceName}</strong>
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowResubmitModal(false)}
+                style={{ background: 'transparent', border: 'none', color: R.textMuted, cursor: 'pointer', padding: 4 }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div style={{ fontSize: 13, color: R.textSecondary, lineHeight: 1.5 }}>
+              {revisionInstance === 'admin'
+                ? 'Вы собираетесь направить исправленный законопроект обратно в Федеральное Правительство (Администрацию). Проект вернется в список на рассмотрение администратора.'
+                : 'Вы собираетесь направить исправленный законопроект обратно в Законодательную Комиссию. Голоса членов комиссии будут сброшены для повторного голосования по новой редакции.'}
+            </div>
+
+            {/* Note Input */}
+            <div>
+              <label style={{ ...label, fontSize: 11, marginBottom: 6 }}>
+                Комментарий автора о внесенных изменениях (необязательно):
+              </label>
+              <textarea
+                value={resubmitNote}
+                onChange={(e) => setResubmitNote(e.target.value)}
+                placeholder="Например: Изменена статья 5.6 согласно замечаниям..."
+                rows={3}
+                style={{
+                  width: '100%',
+                  background: R.bgInput,
+                  border: ft.hair,
+                  borderRadius: 3,
+                  padding: 10,
+                  fontSize: 12.5,
+                  color: R.text,
+                  resize: 'vertical',
+                  fontFamily: 'inherit',
+                  outline: 'none',
+                }}
+              />
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, paddingTop: 8, borderTop: ft.edge }}>
+              <button
+                type="button"
+                onClick={() => setShowResubmitModal(false)}
+                style={{ ...btnOutline, height: 36, padding: '0 14px', fontSize: 12 }}
+              >
+                Отмена
+              </button>
+              <button
+                type="button"
+                onClick={handleResubmitToInstance}
+                style={{
+                  ...btnAccent,
+                  height: 36,
+                  padding: '0 18px',
+                  fontSize: 12,
+                  fontWeight: 700,
+                  background: '#eab308',
+                  color: '#151517',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                }}
+              >
+                <Send size={14} />
+                <span>Направить на рассмотрение</span>
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

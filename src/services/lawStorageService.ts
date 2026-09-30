@@ -1,7 +1,7 @@
 import type { StateLawDocument, LawArticle, LawChapter, LawPatchResult } from '../types/lawAst';
 import type { Bill, ComparisonRow } from '../types/bill';
 import { COMPILED_LAWS_REGISTRY } from '../data/compiledLawsRegistry';
-import { compileArticleBBCode, compileFullLawBBCode, compileLawPartBBCode } from './bbcodeCompiler';
+import { compileArticleBBCode, compileFullLawBBCode, compileLawPartBBCode, compileLawChapterBBCode } from './bbcodeCompiler';
 
 const LAW_STORAGE_PREFIX = 'legaldraft_law_doc_';
 
@@ -11,6 +11,11 @@ const LAW_STORAGE_PREFIX = 'legaldraft_law_doc_';
 export function extractArticleNumber(title: string): string {
   if (!title) return '';
   const trimmed = title.trim();
+
+  // If this is purely a chapter or section header like "Глава V. Лицензия...", it contains no article number
+  if (/^(?:глава|раздел)\s+[IVXLCDM\d]+/i.test(trimmed) && !/(?:ст(?:атья|\.)?)/i.test(trimmed)) {
+    return '';
+  }
 
   // 1. Explicit "ст. 1.5.6" or "статья 1.5.6" anywhere in string
   const explicitMatch = trimmed.match(/(?:ст(?:атья|\.)?\s*)([0-9]+(?:\.[0-9]+)*)/i);
@@ -30,7 +35,45 @@ export function extractArticleNumber(title: string): string {
     return anyMatch[1];
   }
 
+  // If there are no digits at all, this is not a valid article number
+  if (!/\d/.test(trimmed)) {
+    return '';
+  }
+
   return trimmed.replace(/^статья\s+/i, '').replace(/[\.:]$/, '').trim();
+}
+
+/**
+ * Resolves the genuine article number from a comparison row.
+ * Checks articleTitle, becameContent, and wasContent in prioritized order.
+ */
+export function resolveArticleNumberFromComparison(comp: ComparisonRow): string {
+  // 1. Try explicit article match in articleTitle: e.g. "Статья 5.6", "5.6", "ст. 1.2"
+  const title = (comp.articleTitle || '').trim();
+  const fromTitle = extractArticleNumber(title);
+  if (fromTitle && /^\d+(?:\.\d+)*$/.test(fromTitle)) {
+    return fromTitle;
+  }
+
+  // 2. Check becameContent for leading "Статья 5.6" or "5.6"
+  if (comp.becameContent) {
+    const becameTrim = comp.becameContent.trim();
+    const becameExplicit = becameTrim.match(/^(?:ст(?:атья|\.)?\s*)([0-9]+(?:\.[0-9]+)*)/i);
+    if (becameExplicit) return becameExplicit[1];
+    const becameStart = becameTrim.match(/^([0-9]+(?:\.[0-9]+)+)/);
+    if (becameStart) return becameStart[1];
+  }
+
+  // 3. Check wasContent for leading "Статья 5.6" or "5.6"
+  if (comp.wasContent) {
+    const wasTrim = comp.wasContent.trim();
+    const wasExplicit = wasTrim.match(/^(?:ст(?:атья|\.)?\s*)([0-9]+(?:\.[0-9]+)*)/i);
+    if (wasExplicit) return wasExplicit[1];
+    const wasStart = wasTrim.match(/^([0-9]+(?:\.[0-9]+)+)/);
+    if (wasStart) return wasStart[1];
+  }
+
+  return fromTitle || '';
 }
 
 function cleanStr(s: string): string {
@@ -408,7 +451,7 @@ export function findArticleSmart(
   chapters: LawChapter[]
 ): { article: LawArticle; chapterIndex: number } | null {
   const title = (comp.articleTitle || '').trim();
-  const rawNum = extractArticleNumber(title);
+  const rawNum = resolveArticleNumberFromComparison(comp) || extractArticleNumber(title);
 
   // Strategy 1: Exact direct match by extracted article number across all chapters
   if (rawNum) {
@@ -568,7 +611,7 @@ function patchSingleLaw(
       if (!comp.becameContent || !comp.becameContent.trim()) continue;
 
       const found = findArticleSmart(comp, updatedChapters);
-      const articleNumberToUse = found ? found.article.articleNumber : (extractArticleNumber(comp.articleTitle || '') || '1');
+      const articleNumberToUse = found ? found.article.articleNumber : (resolveArticleNumberFromComparison(comp) || extractArticleNumber(comp.articleTitle || '') || '1');
       const parsed = parseRawArticleContent(comp.becameContent, articleNumberToUse, found?.article.title);
 
       if (found) {
@@ -624,6 +667,20 @@ function patchSingleLaw(
           return ch.articles.some((a) => parseInt(extractArticleNumber(a.articleNumber).split('.')[0], 10) === majorNum);
         });
 
+        if (!targetChapter) {
+          // Fallback to chapter match from comp.articleTitle (e.g. "Глава V. Лицензия...")
+          const chMatch = (comp.articleTitle || '').match(/(?:гл(?:ава|\.)?\s*)([IVXLCDM\d]+)/i);
+          if (chMatch) {
+            const chQuery = chMatch[1].toUpperCase();
+            const chNum = ROMAN_NUMERALS[chQuery] || parseInt(chQuery, 10);
+            targetChapter = updatedChapters.find((c, idx) => {
+              const cRoman = c.numberRoman.replace(/^Глава\s+/i, '').replace(/\.$/, '').trim().toUpperCase();
+              const cNum = ROMAN_NUMERALS[cRoman] || idx + 1;
+              return cNum === chNum || cRoman === chQuery;
+            });
+          }
+        }
+
         if (!targetChapter && updatedChapters.length > 0) {
           targetChapter = updatedChapters[updatedChapters.length - 1];
         }
@@ -677,6 +734,17 @@ function patchSingleLaw(
     }
   }
 
+  // Compile chapter-specific BBCodes
+  const chapterBBCodes: Record<string, string> = {};
+  for (const ch of updatedChapters) {
+    const chCode = compileLawChapterBBCode(updatedDoc, ch.id);
+    chapterBBCodes[ch.id] = chCode;
+    chapterBBCodes[ch.numberRoman] = chCode;
+    const cleanRoman = ch.numberRoman.replace(/^Глава\s+/i, '').replace(/\.$/, '').trim();
+    chapterBBCodes[cleanRoman] = chCode;
+    chapterBBCodes[`глава ${cleanRoman}`.toLowerCase()] = chCode;
+  }
+
   // Persist to localStorage
   if (typeof window !== 'undefined' && window.localStorage) {
     try {
@@ -692,7 +760,8 @@ function patchSingleLaw(
     affectedArticleNumbers,
     articleBBCodes,
     fullLawBBCode,
-    partBBCodes
+    partBBCodes,
+    chapterBBCodes
   };
 }
 
@@ -735,6 +804,7 @@ export function patchLawWithBill(bill: Bill, targetLawId?: string): LawPatchResu
   const multiLawResults: Record<string, LawPatchResult> = {};
   const allAffectedArticles: string[] = [];
   const mergedArticleBBCodes: Record<string, string> = {};
+  const mergedChapterBBCodes: Record<string, string> = {};
   let primaryResult: LawPatchResult | null = null;
 
   for (const [lawId, comps] of lawGroups.entries()) {
@@ -755,6 +825,14 @@ export function patchLawWithBill(bill: Bill, targetLawId?: string): LawPatchResu
       }
     }
 
+    if (res.chapterBBCodes) {
+      for (const [chKey, code] of Object.entries(res.chapterBBCodes)) {
+        mergedChapterBBCodes[chKey] = code;
+        const lawPrefix = res.updatedLaw.code || res.updatedLaw.shortTitle || res.updatedLaw.title;
+        mergedChapterBBCodes[`[${lawPrefix}] ${chKey}`] = code;
+      }
+    }
+
     allAffectedArticles.push(...res.affectedArticleNumbers.map((art) => `[${res.updatedLaw.code || res.updatedLaw.title}] ${art}`));
     if (!primaryResult) {
       primaryResult = res;
@@ -768,9 +846,21 @@ export function patchLawWithBill(bill: Bill, targetLawId?: string): LawPatchResu
   return {
     ...primaryResult,
     articleBBCodes: mergedArticleBBCodes,
+    chapterBBCodes: mergedChapterBBCodes,
     affectedArticleNumbers: allAffectedArticles,
     multiLawResults
   };
+}
+
+export { compileLawChapterBBCode };
+
+/**
+ * Returns authentic BB-code for an entire chapter of a law.
+ */
+export function getLawChapterBBCode(lawId: string, chapterIdOrRoman: string): string {
+  const law = getActiveLaw(lawId);
+  if (!law) return '';
+  return compileLawChapterBBCode(law, chapterIdOrRoman);
 }
 
 /**
