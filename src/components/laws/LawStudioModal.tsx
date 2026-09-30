@@ -6,6 +6,7 @@ import {
   resetLawToDefault, 
   getLawPartBBCode 
 } from '../../services/lawStorageService';
+import { compileFullLawBBCode } from '../../services/bbcodeCompiler';
 import { ForumLivePreview } from './ForumLivePreview';
 import { LawSelectPicker } from './LawSelectPicker';
 import { 
@@ -180,7 +181,7 @@ export const LawStudioModal: React.FC<LawStudioModalProps> = ({
 
   // Copy full law
   const handleCopyFullLaw = async () => {
-    const code = law.activeBBCode || '';
+    const code = law.activeBBCode || compileFullLawBBCode(law);
     const ok = await copyToClipboard(code);
     if (ok) {
       setCopiedFull(true);

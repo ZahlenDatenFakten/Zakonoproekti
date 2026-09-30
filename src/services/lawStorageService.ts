@@ -501,16 +501,21 @@ export function findArticleSmart(
         if (art) return { article: art, chapterIndex: cIdx };
 
         // Hierarchical match: if user wrote "Глава 2 Статья 1", in Ch 2 match "2.1"
-        const hierarchicalNum = `${chNum}.${rawNum}`;
-        const hierArt = targetCh.articles.find(
-          (a) => a.articleNumber === hierarchicalNum || extractArticleNumber(a.articleNumber) === hierarchicalNum
-        );
-        if (hierArt) return { article: hierArt, chapterIndex: cIdx };
+        if (/^\d+$/.test(rawNum)) {
+          const hierarchicalNum = `${chNum}.${rawNum}`;
+          const hierArt = targetCh.articles.find(
+            (a) => a.articleNumber === hierarchicalNum || extractArticleNumber(a.articleNumber) === hierarchicalNum
+          );
+          if (hierArt) return { article: hierArt, chapterIndex: cIdx };
 
-        // Match by 1-based index in chapter
-        const idxInCh = parseInt(rawNum, 10) - 1;
-        if (idxInCh >= 0 && idxInCh < targetCh.articles.length) {
-          return { article: targetCh.articles[idxInCh], chapterIndex: cIdx };
+          // Match by 1-based index ONLY if all articles in this chapter are non-dot single integers (e.g. 1, 2, 3)
+          const allSingleInts = targetCh.articles.length > 0 && targetCh.articles.every((a) => /^\d+$/.test(extractArticleNumber(a.articleNumber)));
+          if (allSingleInts) {
+            const idxInCh = parseInt(rawNum, 10) - 1;
+            if (idxInCh >= 0 && idxInCh < targetCh.articles.length) {
+              return { article: targetCh.articles[idxInCh], chapterIndex: cIdx };
+            }
+          }
         }
       }
     }

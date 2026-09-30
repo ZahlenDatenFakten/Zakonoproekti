@@ -83,6 +83,21 @@ export const EnactLawModal: React.FC<EnactLawModalProps> = ({
     return Array.from(map.values());
   }, [bill]);
 
+  // Check if bill was already marked approved / enacted
+  const isAlreadyEnacted = useMemo(() => {
+    return bill.status === 'approved' || Boolean(bill.statusReason?.includes('Официально внесён'));
+  }, [bill.status, bill.statusReason]);
+
+  // Pre-compute full patch for instantaneous preview and copying across all tabs
+  const precomputedPatch = useMemo(() => {
+    try {
+      return patchLawWithBill(bill, initialTargetLaw.id);
+    } catch (e) {
+      console.error('Failed to precompute patch:', e);
+      return null;
+    }
+  }, [bill, initialTargetLaw.id]);
+
   const [currentLaw, setCurrentLaw] = useState<StateLawDocument>(initialTargetLaw);
   const [patchResult, setPatchResult] = useState<LawPatchResult | null>(null);
   const [copiedArticle, setCopiedArticle] = useState<string | null>(null);
@@ -96,9 +111,15 @@ export const EnactLawModal: React.FC<EnactLawModalProps> = ({
   // Sync state whenever modal is opened or target bill changes
   useEffect(() => {
     if (isOpen) {
-      setCurrentLaw(initialTargetLaw);
+      const activeRes = precomputedPatch?.multiLawResults?.[initialTargetLaw.id] || precomputedPatch;
+      const initialLaw = activeRes?.updatedLaw || initialTargetLaw;
+      setCurrentLaw(initialLaw);
       setActiveLawId(initialTargetLaw.id);
-      setPatchResult(null);
+      if (isAlreadyEnacted && precomputedPatch) {
+        setPatchResult(precomputedPatch);
+      } else {
+        setPatchResult(null);
+      }
       setCopiedArticle(null);
       setCopiedChapter(null);
       setPreviewChapterId(null);
@@ -106,19 +127,24 @@ export const EnactLawModal: React.FC<EnactLawModalProps> = ({
       setCopiedFull(false);
       setSelectedArticleNum(null);
     }
-  }, [isOpen, initialTargetLaw, bill.id]);
+  }, [isOpen, initialTargetLaw, bill.id, isAlreadyEnacted, precomputedPatch]);
+
+  // Combined effective patch result (prefer committed patchResult, fallback to precomputedPatch)
+  const effectivePatch = patchResult || precomputedPatch;
 
   // Current active sub-result for multi-law or single-law
   const activeSubResult = useMemo(() => {
-    if (!patchResult) return null;
-    if (patchResult.multiLawResults && patchResult.multiLawResults[activeLawId]) {
-      return patchResult.multiLawResults[activeLawId];
+    if (!effectivePatch) return null;
+    if (effectivePatch.multiLawResults && effectivePatch.multiLawResults[activeLawId]) {
+      return effectivePatch.multiLawResults[activeLawId];
     }
-    if (patchResult.multiLawResults && patchResult.multiLawResults[currentLaw.id]) {
-      return patchResult.multiLawResults[currentLaw.id];
+    if (effectivePatch.multiLawResults && effectivePatch.multiLawResults[currentLaw.id]) {
+      return effectivePatch.multiLawResults[currentLaw.id];
     }
-    return patchResult;
-  }, [patchResult, activeLawId, currentLaw.id]);
+    return effectivePatch;
+  }, [effectivePatch, activeLawId, currentLaw.id]);
+
+  const effectiveLaw = activeSubResult?.updatedLaw || currentLaw;
 
   // Handle clicking "Внести"
   const handleExecuteEnact = () => {
@@ -170,16 +196,16 @@ export const EnactLawModal: React.FC<EnactLawModalProps> = ({
   // Switch active law when examining multi-law result or previewing tabs
   const handleSelectLawTab = (lawId: string) => {
     setActiveLawId(lawId);
-    if (patchResult?.multiLawResults?.[lawId]) {
-      const targetSubResult = patchResult.multiLawResults[lawId];
+    if (effectivePatch?.multiLawResults?.[lawId]) {
+      const targetSubResult = effectivePatch.multiLawResults[lawId];
       setCurrentLaw(targetSubResult.updatedLaw);
       if (targetSubResult.affectedArticleNumbers.length > 0) {
         setSelectedArticleNum(targetSubResult.affectedArticleNumbers[0]);
       }
-    } else if (patchResult && patchResult.updatedLaw.id === lawId) {
-      setCurrentLaw(patchResult.updatedLaw);
-      if (patchResult.affectedArticleNumbers.length > 0) {
-        setSelectedArticleNum(patchResult.affectedArticleNumbers[0]);
+    } else if (effectivePatch && effectivePatch.updatedLaw.id === lawId) {
+      setCurrentLaw(effectivePatch.updatedLaw);
+      if (effectivePatch.affectedArticleNumbers.length > 0) {
+        setSelectedArticleNum(effectivePatch.affectedArticleNumbers[0]);
       }
     } else {
       const found = getActiveLaw(lawId) || findLawByTitleOrCode(lawId);
@@ -190,15 +216,15 @@ export const EnactLawModal: React.FC<EnactLawModalProps> = ({
   };
 
   const handleCopyArticle = async (artNumOrTitle: string, targetLawId?: string) => {
-    const lawId = targetLawId || currentLaw.id || activeLawId;
-    const subRes = patchResult?.multiLawResults?.[lawId] || activeSubResult || patchResult;
+    const lawId = targetLawId || effectiveLaw.id || activeLawId;
+    const subRes = effectivePatch?.multiLawResults?.[lawId] || activeSubResult || effectivePatch;
     const cleanNum = extractArticleNumber(artNumOrTitle);
 
     const code = 
       subRes?.articleBBCodes[artNumOrTitle] ||
       (cleanNum ? subRes?.articleBBCodes[cleanNum] : undefined) ||
-      patchResult?.articleBBCodes[artNumOrTitle] ||
-      (cleanNum ? patchResult?.articleBBCodes[cleanNum] : undefined) ||
+      effectivePatch?.articleBBCodes[artNumOrTitle] ||
+      (cleanNum ? effectivePatch?.articleBBCodes[cleanNum] : undefined) ||
       (subRes && Object.entries(subRes.articleBBCodes).find(([k]) => k.includes(artNumOrTitle) || (cleanNum && k.includes(cleanNum)))?.[1]);
 
     if (!code) {
@@ -218,17 +244,17 @@ export const EnactLawModal: React.FC<EnactLawModalProps> = ({
   };
 
   const handleCopyChapter = async (chapterIdOrRoman: string, targetLawId?: string) => {
-    const lawId = targetLawId || currentLaw.id || activeLawId;
-    const subRes = patchResult?.multiLawResults?.[lawId] || activeSubResult || patchResult;
-    const lawToCopy = subRes?.updatedLaw || currentLaw;
+    const lawId = targetLawId || effectiveLaw.id || activeLawId;
+    const subRes = effectivePatch?.multiLawResults?.[lawId] || activeSubResult || effectivePatch;
+    const lawToCopy = subRes?.updatedLaw || effectiveLaw;
 
     const cleanRoman = chapterIdOrRoman.replace(/^Глава\s+/i, '').replace(/\.$/, '').trim();
     const code =
       subRes?.chapterBBCodes?.[chapterIdOrRoman] ||
       subRes?.chapterBBCodes?.[cleanRoman] ||
       subRes?.chapterBBCodes?.[`глава ${cleanRoman}`.toLowerCase()] ||
-      patchResult?.chapterBBCodes?.[chapterIdOrRoman] ||
-      patchResult?.chapterBBCodes?.[cleanRoman] ||
+      effectivePatch?.chapterBBCodes?.[chapterIdOrRoman] ||
+      effectivePatch?.chapterBBCodes?.[cleanRoman] ||
       compileLawChapterBBCode(lawToCopy, chapterIdOrRoman) ||
       getLawChapterBBCode(lawToCopy.id, chapterIdOrRoman);
 
@@ -275,11 +301,12 @@ export const EnactLawModal: React.FC<EnactLawModalProps> = ({
 
   const handleCopyPart = async (partIndex: number) => {
     const targetSubRes =
-      patchResult?.multiLawResults?.[currentLaw.id] ||
-      (patchResult && patchResult.updatedLaw.id === currentLaw.id ? patchResult : null) ||
-      activeSubResult;
+      activeSubResult ||
+      effectivePatch?.multiLawResults?.[effectiveLaw.id] ||
+      effectivePatch?.multiLawResults?.[activeLawId] ||
+      effectivePatch;
 
-    const lawToCopy = targetSubRes?.updatedLaw || currentLaw;
+    const lawToCopy = targetSubRes?.updatedLaw || effectiveLaw;
     const code =
       targetSubRes?.partBBCodes?.[partIndex] ||
       compileLawPartBBCode(lawToCopy, partIndex) ||
@@ -297,20 +324,20 @@ export const EnactLawModal: React.FC<EnactLawModalProps> = ({
   };
 
   const handleCopyFullLaw = async () => {
-    // 1. Locate the exact patch result for currentLaw
+    // 1. Locate the exact patch result for current active law
     const targetSubRes =
-      patchResult?.multiLawResults?.[currentLaw.id] ||
-      (patchResult && patchResult.updatedLaw.id === currentLaw.id ? patchResult : null) ||
-      (patchResult?.multiLawResults?.[activeLawId]) ||
-      activeSubResult;
+      activeSubResult ||
+      effectivePatch?.multiLawResults?.[effectiveLaw.id] ||
+      effectivePatch?.multiLawResults?.[activeLawId] ||
+      (effectivePatch && effectivePatch.updatedLaw.id === effectiveLaw.id ? effectivePatch : null) ||
+      effectivePatch;
 
     // 2. Identify the updated law AST
-    const lawToCopy = targetSubRes?.updatedLaw || currentLaw;
+    const lawToCopy = targetSubRes?.updatedLaw || effectiveLaw;
 
     // 3. Guarantee fresh compilation with all amendments
     const code =
       targetSubRes?.fullLawBBCode ||
-      lawToCopy.activeBBCode ||
       compileFullLawBBCode(lawToCopy);
 
     if (!code) {
@@ -545,7 +572,7 @@ export const EnactLawModal: React.FC<EnactLawModalProps> = ({
                 <span style={{ fontSize: 11, fontWeight: 700, color: R.textMuted, textTransform: 'uppercase', fontFamily: mono, letterSpacing: '0.06em' }}>
                   Поправки пакета ({bill.comparisons?.length || 0}):
                 </span>
-                {patchResult && (
+                {effectivePatch && (
                   <span style={{ fontSize: 10, color: R.textMuted, fontFamily: mono }}>
                     Нажмите «BB-код» у нужной поправки
                   </span>
@@ -566,7 +593,7 @@ export const EnactLawModal: React.FC<EnactLawModalProps> = ({
                   bill.comparisons.map((comp, idx) => {
                     const compLaw = findLawByTitleOrCode(comp.targetLaw || bill.targetLaw) || initialTargetLaw;
                     const isThisLawActive = activeLawId === compLaw.id;
-                    const subRes = patchResult?.multiLawResults?.[compLaw.id] || activeSubResult || patchResult;
+                    const subRes = effectivePatch?.multiLawResults?.[compLaw.id] || activeSubResult || effectivePatch;
                     const targetLawForComp = subRes?.updatedLaw || compLaw;
                     
                     const resolvedArtNum = resolveArticleNumberFromComparison(comp) || extractArticleNumber(comp.articleTitle) || comp.articleTitle;
@@ -621,7 +648,7 @@ export const EnactLawModal: React.FC<EnactLawModalProps> = ({
                           </div>
 
                           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                            {patchResult && (
+                            {effectivePatch && (
                               <>
                                 {compChapter && (
                                   <button
@@ -704,161 +731,190 @@ export const EnactLawModal: React.FC<EnactLawModalProps> = ({
 
             {/* Actions Bar */}
             <div style={{ marginTop: 'auto', paddingTop: 16, borderTop: ft.edge, display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {!patchResult ? (
+              {/* Primary Copy Full Law Button - ALWAYS AVAILABLE AND ALWAYS AMENDED */}
+              <button
+                type="button"
+                onClick={handleCopyFullLaw}
+                style={{
+                  ...btnAccent,
+                  width: '100%',
+                  height: 42,
+                  fontSize: 13,
+                  fontWeight: 700,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 8,
+                  background: copiedFull ? '#10b981' : R.accent,
+                  color: '#151517',
+                }}
+              >
+                {copiedFull ? <Check size={17} /> : <Layers size={17} />}
+                <span>
+                  {copiedFull
+                    ? 'Скопировано в буфер обмена!'
+                    : `Скопировать весь акт целиком (${effectiveLaw.shortTitle || effectiveLaw.title})`}
+                </span>
+              </button>
+
+              {/* Enactment to Database / Confirmation status */}
+              {!patchResult && !isAlreadyEnacted ? (
                 <button
                   type="button"
                   onClick={handleExecuteEnact}
                   style={{
-                    ...btnAccent,
+                    ...btnOutline,
                     width: '100%',
-                    height: 42,
-                    fontSize: 13,
+                    height: 36,
+                    fontSize: 12,
+                    fontWeight: 700,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 7,
+                    borderColor: R.accentBorder,
+                    color: R.accent,
+                    background: 'rgba(236,199,129,0.06)',
+                  }}
+                >
+                  <Zap size={15} />
+                  <span>Официально утвердить и сохранить в реестр (v{effectiveLaw.version})</span>
+                </button>
+              ) : (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 10px', background: 'rgba(16,185,129,0.08)', borderRadius: 3, border: '1px solid rgba(16,185,129,0.25)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11.5, color: '#10b981', fontWeight: 700 }}>
+                    <CheckCircle2 size={14} />
+                    <span>Редакция v{effectiveLaw.version} зафиксирована в реестре</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleExecuteEnact}
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      color: R.textMuted,
+                      fontSize: 10.5,
+                      textDecoration: 'underline',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Обновить
+                  </button>
+                </div>
+              )}
+
+              {/* Copy Article Button (if an article is selected) */}
+              {selectedArticleNum && (
+                <button
+                  type="button"
+                  onClick={() => handleCopyArticle(selectedArticleNum, activeLawId)}
+                  style={{
+                    ...btnOutline,
+                    width: '100%',
+                    height: 34,
+                    fontSize: 11.5,
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     gap: 8,
-                    fontWeight: 700,
+                    borderColor: copiedArticle === selectedArticleNum ? '#10b981' : undefined,
+                    color: copiedArticle === selectedArticleNum ? '#10b981' : R.text,
                   }}
                 >
-                  <Zap size={17} />
-                  <span>Внести поправки и сформировать BB-коды</span>
+                  {copiedArticle === selectedArticleNum ? <Check size={14} /> : <Copy size={13} />}
+                  <span>
+                    {copiedArticle === selectedArticleNum
+                      ? 'Скопировано в буфер!'
+                      : `Скопировать BB-код статьи (${selectedArticleNum})`}
+                  </span>
                 </button>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {/* Copy Article Button */}
-                  {selectedArticleNum && (
-                    <button
-                      type="button"
-                      onClick={() => handleCopyArticle(selectedArticleNum, activeLawId)}
-                      style={{
-                        ...btnAccent,
-                        width: '100%',
-                        height: 38,
-                        fontSize: 12,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: 8,
-                        background: copiedArticle === selectedArticleNum ? '#10b981' : R.accent,
-                        color: '#151517',
-                      }}
-                    >
-                      {copiedArticle === selectedArticleNum ? <Check size={16} /> : <Copy size={15} />}
-                      <span>
-                        {copiedArticle === selectedArticleNum
-                          ? 'Скопировано в буфер!'
-                          : `Скопировать BB-код статьи (${selectedArticleNum})`}
-                      </span>
-                    </button>
-                  )}
+              )}
 
-                  {/* Chapter-Level Copying Section */}
-                  {currentLaw.chapters && currentLaw.chapters.length > 0 && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, background: 'rgba(255,255,255,0.02)', padding: 10, borderRadius: 4, border: ft.hair }}>
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                        <span style={{ fontSize: 10, fontFamily: mono, color: R.textMuted, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                          📑 Скопировать главу с изменениями:
-                        </span>
-                        <span style={{ fontSize: 10, color: R.accent, fontFamily: mono }}>
-                          {currentLaw.shortTitle || currentLaw.title}
-                        </span>
-                      </div>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, maxHeight: 110, overflowY: 'auto' }}>
-                        {currentLaw.chapters.map((ch) => {
-                          const isChCopied = copiedChapter === ch.id || copiedChapter === ch.numberRoman;
-                          const isChPreview = previewChapterId === ch.id;
-                          const hasChanges = bill.comparisons.some(c => {
-                            const compCh = getChapterForComparison(c, currentLaw);
-                            return compCh?.id === ch.id || compCh?.numberRoman === ch.numberRoman;
-                          });
+              {/* Chapter-Level Copying Section */}
+              {effectiveLaw.chapters && effectiveLaw.chapters.length > 0 && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, background: 'rgba(255,255,255,0.02)', padding: 10, borderRadius: 4, border: ft.hair }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span style={{ fontSize: 10, fontFamily: mono, color: R.textMuted, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                      📑 Скопировать главу с изменениями:
+                    </span>
+                    <span style={{ fontSize: 10, color: R.accent, fontFamily: mono }}>
+                      {effectiveLaw.shortTitle || effectiveLaw.title}
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, maxHeight: 100, overflowY: 'auto' }}>
+                    {effectiveLaw.chapters.map((ch) => {
+                      const isChCopied = copiedChapter === ch.id || copiedChapter === ch.numberRoman;
+                      const isChPreview = previewChapterId === ch.id;
+                      const hasChanges = bill.comparisons.some(c => {
+                        const compCh = getChapterForComparison(c, effectiveLaw);
+                        return compCh?.id === ch.id || compCh?.numberRoman === ch.numberRoman;
+                      });
 
-                          return (
-                            <button
-                              key={ch.id}
-                              type="button"
-                              onClick={() => {
-                                setPreviewChapterId(ch.id);
-                                handleCopyChapter(ch.id, currentLaw.id);
-                              }}
-                              title={`${ch.numberRoman}: ${ch.title}`}
-                              style={{
-                                ...btnOutline,
-                                padding: '4px 8px',
-                                fontSize: 10.5,
-                                fontWeight: 700,
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: 4,
-                                borderColor: isChCopied ? '#10b981' : isChPreview ? R.accent : hasChanges ? R.accentBorder : undefined,
-                                color: isChCopied ? '#10b981' : isChPreview ? R.accent : hasChanges ? R.accent : R.textMuted,
-                                background: isChPreview ? R.accentSubtle : undefined,
-                              }}
-                            >
-                              {isChCopied ? <Check size={11} /> : <BookOpen size={11} />}
-                              <span>{ch.numberRoman}</span>
-                              {hasChanges && (
-                                <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#10b981', display: 'inline-block' }} title="Глава содержит поправки" />
-                              )}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
+                      return (
+                        <button
+                          key={ch.id}
+                          type="button"
+                          onClick={() => {
+                            setPreviewChapterId(ch.id);
+                            setSelectedArticleNum(null);
+                            handleCopyChapter(ch.id, effectiveLaw.id);
+                          }}
+                          title={`${ch.numberRoman}: ${ch.title}`}
+                          style={{
+                            ...btnOutline,
+                            padding: '4px 8px',
+                            fontSize: 10.5,
+                            fontWeight: 700,
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 4,
+                            borderColor: isChCopied ? '#10b981' : isChPreview ? R.accent : hasChanges ? R.accentBorder : undefined,
+                            color: isChCopied ? '#10b981' : isChPreview ? R.accent : hasChanges ? R.accent : R.textMuted,
+                            background: isChPreview ? R.accentSubtle : undefined,
+                          }}
+                        >
+                          {isChCopied ? <Check size={11} /> : <BookOpen size={11} />}
+                          <span>{ch.numberRoman}</span>
+                          {hasChanges && (
+                            <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#10b981', display: 'inline-block' }} title="Глава содержит поправки" />
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
-                  {/* Multi-part Copy Buttons if applicable */}
-                  {currentLaw.partsMeta && currentLaw.partsMeta.length > 1 && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                      <span style={{ fontSize: 10, fontFamily: mono, color: R.textMuted, textTransform: 'uppercase' }}>
-                        Копирование частей для тем форума ({currentLaw.shortTitle || currentLaw.title}):
-                      </span>
-                      <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.min(currentLaw.partsMeta.length, 2)}, 1fr)`, gap: 6 }}>
-                        {currentLaw.partsMeta.map((p) => (
-                          <button
-                            key={p.partIndex}
-                            type="button"
-                            onClick={() => handleCopyPart(p.partIndex)}
-                            style={{
-                              ...btnOutline,
-                              height: 34,
-                              fontSize: 11,
-                              fontWeight: 700,
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              gap: 6,
-                              borderColor: copiedPart === p.partIndex ? '#10b981' : undefined,
-                              color: copiedPart === p.partIndex ? '#10b981' : R.text,
-                            }}
-                          >
-                            {copiedPart === p.partIndex ? <Check size={14} /> : <Copy size={13} />}
-                            <span>{copiedPart === p.partIndex ? 'Скопировано!' : `Часть ${p.partIndex}`}</span>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Copy Full Law Button */}
-                  <button
-                    type="button"
-                    onClick={handleCopyFullLaw}
-                    style={{
-                      ...btnOutline,
-                      width: '100%',
-                      height: 38,
-                      fontSize: 12,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: 8,
-                      borderColor: copiedFull ? '#10b981' : undefined,
-                      color: copiedFull ? '#10b981' : R.text,
-                    }}
-                  >
-                    {copiedFull ? <Check size={16} /> : <Layers size={15} />}
-                    <span>{copiedFull ? 'Скопировано!' : `Скопировать весь акт целиком (${currentLaw.shortTitle || currentLaw.title})`}</span>
-                  </button>
+              {/* Multi-part Copy Buttons if applicable */}
+              {effectiveLaw.partsMeta && effectiveLaw.partsMeta.length > 1 && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <span style={{ fontSize: 10, fontFamily: mono, color: R.textMuted, textTransform: 'uppercase' }}>
+                    Копирование частей для тем форума ({effectiveLaw.shortTitle || effectiveLaw.title}):
+                  </span>
+                  <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.min(effectiveLaw.partsMeta.length, 2)}, 1fr)`, gap: 6 }}>
+                    {effectiveLaw.partsMeta.map((p) => (
+                      <button
+                        key={p.partIndex}
+                        type="button"
+                        onClick={() => handleCopyPart(p.partIndex)}
+                        style={{
+                          ...btnOutline,
+                          height: 34,
+                          fontSize: 11,
+                          fontWeight: 700,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: 6,
+                          borderColor: copiedPart === p.partIndex ? '#10b981' : undefined,
+                          color: copiedPart === p.partIndex ? '#10b981' : R.text,
+                        }}
+                      >
+                        {copiedPart === p.partIndex ? <Check size={14} /> : <Copy size={13} />}
+                        <span>{copiedPart === p.partIndex ? 'Скопировано!' : `Часть ${p.partIndex}`}</span>
+                      </button>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>
@@ -866,29 +922,68 @@ export const EnactLawModal: React.FC<EnactLawModalProps> = ({
 
           {/* Right Column: Forum Live Preview */}
           <div style={{ width: '54%', display: 'flex', flexDirection: 'column', background: '#121214' }}>
+            {/* Quick Switcher bar */}
+            {(selectedArticleNum || previewChapterId) && (
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '8px 14px',
+                  background: '#1a1a1e',
+                  borderBottom: '1px solid rgba(255,255,255,0.08)',
+                }}
+              >
+                <span style={{ fontSize: 11.5, color: R.textMuted }}>
+                  Предпросмотр: <strong style={{ color: R.accent }}>{previewChapterId ? `Глава ${previewChapterId}` : `Статья ${selectedArticleNum}`}</strong>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedArticleNum(null);
+                    setPreviewChapterId(null);
+                  }}
+                  style={{
+                    ...btnOutline,
+                    padding: '3px 10px',
+                    fontSize: 11,
+                    height: 24,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 5,
+                    color: R.accent,
+                    borderColor: R.accentBorder,
+                  }}
+                >
+                  <Layers size={12} />
+                  <span>Показать весь акт целиком</span>
+                </button>
+              </div>
+            )}
+
             <ForumLivePreview
-              law={currentLaw}
+              law={effectiveLaw}
               rawBBCode={
-                patchResult && previewChapterId
+                previewChapterId
                   ? (activeSubResult?.chapterBBCodes?.[previewChapterId] ||
-                     compileLawChapterBBCode(activeSubResult?.updatedLaw || currentLaw, previewChapterId))
-                  : patchResult && selectedArticleNum
+                     compileLawChapterBBCode(activeSubResult?.updatedLaw || effectiveLaw, previewChapterId))
+                  : selectedArticleNum
                   ? (activeSubResult?.articleBBCodes[selectedArticleNum] ||
                      activeSubResult?.articleBBCodes[extractArticleNumber(selectedArticleNum)] ||
-                     patchResult.articleBBCodes[selectedArticleNum] ||
-                     patchResult.articleBBCodes[extractArticleNumber(selectedArticleNum)])
-                  : undefined
+                     effectivePatch?.articleBBCodes[selectedArticleNum] ||
+                     effectivePatch?.articleBBCodes[extractArticleNumber(selectedArticleNum)])
+                  : (activeSubResult?.fullLawBBCode || effectivePatch?.fullLawBBCode || compileFullLawBBCode(effectiveLaw))
               }
               onToast={onToast}
               title={
-                patchResult && previewChapterId
+                previewChapterId
                   ? (() => {
-                      const ch = currentLaw.chapters.find(c => c.id === previewChapterId);
-                      return `Предпросмотр: [${currentLaw.code || currentLaw.shortTitle}] ${ch ? ch.numberRoman + ' ' + ch.title : previewChapterId}`;
+                      const ch = effectiveLaw.chapters.find(c => c.id === previewChapterId);
+                      return `Предпросмотр: [${effectiveLaw.code || effectiveLaw.shortTitle}] ${ch ? ch.numberRoman + ' ' + ch.title : previewChapterId}`;
                     })()
-                  : patchResult && selectedArticleNum
-                  ? `Предпросмотр: [${currentLaw.code || currentLaw.shortTitle}] ${selectedArticleNum}`
-                  : `Предпросмотр: ${currentLaw.title} (v${currentLaw.version})`
+                  : selectedArticleNum
+                  ? `Предпросмотр: [${effectiveLaw.code || effectiveLaw.shortTitle}] ${selectedArticleNum}`
+                  : `Предпросмотр: ${effectiveLaw.title} (v${effectiveLaw.version})`
               }
             />
           </div>

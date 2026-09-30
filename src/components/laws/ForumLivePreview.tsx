@@ -25,8 +25,8 @@ export const ForumLivePreview: React.FC<ForumLivePreviewProps> = ({
   const [viewMode, setViewMode] = useState<'preview' | 'bbcode'>('preview');
   const [isCopied, setIsCopied] = useState(false);
 
-  // Compute BBCode
-  const bbCode = rawBBCode || (article ? compileArticleBBCode(article) : law ? (law.activeBBCode || compileFullLawBBCode(law)) : '');
+  // Compute BBCode: prioritize explicit rawBBCode, then compiled article, then freshly compiled law AST
+  const bbCode = rawBBCode || (article ? compileArticleBBCode(article) : law ? compileFullLawBBCode(law) : '');
 
   const handleCopy = async () => {
     if (!bbCode) return;
