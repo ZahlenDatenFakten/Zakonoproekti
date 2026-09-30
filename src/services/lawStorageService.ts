@@ -1,4 +1,4 @@
-import type { StateLawDocument, LawArticle, LawPatchResult } from '../types/lawAst';
+import type { StateLawDocument, LawArticle, LawChapter, LawPatchResult } from '../types/lawAst';
 import type { Bill, ComparisonRow } from '../types/bill';
 import { COMPILED_LAWS_REGISTRY } from '../data/compiledLawsRegistry';
 import { compileArticleBBCode, compileFullLawBBCode, compileLawPartBBCode } from './bbcodeCompiler';
@@ -380,6 +380,139 @@ function parseRawArticleContent(
   };
 }
 
+const ROMAN_NUMERALS: Record<string, number> = {
+  I: 1, II: 2, III: 3, IV: 4, V: 5,
+  VI: 6, VII: 7, VIII: 8, IX: 9, X: 10,
+  XI: 11, XII: 12, XIII: 13, XIV: 14, XV: 15,
+  XVI: 16, XVII: 17, XVIII: 18, XIX: 19, XX: 20
+};
+
+function normalizeSnippet(text: string): string {
+  return (text || '')
+    .toLowerCase()
+    .replace(/\[\/?(?:b|i|u|color|font|size|center|indent|url|img)[^\]]*\]/gi, '')
+    .replace(/[^a-zа-я0-9]/gi, '')
+    .trim();
+}
+
+/**
+ * Smartly finds the exact target article to update across chapters using multi-strategy resolution:
+ * 1. Direct number match (e.g. "1.1", "12.3", "1")
+ * 2. Snippet match of existing content (wasContent) - guarantees 100% precision when article was chosen from law
+ * 3. Chapter + Article notation (e.g. "Глава 1 Статья 1" -> Chapter 1, Article 1.1 or 1)
+ * 4. Hierarchical prefix match (e.g. user typed "Статья 1" or "1" for a law using "1.1, 1.2" numbering)
+ * 5. Title / keyword substring match
+ */
+export function findArticleSmart(
+  comp: ComparisonRow,
+  chapters: LawChapter[]
+): { article: LawArticle; chapterIndex: number } | null {
+  const title = (comp.articleTitle || '').trim();
+  const rawNum = extractArticleNumber(title);
+
+  // Strategy 1: Exact direct match by extracted article number across all chapters
+  if (rawNum) {
+    for (let cIdx = 0; cIdx < chapters.length; cIdx++) {
+      const art = chapters[cIdx].articles.find(
+        (a) => a.articleNumber === rawNum || extractArticleNumber(a.articleNumber) === rawNum
+      );
+      if (art) return { article: art, chapterIndex: cIdx };
+    }
+  }
+
+  // Strategy 2: Match by wasContent snippet (highest fidelity when drafted from existing law)
+  if (comp.wasContent && comp.wasContent.trim().length >= 15) {
+    const cleanWas = normalizeSnippet(comp.wasContent);
+    const sample = cleanWas.slice(0, 45);
+    if (sample.length >= 15) {
+      for (let cIdx = 0; cIdx < chapters.length; cIdx++) {
+        for (const art of chapters[cIdx].articles) {
+          const cleanArt = normalizeSnippet(art.content);
+          const cleanBB = art.rawBBCode ? normalizeSnippet(art.rawBBCode) : '';
+          if (cleanArt.includes(sample) || cleanBB.includes(sample)) {
+            return { article: art, chapterIndex: cIdx };
+          }
+        }
+      }
+    }
+  }
+
+  // Strategy 3: Chapter + Article notation (e.g. "Глава 1 Статья 1", "Гл. II ст. 1")
+  const chMatch = title.match(/(?:гл(?:ава|\.)?\s*)([IVXLCDM\d]+)/i);
+  if (chMatch) {
+    const chQuery = chMatch[1].toUpperCase();
+    const chNum = ROMAN_NUMERALS[chQuery] || parseInt(chQuery, 10);
+    const cIdx = chapters.findIndex((c, idx) => {
+      const cRoman = c.numberRoman.replace(/^Глава\s+/i, '').replace(/\.$/, '').trim().toUpperCase();
+      const cNum = ROMAN_NUMERALS[cRoman] || idx + 1;
+      return cNum === chNum || cRoman === chQuery;
+    });
+
+    if (cIdx !== -1) {
+      const targetCh = chapters[cIdx];
+      if (rawNum) {
+        // Direct match in chapter
+        const art = targetCh.articles.find(
+          (a) => a.articleNumber === rawNum || extractArticleNumber(a.articleNumber) === rawNum
+        );
+        if (art) return { article: art, chapterIndex: cIdx };
+
+        // Hierarchical match: if user wrote "Глава 2 Статья 1", in Ch 2 match "2.1"
+        const hierarchicalNum = `${chNum}.${rawNum}`;
+        const hierArt = targetCh.articles.find(
+          (a) => a.articleNumber === hierarchicalNum || extractArticleNumber(a.articleNumber) === hierarchicalNum
+        );
+        if (hierArt) return { article: hierArt, chapterIndex: cIdx };
+
+        // Match by 1-based index in chapter
+        const idxInCh = parseInt(rawNum, 10) - 1;
+        if (idxInCh >= 0 && idxInCh < targetCh.articles.length) {
+          return { article: targetCh.articles[idxInCh], chapterIndex: cIdx };
+        }
+      }
+    }
+  }
+
+  // Strategy 4: Hierarchical single number mapping (e.g. user typed "Статья 1" or "1" for a law using "1.1, 1.2" numbering)
+  if (rawNum && /^\d+$/.test(rawNum)) {
+    const singleInt = parseInt(rawNum, 10);
+    for (let cIdx = 0; cIdx < chapters.length; cIdx++) {
+      const cRoman = chapters[cIdx].numberRoman.replace(/^Глава\s+/i, '').replace(/\.$/, '').trim().toUpperCase();
+      const cNum = ROMAN_NUMERALS[cRoman] || cIdx + 1;
+      if (cNum === singleInt) {
+        const candidate = chapters[cIdx].articles.find(
+          (a) => a.articleNumber === `${singleInt}.1` || extractArticleNumber(a.articleNumber) === `${singleInt}.1`
+        );
+        if (candidate) return { article: candidate, chapterIndex: cIdx };
+        if (chapters[cIdx].articles.length > 0) {
+          return { article: chapters[cIdx].articles[0], chapterIndex: cIdx };
+        }
+      }
+    }
+
+    if (singleInt === 1 && chapters.length > 0 && chapters[0].articles.length > 0) {
+      const candidate = chapters[0].articles.find(
+        (a) => a.articleNumber === '1.1' || extractArticleNumber(a.articleNumber) === '1.1'
+      );
+      if (candidate) return { article: candidate, chapterIndex: 0 };
+    }
+  }
+
+  // Strategy 5: Title / keyword substring match
+  const cleanTitle = title.toLowerCase().replace(/^статья\s+/i, '').replace(/^[\d\.\s—–-]+/, '').trim();
+  if (cleanTitle.length >= 4) {
+    for (let cIdx = 0; cIdx < chapters.length; cIdx++) {
+      const art = chapters[cIdx].articles.find(
+        (a) => (a.title && a.title.toLowerCase().includes(cleanTitle)) ||
+               a.content.toLowerCase().startsWith(cleanTitle)
+      );
+      if (art) return { article: art, chapterIndex: cIdx };
+    }
+  }
+
+  return null;
+}
+
 /**
  * Patches a single state law document with the provided comparison amendments.
  */
@@ -400,18 +533,6 @@ function patchSingleLaw(
     ...ch,
     articles: ch.articles.map((a) => ({ ...a }))
   }));
-
-  // Helper to find article across all chapters
-  const findArticle = (artNum: string): { article: LawArticle; chapterIndex: number } | null => {
-    const target = extractArticleNumber(artNum);
-    for (let cIdx = 0; cIdx < updatedChapters.length; cIdx++) {
-      const art = updatedChapters[cIdx].articles.find(
-        (a) => extractArticleNumber(a.articleNumber) === target || a.articleNumber === target
-      );
-      if (art) return { article: art, chapterIndex: cIdx };
-    }
-    return null;
-  };
 
   if (isTotalReform && totalReformContent) {
     // Total Law Reform - replace entire law text
@@ -446,11 +567,9 @@ function patchSingleLaw(
     for (const comp of comparisons) {
       if (!comp.becameContent || !comp.becameContent.trim()) continue;
 
-      const num = extractArticleNumber(comp.articleTitle || '');
-      if (!num) continue;
-
-      const found = findArticle(num);
-      const parsed = parseRawArticleContent(comp.becameContent, num, found?.article.title);
+      const found = findArticleSmart(comp, updatedChapters);
+      const articleNumberToUse = found ? found.article.articleNumber : (extractArticleNumber(comp.articleTitle || '') || '1');
+      const parsed = parseRawArticleContent(comp.becameContent, articleNumberToUse, found?.article.title);
 
       if (found) {
         // Update existing article
@@ -477,9 +596,18 @@ function patchSingleLaw(
         }
 
         affectedArticleNumbers.push(found.article.articleNumber);
-        articleBBCodes[found.article.articleNumber] = compileArticleBBCode(found.article);
+        const compiledBB = compileArticleBBCode(found.article);
+        articleBBCodes[found.article.articleNumber] = compiledBB;
+        if (comp.articleTitle) {
+          articleBBCodes[comp.articleTitle] = compiledBB;
+        }
+        const cleanTitleNum = extractArticleNumber(comp.articleTitle || '');
+        if (cleanTitleNum) {
+          articleBBCodes[cleanTitleNum] = compiledBB;
+        }
       } else {
         // Create new article into the most suitable chapter
+        const num = articleNumberToUse;
         const newArt: LawArticle = {
           id: 'art_' + num.replace(/\./g, '_') + '_' + Date.now(),
           articleNumber: num,
@@ -519,7 +647,11 @@ function patchSingleLaw(
         }
 
         affectedArticleNumbers.push(num);
-        articleBBCodes[num] = compileArticleBBCode(newArt);
+        const compiledNewBB = compileArticleBBCode(newArt);
+        articleBBCodes[num] = compiledNewBB;
+        if (comp.articleTitle) {
+          articleBBCodes[comp.articleTitle] = compiledNewBB;
+        }
       }
     }
   }
@@ -590,7 +722,13 @@ export function patchLawWithBill(bill: Bill, targetLawId?: string): LawPatchResu
   if (bill.isTotalReform || lawGroups.size <= 1) {
     const singleLawId = lawGroups.size > 0 ? (lawGroups.keys().next().value as string) : defaultTargetId;
     const comps = lawGroups.get(singleLawId) || bill.comparisons || [];
-    return patchSingleLaw(singleLawId, comps, bill, bill.isTotalReform, bill.totalReformContent);
+    const res = patchSingleLaw(singleLawId, comps, bill, bill.isTotalReform, bill.totalReformContent);
+    return {
+      ...res,
+      multiLawResults: {
+        [singleLawId]: res
+      }
+    };
   }
 
   // Multi-law bill: patch each law independently and combine results
@@ -729,40 +867,26 @@ export function getLatestArticleContent(lawIdOrQuery: string = 'road_code', arti
   const law = resolved || getActiveLaw(lawIdOrQuery);
   if (!law || !law.chapters) return null;
 
+  const pseudoComp: ComparisonRow = {
+    id: 'query',
+    articleTitle: articleTitleOrNumber,
+    wasContent: '',
+    becameContent: ''
+  };
+
+  const matched = findArticleSmart(pseudoComp, law.chapters);
+  if (matched) {
+    return formatArticleFullText(matched.article);
+  }
+
   const num = extractArticleNumber(articleTitleOrNumber);
   if (!num) return null;
 
-  // Check if a specific chapter is requested (e.g. "Гл. 2, ст. 1" or "Глава II Статья 1")
-  const chMatch = articleTitleOrNumber.match(/(?:гл(?:ава|\.)?\s*)([IVXLCDM\d]+)/i);
-  if (chMatch) {
-    const chQuery = chMatch[1].toUpperCase();
-    const targetCh = law.chapters.find(
-      (c) => c.numberRoman.toUpperCase() === chQuery || 
-             c.numberRoman.replace(/^Глава\s+/i, '').toUpperCase() === chQuery ||
-             c.title.toUpperCase().includes(chQuery)
-    );
-    if (targetCh) {
-      const art = targetCh.articles.find((a) => extractArticleNumber(a.articleNumber) === num || a.articleNumber === num);
-      if (art) return formatArticleFullText(art);
-    }
-  }
-
-  // 1. Direct article search by number across all chapters
+  // Direct article search by number across all chapters
   for (const ch of law.chapters) {
     const art = ch.articles.find((a) => extractArticleNumber(a.articleNumber) === num || a.articleNumber === num);
     if (art) {
       return formatArticleFullText(art);
-    }
-  }
-
-  // 2. Fallback: match by title text if user typed article title instead of number
-  const cleanQuery = articleTitleOrNumber.toLowerCase().replace(/^статья\s+/i, '').trim();
-  if (cleanQuery.length >= 4) {
-    for (const ch of law.chapters) {
-      const art = ch.articles.find((a) => a.title && a.title.toLowerCase().includes(cleanQuery));
-      if (art) {
-        return formatArticleFullText(art);
-      }
     }
   }
 

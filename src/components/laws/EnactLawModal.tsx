@@ -8,6 +8,7 @@ import {
   getLawPartBBCode,
   extractArticleNumber 
 } from '../../services/lawStorageService';
+import { compileFullLawBBCode, compileLawPartBBCode } from '../../services/bbcodeCompiler';
 import { copyToClipboard } from '../../lib/clipboard';
 import { ForumLivePreview } from './ForumLivePreview';
 import { 
@@ -105,8 +106,11 @@ export const EnactLawModal: React.FC<EnactLawModalProps> = ({
     if (patchResult.multiLawResults && patchResult.multiLawResults[activeLawId]) {
       return patchResult.multiLawResults[activeLawId];
     }
+    if (patchResult.multiLawResults && patchResult.multiLawResults[currentLaw.id]) {
+      return patchResult.multiLawResults[currentLaw.id];
+    }
     return patchResult;
-  }, [patchResult, activeLawId]);
+  }, [patchResult, activeLawId, currentLaw.id]);
 
   // Handle clicking "Внести"
   const handleExecuteEnact = () => {
@@ -118,9 +122,16 @@ export const EnactLawModal: React.FC<EnactLawModalProps> = ({
       const result = patchLawWithBill(bill, initialTargetLaw.id);
       setPatchResult(result);
 
-      // Set current law to the active sub-result or primary
-      const activeRes = result.multiLawResults?.[activeLawId] || result;
+      // Determine active law to display: prefer currentLaw.id or updatedLaw.id
+      const targetLawId = (result.multiLawResults && result.multiLawResults[currentLaw.id])
+        ? currentLaw.id
+        : (result.multiLawResults && result.multiLawResults[activeLawId])
+          ? activeLawId
+          : result.updatedLaw.id;
+
+      const activeRes = result.multiLawResults?.[targetLawId] || result;
       setCurrentLaw(activeRes.updatedLaw);
+      setActiveLawId(targetLawId);
 
       if (activeRes.affectedArticleNumbers.length > 0) {
         setSelectedArticleNum(activeRes.affectedArticleNumbers[0]);
@@ -157,6 +168,11 @@ export const EnactLawModal: React.FC<EnactLawModalProps> = ({
       if (targetSubResult.affectedArticleNumbers.length > 0) {
         setSelectedArticleNum(targetSubResult.affectedArticleNumbers[0]);
       }
+    } else if (patchResult && patchResult.updatedLaw.id === lawId) {
+      setCurrentLaw(patchResult.updatedLaw);
+      if (patchResult.affectedArticleNumbers.length > 0) {
+        setSelectedArticleNum(patchResult.affectedArticleNumbers[0]);
+      }
     } else {
       const found = getActiveLaw(lawId) || findLawByTitleOrCode(lawId);
       if (found) {
@@ -166,7 +182,7 @@ export const EnactLawModal: React.FC<EnactLawModalProps> = ({
   };
 
   const handleCopyArticle = async (artNumOrTitle: string, targetLawId?: string) => {
-    const lawId = targetLawId || activeLawId;
+    const lawId = targetLawId || currentLaw.id || activeLawId;
     const subRes = patchResult?.multiLawResults?.[lawId] || activeSubResult || patchResult;
     const cleanNum = extractArticleNumber(artNumOrTitle);
 
@@ -193,12 +209,22 @@ export const EnactLawModal: React.FC<EnactLawModalProps> = ({
   };
 
   const handleCopyPart = async (partIndex: number) => {
-    const code = activeSubResult?.partBBCodes?.[partIndex] || getLawPartBBCode(currentLaw.id, partIndex);
+    const targetSubRes =
+      patchResult?.multiLawResults?.[currentLaw.id] ||
+      (patchResult && patchResult.updatedLaw.id === currentLaw.id ? patchResult : null) ||
+      activeSubResult;
+
+    const lawToCopy = targetSubRes?.updatedLaw || currentLaw;
+    const code =
+      targetSubRes?.partBBCodes?.[partIndex] ||
+      compileLawPartBBCode(lawToCopy, partIndex) ||
+      getLawPartBBCode(lawToCopy.id, partIndex);
+
     if (!code) return;
     const ok = await copyToClipboard(code);
     if (ok) {
       setCopiedPart(partIndex);
-      onToast('success', `BB-код Части ${partIndex} для «${currentLaw.shortTitle || currentLaw.title}» скопирован!`);
+      onToast('success', `BB-код Части ${partIndex} для «${lawToCopy.shortTitle || lawToCopy.title}» скопирован!`);
       setTimeout(() => setCopiedPart(null), 2500);
     } else {
       onToast('error', 'Не удалось скопировать.');
@@ -206,15 +232,34 @@ export const EnactLawModal: React.FC<EnactLawModalProps> = ({
   };
 
   const handleCopyFullLaw = async () => {
-    const code = activeSubResult ? activeSubResult.fullLawBBCode : currentLaw.activeBBCode || '';
-    if (!code) return;
+    // 1. Locate the exact patch result for currentLaw
+    const targetSubRes =
+      patchResult?.multiLawResults?.[currentLaw.id] ||
+      (patchResult && patchResult.updatedLaw.id === currentLaw.id ? patchResult : null) ||
+      (patchResult?.multiLawResults?.[activeLawId]) ||
+      activeSubResult;
+
+    // 2. Identify the updated law AST
+    const lawToCopy = targetSubRes?.updatedLaw || currentLaw;
+
+    // 3. Guarantee fresh compilation with all amendments
+    const code =
+      targetSubRes?.fullLawBBCode ||
+      lawToCopy.activeBBCode ||
+      compileFullLawBBCode(lawToCopy);
+
+    if (!code) {
+      onToast('error', 'Не удалось сформировать BB-код для выбранного закона.');
+      return;
+    }
+
     const ok = await copyToClipboard(code);
     if (ok) {
       setCopiedFull(true);
-      onToast('success', `Полный BB-код «${currentLaw.shortTitle || currentLaw.title}» скопирован в буфер!`);
+      onToast('success', `Полный BB-код «${lawToCopy.shortTitle || lawToCopy.title}» с внесёнными изменениями скопирован!`);
       setTimeout(() => setCopiedFull(false), 2500);
     } else {
-      onToast('error', 'Не удалось скопировать.');
+      onToast('error', 'Не удалось скопировать в буфер обмена.');
     }
   };
 
