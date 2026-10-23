@@ -66,6 +66,54 @@ export const DEFAULT_PIN_REGISTRY: RolePinRegistry = {
   adminCode: '999000'
 };
 
+export const DEFAULT_ROLE_PINS: Record<OfficialRole, string> = {
+  prosecutor: '111000',
+  judge: '222000',
+  governor: '333000',
+  admin: '999000',
+  civilian: ''
+};
+
+export const TRIVIAL_UNSAFE_PINS = [
+  '111000',
+  '222000',
+  '333000',
+  '999000',
+  '123456',
+  '000000',
+  '111111',
+  '0000',
+  '1234',
+  'password',
+  'admin',
+  'qwerty'
+];
+
+export function isDefaultRolePin(role: OfficialRole, inputPin: string): boolean {
+  if (!inputPin) return false;
+  const clean = inputPin.trim().replace(/^["'«»]+|["'«»]+$/g, '').trim();
+  if (role === 'admin') return clean === '999000';
+  if (role === 'prosecutor') return clean === '111000';
+  if (role === 'judge') return clean === '222000';
+  if (role === 'governor') return clean === '333000';
+  return false;
+}
+
+export function isCurrentRolePinDefault(role: OfficialRole): boolean {
+  if (!role || role === 'civilian') return false;
+  const registry = getPinRegistry();
+  if (role === 'admin') return registry.adminCode === '999000';
+  if (role === 'prosecutor') return registry.prosecutor === '111000';
+  if (role === 'judge') return registry.judge === '222000';
+  if (role === 'governor') return registry.governor === '333000';
+  return false;
+}
+
+export function isPinTrivialOrUnsafe(pin: string): boolean {
+  const clean = (pin || '').trim().replace(/^["'«»]+|["'«»]+$/g, '').trim().toLowerCase();
+  return TRIVIAL_UNSAFE_PINS.includes(clean);
+}
+
 export function getPinRegistry(): RolePinRegistry {
   const saved = localStorage.getItem(PIN_STORAGE_KEY);
   if (saved) {
@@ -99,38 +147,32 @@ export function savePinRegistry(registry: RolePinRegistry): void {
 }
 
 export function updateOfficialPin(role: OfficialRole, currentPin: string, newPin: string): void {
-  const status = getBruteforceStatus();
-  if (status.lockoutUntil > Date.now()) {
-    const minutesLeft = Math.ceil((status.lockoutUntil - Date.now()) / 60000);
-    throw new Error(`Внимание: Доступ заблокирован. Попробуйте через ${minutesLeft} минут.`);
-  }
+  const cleanCurrent = (currentPin || '').trim().replace(/^["'«»]+|["'«»]+$/g, '').trim();
+  const cleanNew = (newPin || '').trim().replace(/^["'«»]+|["'«»]+$/g, '').trim();
 
-  const registry = getPinRegistry();
-  const trimmedCurrent = currentPin.trim();
-  const trimmedNew = newPin.trim();
-
-  let isMatch = false;
-  if (role === 'admin') isMatch = trimmedCurrent === registry.adminCode;
-  else if (role === 'prosecutor') isMatch = trimmedCurrent === registry.prosecutor;
-  else if (role === 'judge') isMatch = trimmedCurrent === registry.judge;
-  else if (role === 'governor') isMatch = trimmedCurrent === registry.governor;
-
+  const isMatch = verifyRolePin(role, cleanCurrent);
   if (!isMatch) {
-    recordFailedAttempt();
     logSecurityEvent('SECURITY_ALERT', role, `Неудачная попытка смены PIN-кода для ${role}`);
     throw new Error('Текущий PIN-код введен неверно');
   }
 
-  if (!trimmedNew || trimmedNew.length < 4) {
+  if (!cleanNew || cleanNew.length < 4) {
     throw new Error('Новый PIN-код должен содержать минимум 4 символа');
   }
 
-  resetBruteforceAttempts();
+  if (isPinTrivialOrUnsafe(cleanNew)) {
+    throw new Error('Новый пароль не может быть стандартным дефолтным (111000, 222000, 333000, 999000) или небезопасным заводским кодом! Придумайте надёжный защищённый пароль.');
+  }
 
-  if (role === 'admin') registry.adminCode = trimmedNew;
-  else if (role === 'prosecutor') registry.prosecutor = trimmedNew;
-  else if (role === 'judge') registry.judge = trimmedNew;
-  else if (role === 'governor') registry.governor = trimmedNew;
+  if (cleanNew === cleanCurrent) {
+    throw new Error('Новый пароль должен отличаться от текущего пароля');
+  }
+
+  const registry = getPinRegistry();
+  if (role === 'admin') registry.adminCode = cleanNew;
+  else if (role === 'prosecutor') registry.prosecutor = cleanNew;
+  else if (role === 'judge') registry.judge = cleanNew;
+  else if (role === 'governor') registry.governor = cleanNew;
 
   savePinRegistry(registry);
   logSecurityEvent('PIN_UPDATE', role, `Пользователь успешно изменил PIN-код для должности ${role}`);

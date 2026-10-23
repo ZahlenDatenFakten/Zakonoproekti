@@ -10,9 +10,12 @@ import {
   updateOfficialPin, 
   isSystemAdmin, 
   getAuditLogs,
-  isUserRevokedFromRole 
+  isUserRevokedFromRole,
+  isDefaultRolePin,
+  isCurrentRolePinDefault,
+  isPinTrivialOrUnsafe
 } from '../services/securityService';
-import { X, User, Key, ShieldCheck, Check, Clock, Lock } from 'lucide-react';
+import { X, User, Key, ShieldCheck, Check, Clock, Lock, ShieldAlert, AlertTriangle, Eye, EyeOff } from 'lucide-react';
 import { R, ft, label, mono, shadow, chip, btnAccent, btnOutline } from '../lib/ui';
 import { ConfirmModal } from './ConfirmModal';
 
@@ -23,6 +26,14 @@ interface SettingsModalProps {
   onToast: (type: 'success' | 'error' | 'info', text: string) => void;
 }
 
+interface ForcedPasswordChangeState {
+  role: OfficialRole;
+  enteredPin: string;
+  firstName: string;
+  lastName: string;
+  reason?: string;
+}
+
 export const SettingsModal: React.FC<SettingsModalProps> = ({
   user,
   onUpdateProfile,
@@ -31,6 +42,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState<'profile' | 'official' | 'changepin' | 'admin' | 'audit'>('profile');
   const [showConfirmResetRole, setShowConfirmResetRole] = useState(false);
+
+  // Mandatory Password Change state when entering or having default PINs
+  const [forcedPasswordChange, setForcedPasswordChange] = useState<ForcedPasswordChangeState | null>(null);
+  const [forcedNewPin, setForcedNewPin] = useState('');
+  const [forcedConfirmPin, setForcedConfirmPin] = useState('');
+  const [showForcedPin, setShowForcedPin] = useState(false);
 
   // Profile Form
   const [firstName, setFirstName] = useState(user.firstName);
@@ -105,6 +122,26 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       }
 
       if (verifyRolePin(roleToVerify, rolePin, cleanFirst, cleanLast)) {
+        const enteredIsDefault = isDefaultRolePin(roleToVerify, rolePin);
+        const currentIsDefault = isCurrentRolePinDefault(roleToVerify);
+
+        // Security Requirement: If entered PIN is default or role still uses default, force password change immediately
+        if (enteredIsDefault || currentIsDefault) {
+          setForcedPasswordChange({
+            role: roleToVerify,
+            enteredPin: rolePin.trim(),
+            firstName: cleanFirst,
+            lastName: cleanLast,
+            reason: enteredIsDefault 
+              ? 'Обнаружен стандартный заводской дефолтный пароль.' 
+              : 'Для данной должности в системе всё ещё активен дефолтный пароль.'
+          });
+          setForcedNewPin('');
+          setForcedConfirmPin('');
+          onToast('info', '⚠️ Внимание: Введён стандартный заводской пароль! Перед получением доступа вы обязаны установить новый защищённый пароль.');
+          return;
+        }
+
         onUpdateProfile(cleanFirst, cleanLast, roleToVerify, true);
         onToast('success', `Активирован служебный статус: ${OFFICIAL_ROLE_LABELS[roleToVerify]}`);
         setRolePin('');
@@ -123,8 +160,29 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
   const handleActivateAdmin = () => {
     try {
-      if (verifyRolePin('admin', adminCodeInput)) {
-        onUpdateProfile(firstName.trim(), lastName.trim(), 'admin', true);
+      const cleanAdminPin = adminCodeInput.trim();
+      const cleanFirst = firstName.trim();
+      const cleanLast = lastName.trim();
+
+      if (verifyRolePin('admin', cleanAdminPin)) {
+        const enteredIsDefault = isDefaultRolePin('admin', cleanAdminPin);
+        const currentIsDefault = isCurrentRolePinDefault('admin');
+
+        if (enteredIsDefault || currentIsDefault) {
+          setForcedPasswordChange({
+            role: 'admin',
+            enteredPin: cleanAdminPin,
+            firstName: cleanFirst,
+            lastName: cleanLast,
+            reason: 'Введён стандартный заводской код Администратора (999000).'
+          });
+          setForcedNewPin('');
+          setForcedConfirmPin('');
+          onToast('info', '⚠️ Внимание: Введён стандартный код Администратора (999000)! Перед получением доступа вы обязаны установить новый защищённый пароль.');
+          return;
+        }
+
+        onUpdateProfile(cleanFirst, cleanLast, 'admin', true);
         onToast('success', 'Права Системного Администратора подтверждены');
         setAdminCodeInput('');
         setActiveTab('admin');
@@ -134,6 +192,53 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     } catch (err: any) {
       onToast('error', err.message || 'Ошибка авторизации');
     }
+  };
+
+  const handleCommitForcedPasswordChange = () => {
+    if (!forcedPasswordChange) return;
+
+    const cleanNew = forcedNewPin.trim();
+    const cleanConfirm = forcedConfirmPin.trim();
+
+    if (!cleanNew || !cleanConfirm) {
+      onToast('error', 'Заполните оба поля: новый пароль и подтверждение');
+      return;
+    }
+    if (cleanNew !== cleanConfirm) {
+      onToast('error', 'Новый пароль и подтверждение не совпадают');
+      return;
+    }
+
+    try {
+      updateOfficialPin(forcedPasswordChange.role, forcedPasswordChange.enteredPin, cleanNew);
+      onUpdateProfile(forcedPasswordChange.firstName, forcedPasswordChange.lastName, forcedPasswordChange.role, true);
+      onToast('success', `🎉 Новый защищённый пароль успешно сохранён! Активирован статус: ${OFFICIAL_ROLE_LABELS[forcedPasswordChange.role]}`);
+      
+      const activatedRole = forcedPasswordChange.role;
+      setForcedPasswordChange(null);
+      setRolePin('');
+      setAdminCodeInput('');
+      setForcedNewPin('');
+      setForcedConfirmPin('');
+      setPinRegistryState(getPinRegistry());
+
+      if (activatedRole === 'admin') {
+        setActiveTab('admin');
+      } else {
+        onClose();
+      }
+    } catch (err: any) {
+      onToast('error', err.message || 'Ошибка сохранения пароля');
+    }
+  };
+
+  const handleCancelForcedPasswordChange = () => {
+    setForcedPasswordChange(null);
+    setRolePin('');
+    setAdminCodeInput('');
+    setForcedNewPin('');
+    setForcedConfirmPin('');
+    onToast('info', 'Авторизация отменена. Стандартный пароль не был активирован.');
   };
 
   const handleChangePin = () => {
@@ -151,6 +256,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       setCurrentPinInput('');
       setNewPinInput('');
       setConfirmPinInput('');
+      setPinRegistryState(getPinRegistry());
       onClose();
     } catch (err: any) {
       onToast('error', err.message || 'Ошибка смены PIN-кода');
@@ -158,8 +264,19 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   };
 
   const handleSavePinRegistry = () => {
+    let hasUnsafe = false;
+    for (const [, pin] of Object.entries(pinRegistry)) {
+      if (isPinTrivialOrUnsafe(pin)) {
+        hasUnsafe = true;
+        break;
+      }
+    }
     savePinRegistry(pinRegistry);
-    onToast('success', 'Реестр служебных PIN-кодов успешно обновлен');
+    if (hasUnsafe) {
+      onToast('info', 'Внимание: В реестре сохранены стандартные (небезопасные) PIN-коды. Рекомендуется сменить их.');
+    } else {
+      onToast('success', 'Реестр служебных PIN-кодов успешно обновлен');
+    }
   };
 
   const handleResetRole = () => {
@@ -235,27 +352,38 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           style={{
             padding: '14px 20px',
             borderBottom: ft.hair,
-            background: R.bgElevated,
+            background: forcedPasswordChange ? 'rgba(239, 68, 68, 0.08)' : R.bgElevated,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{ width: 32, height: 32, display: 'grid', placeItems: 'center', background: R.accentSubtle, color: R.accent, borderRadius: 2 }}>
-              <User size={16} />
+            <div style={{ 
+              width: 32, 
+              height: 32, 
+              display: 'grid', 
+              placeItems: 'center', 
+              background: forcedPasswordChange ? 'rgba(239, 68, 68, 0.2)' : R.accentSubtle, 
+              color: forcedPasswordChange ? '#ef4444' : R.accent, 
+              borderRadius: 2 
+            }}>
+              {forcedPasswordChange ? <ShieldAlert size={18} /> : <User size={16} />}
             </div>
             <div>
-              <h3 style={{ fontSize: 14, fontWeight: 800, color: R.text, margin: 0 }}>
-                Личный кабинет и безопасность
+              <h3 style={{ fontSize: 14, fontWeight: 800, color: forcedPasswordChange ? '#ef4444' : R.text, margin: 0 }}>
+                {forcedPasswordChange ? 'Обязательная смена стандартного пароля' : 'Личный кабинет и безопасность'}
               </h3>
               <div style={{ fontSize: 11, fontFamily: mono, color: R.textMuted, marginTop: 1 }}>
-                {user.firstName} {user.lastName} · {OFFICIAL_ROLE_LABELS[user.officialRole]}
+                {forcedPasswordChange 
+                  ? `Должность: ${OFFICIAL_ROLE_LABELS[forcedPasswordChange.role]} (${forcedPasswordChange.firstName} ${forcedPasswordChange.lastName})`
+                  : `${user.firstName} ${user.lastName} · ${OFFICIAL_ROLE_LABELS[user.officialRole]}`
+                }
               </div>
             </div>
           </div>
           <button 
-            onClick={onClose} 
+            onClick={forcedPasswordChange ? handleCancelForcedPasswordChange : onClose} 
             style={{
               background: 'none',
               border: 'none',
@@ -272,18 +400,149 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
         {/* Content Area */}
         <div style={{ padding: 20, overflowY: 'auto' }} className="rt-scroll">
-          {/* Navigation Tabs */}
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 20 }}>
-            {tabs.map((t) => (
-              <button
-                key={t.id}
-                onClick={() => setActiveTab(t.id as any)}
-                style={chip(activeTab === t.id)}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
+          {forcedPasswordChange ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+              {/* Security Alert Banner */}
+              <div style={{
+                background: 'rgba(239, 68, 68, 0.08)',
+                border: '1px solid rgba(239, 68, 68, 0.35)',
+                borderRadius: 4,
+                padding: '14px 16px',
+                display: 'flex',
+                gap: 12,
+                alignItems: 'flex-start'
+              }}>
+                <AlertTriangle size={20} color="#f87171" style={{ flexShrink: 0, marginTop: 2 }} />
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: '#f87171', marginBottom: 4 }}>
+                    Обнаружен стандартный (заводской) пароль!
+                  </div>
+                  <div style={{ fontSize: 12, color: R.textSecondary, lineHeight: 1.5 }}>
+                    Вы ввели стандартный дефолтный код для должности <strong>{OFFICIAL_ROLE_LABELS[forcedPasswordChange.role]}</strong>. 
+                    Оставлять систему с общеизвестным паролем категорически запрещено протоколом кибербезопасности. 
+                    Перед получением доступа к государственным полномочиям необходимо установить новый персональный защищённый пароль.
+                  </div>
+                </div>
+              </div>
+
+              {/* Form Inputs */}
+              <div>
+                <label style={{ ...label, display: 'block', marginBottom: 6 }}>
+                  Новый защищённый пароль:
+                </label>
+                <div style={{ position: 'relative' }}>
+                  <input
+                    type={showForcedPin ? 'text' : 'password'}
+                    autoComplete="new-password"
+                    placeholder="Придумайте надёжный пароль (минимум 4 символа)..."
+                    value={forcedNewPin}
+                    onChange={(e) => setForcedNewPin(e.target.value)}
+                    style={{
+                      width: '100%',
+                      height: 40,
+                      padding: '0 40px 0 12px',
+                      fontSize: 14,
+                      background: R.bgInput,
+                      border: ft.edge,
+                      color: R.text,
+                      borderRadius: 2,
+                      outline: 'none',
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowForcedPin(!showForcedPin)}
+                    style={{
+                      position: 'absolute',
+                      right: 10,
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      background: 'none',
+                      border: 'none',
+                      color: R.textMuted,
+                      cursor: 'pointer',
+                      padding: 4,
+                    }}
+                  >
+                    {showForcedPin ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label style={{ ...label, display: 'block', marginBottom: 6 }}>
+                  Подтверждение нового пароля:
+                </label>
+                <input
+                  type={showForcedPin ? 'text' : 'password'}
+                  autoComplete="new-password"
+                  placeholder="Повторите новый защищённый пароль..."
+                  value={forcedConfirmPin}
+                  onChange={(e) => setForcedConfirmPin(e.target.value)}
+                  style={{
+                    width: '100%',
+                    height: 40,
+                    padding: '0 12px',
+                    fontSize: 14,
+                    background: R.bgInput,
+                    border: ft.edge,
+                    color: R.text,
+                    borderRadius: 2,
+                    outline: 'none',
+                  }}
+                />
+              </div>
+
+              {/* Security criteria */}
+              <div style={{
+                background: R.bgElevated,
+                border: ft.hair,
+                borderRadius: 2,
+                padding: '10px 14px',
+                fontSize: 11,
+                color: R.textMuted,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 4
+              }}>
+                <div style={{ fontWeight: 700, color: R.textSecondary }}>Требования к защищённому паролю:</div>
+                <div>• Не может совпадать со стандартными заводскими кодами (111000, 222000, 333000, 999000)</div>
+                <div>• Минимум 4 символа (рекомендуется от 6 символов с буквами и цифрами)</div>
+                <div>• Новый пароль должен отличаться от исходного кода</div>
+              </div>
+
+              {/* Actions */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 8 }}>
+                <button
+                  type="button"
+                  onClick={handleCancelForcedPasswordChange}
+                  style={btnOutline}
+                >
+                  Отмена входа
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCommitForcedPasswordChange}
+                  style={btnAccent}
+                >
+                  <ShieldCheck size={14} /> Установить защищённый пароль и войти
+                </button>
+              </div>
+            </div>
+          ) : (
+            <>
+              {/* Navigation Tabs */}
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 20 }}>
+                {tabs.map((t) => (
+                  <button
+                    key={t.id}
+                    onClick={() => setActiveTab(t.id as any)}
+                    style={chip(activeTab === t.id)}
+                  >
+                    {t.label}
+                  </button>
+                ))}
+              </div>
 
           {/* TAB 1: Profile */}
           {activeTab === 'profile' && (
@@ -332,6 +591,30 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 />
               </div>
 
+
+              {user.isOfficialVerified && user.officialRole !== 'civilian' && isCurrentRolePinDefault(user.officialRole) && (
+                <div 
+                  onClick={() => setActiveTab('changepin')}
+                  style={{
+                    cursor: 'pointer',
+                    padding: '10px 14px',
+                    background: 'rgba(239, 68, 68, 0.08)',
+                    border: '1px solid rgba(239, 68, 68, 0.35)',
+                    borderRadius: 2,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <AlertTriangle size={16} color="#f87171" />
+                    <span style={{ fontSize: 12, color: '#f87171', fontWeight: 600 }}>
+                      Внимание: Для вашей должности установлен стандартный заводской пароль! Нажмите, чтобы сменить его.
+                    </span>
+                  </div>
+                  <Key size={14} color="#f87171" />
+                </div>
+              )}
 
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: 8 }}>
                 {user.isOfficialVerified ? (
@@ -419,6 +702,17 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                  {isCurrentRolePinDefault(user.officialRole) && (
+                    <div style={{ background: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.35)', borderRadius: 2, padding: '12px 14px' }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: '#f87171', display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <AlertTriangle size={16} color="#f87171" /> Внимание: Для вашей должности активен дефолтный пароль!
+                      </div>
+                      <div style={{ fontSize: 12, color: R.textSecondary, marginTop: 4 }}>
+                        Использование общеизвестного заводского кода создаёт критическую угрозу безопасности. Обязательно установите новый персональный защищённый пароль ниже.
+                      </div>
+                    </div>
+                  )}
+
                   <div style={{ background: R.bgInput, border: ft.hair, borderRadius: 2, padding: 12 }}>
                     <div style={{ fontSize: 13, fontWeight: 700, color: R.accent, fontFamily: mono, textTransform: 'uppercase' }}>
                       {OFFICIAL_ROLE_LABELS[user.officialRole]}
@@ -561,42 +855,62 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                       <div>
-                        <label style={{ ...label, display: 'block', marginBottom: 4 }}>PIN Прокурора:</label>
+                        <label style={{ ...label, display: 'block', marginBottom: 4 }}>
+                          PIN Прокурора:
+                          {isDefaultRolePin('prosecutor', pinRegistry.prosecutor) && (
+                            <span style={{ color: '#f87171', fontSize: 10, marginLeft: 6, fontWeight: 700 }}>⚠️ дефолтный</span>
+                          )}
+                        </label>
                         <input
                           type="text"
                           value={pinRegistry.prosecutor}
                           onChange={(e) => setPinRegistryState({ ...pinRegistry, prosecutor: e.target.value })}
-                          style={{ width: '100%', height: 34, padding: '0 10px', fontSize: 12, fontFamily: mono, background: R.bgInput, border: ft.edge, color: R.text, borderRadius: 2 }}
+                          style={{ width: '100%', height: 34, padding: '0 10px', fontSize: 12, fontFamily: mono, background: R.bgInput, border: isDefaultRolePin('prosecutor', pinRegistry.prosecutor) ? '1px solid #f87171' : ft.edge, color: R.text, borderRadius: 2 }}
                         />
                       </div>
 
                       <div>
-                        <label style={{ ...label, display: 'block', marginBottom: 4 }}>PIN Судьи:</label>
+                        <label style={{ ...label, display: 'block', marginBottom: 4 }}>
+                          PIN Судьи:
+                          {isDefaultRolePin('judge', pinRegistry.judge) && (
+                            <span style={{ color: '#f87171', fontSize: 10, marginLeft: 6, fontWeight: 700 }}>⚠️ дефолтный</span>
+                          )}
+                        </label>
                         <input
                           type="text"
                           value={pinRegistry.judge}
                           onChange={(e) => setPinRegistryState({ ...pinRegistry, judge: e.target.value })}
-                          style={{ width: '100%', height: 34, padding: '0 10px', fontSize: 12, fontFamily: mono, background: R.bgInput, border: ft.edge, color: R.text, borderRadius: 2 }}
+                          style={{ width: '100%', height: 34, padding: '0 10px', fontSize: 12, fontFamily: mono, background: R.bgInput, border: isDefaultRolePin('judge', pinRegistry.judge) ? '1px solid #f87171' : ft.edge, color: R.text, borderRadius: 2 }}
                         />
                       </div>
 
                       <div>
-                        <label style={{ ...label, display: 'block', marginBottom: 4 }}>PIN Губернатора:</label>
+                        <label style={{ ...label, display: 'block', marginBottom: 4 }}>
+                          PIN Губернатора:
+                          {isDefaultRolePin('governor', pinRegistry.governor) && (
+                            <span style={{ color: '#f87171', fontSize: 10, marginLeft: 6, fontWeight: 700 }}>⚠️ дефолтный</span>
+                          )}
+                        </label>
                         <input
                           type="text"
                           value={pinRegistry.governor}
                           onChange={(e) => setPinRegistryState({ ...pinRegistry, governor: e.target.value })}
-                          style={{ width: '100%', height: 34, padding: '0 10px', fontSize: 12, fontFamily: mono, background: R.bgInput, border: ft.edge, color: R.text, borderRadius: 2 }}
+                          style={{ width: '100%', height: 34, padding: '0 10px', fontSize: 12, fontFamily: mono, background: R.bgInput, border: isDefaultRolePin('governor', pinRegistry.governor) ? '1px solid #f87171' : ft.edge, color: R.text, borderRadius: 2 }}
                         />
                       </div>
 
                       <div>
-                        <label style={{ ...label, display: 'block', marginBottom: 4 }}>Код Админа:</label>
+                        <label style={{ ...label, display: 'block', marginBottom: 4 }}>
+                          Код Админа:
+                          {isDefaultRolePin('admin', pinRegistry.adminCode) && (
+                            <span style={{ color: '#f87171', fontSize: 10, marginLeft: 6, fontWeight: 700 }}>⚠️ дефолтный</span>
+                          )}
+                        </label>
                         <input
                           type="text"
                           value={pinRegistry.adminCode}
                           onChange={(e) => setPinRegistryState({ ...pinRegistry, adminCode: e.target.value })}
-                          style={{ width: '100%', height: 34, padding: '0 10px', fontSize: 12, fontFamily: mono, background: R.bgInput, border: ft.edge, color: R.text, borderRadius: 2 }}
+                          style={{ width: '100%', height: 34, padding: '0 10px', fontSize: 12, fontFamily: mono, background: R.bgInput, border: isDefaultRolePin('admin', pinRegistry.adminCode) ? '1px solid #f87171' : ft.edge, color: R.text, borderRadius: 2 }}
                         />
                       </div>
                     </div>
@@ -642,6 +956,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               </div>
             </div>
           )}
+            </>
+          )}
         </div>
 
         {/* Footer */}
@@ -655,10 +971,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           }}
         >
           <button 
-            onClick={onClose} 
+            onClick={forcedPasswordChange ? handleCancelForcedPasswordChange : onClose} 
             style={btnOutline}
           >
-            Закрыть
+            {forcedPasswordChange ? 'Отмена' : 'Закрыть'}
           </button>
         </div>
 
