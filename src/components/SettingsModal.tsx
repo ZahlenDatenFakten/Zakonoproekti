@@ -37,7 +37,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [lastName, setLastName] = useState(user.lastName);
 
   // Official PIN Form
-  const [targetRole, setTargetRole] = useState<OfficialRole>('prosecutor');
+  const [targetRole, setTargetRole] = useState<OfficialRole>(() => {
+    if (user.officialRole && user.officialRole !== 'civilian') {
+      return user.officialRole;
+    }
+    return 'governor';
+  });
   const [rolePin, setRolePin] = useState('');
 
   // Change PIN Form
@@ -79,23 +84,37 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       const cleanFirst = firstName.trim();
       const cleanLast = lastName.trim();
 
-      const revoked = isUserRevokedFromRole(cleanFirst, cleanLast, targetRole);
+      // Smart auto-detect role if entered PIN matches another position (e.g. entered Governor PIN while dropdown is on another role)
+      let roleToVerify = targetRole;
+      if (!verifyRolePin(targetRole, rolePin, cleanFirst, cleanLast)) {
+        if (verifyRolePin('governor', rolePin, cleanFirst, cleanLast)) {
+          roleToVerify = 'governor';
+        } else if (verifyRolePin('admin', rolePin, cleanFirst, cleanLast)) {
+          roleToVerify = 'admin';
+        } else if (verifyRolePin('judge', rolePin, cleanFirst, cleanLast)) {
+          roleToVerify = 'judge';
+        } else if (verifyRolePin('prosecutor', rolePin, cleanFirst, cleanLast)) {
+          roleToVerify = 'prosecutor';
+        }
+      }
+
+      const revoked = isUserRevokedFromRole(cleanFirst, cleanLast, roleToVerify);
       if (revoked.isRevoked) {
         onToast('error', revoked.reason || 'Служебные полномочия для данного гражданина отозваны.');
         return;
       }
 
-      if (verifyRolePin(targetRole, rolePin, cleanFirst, cleanLast)) {
-        onUpdateProfile(cleanFirst, cleanLast, targetRole, true);
-        onToast('success', `Активирован служебный статус: ${OFFICIAL_ROLE_LABELS[targetRole]}`);
+      if (verifyRolePin(roleToVerify, rolePin, cleanFirst, cleanLast)) {
+        onUpdateProfile(cleanFirst, cleanLast, roleToVerify, true);
+        onToast('success', `Активирован служебный статус: ${OFFICIAL_ROLE_LABELS[roleToVerify]}`);
         setRolePin('');
-        if (targetRole === 'admin') {
+        if (roleToVerify === 'admin') {
           setActiveTab('admin');
         } else {
           onClose();
         }
       } else {
-        onToast('error', targetRole === 'admin' ? 'Неверный Секретный Код Администратора' : 'Неверный служебный PIN-код для выбранной должности');
+        onToast('error', roleToVerify === 'admin' ? 'Неверный Секретный Код Администратора' : 'Неверный служебный PIN-код для выбранной должности');
       }
     } catch (err: any) {
       onToast('error', err.message || 'Ошибка авторизации');
