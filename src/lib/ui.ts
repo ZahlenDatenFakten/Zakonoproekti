@@ -74,54 +74,111 @@ export const input: CSSProperties = {
   background: R.bgInput,
   color: R.text,
   boxSizing: 'border-box',
-  borderRadius: 2,
+  borderRadius: 'var(--rt-radius, 8px)',
 };
 
 const buttonBase: CSSProperties = {
   display: 'inline-flex',
   alignItems: 'center',
   justifyContent: 'center',
-  gap: 6,
+  gap: 7,
   minHeight: 34,
   padding: '8px 14px',
   fontSize: 13,
-  fontWeight: 800,
+  fontWeight: 600,
   lineHeight: 1,
   cursor: 'pointer',
   border: '1px solid transparent',
-  borderRadius: 2,
-  transition: 'background 0.12s, border-color 0.12s, color 0.12s',
+  borderRadius: 'var(--rt-radius-btn, 8px)',
+  transition: 'all 0.16s cubic-bezier(0.16, 1, 0.3, 1)',
+  userSelect: 'none',
+  whiteSpace: 'nowrap',
+  boxSizing: 'border-box',
 };
 
 export const btnPrimary: CSSProperties = {
   ...buttonBase,
-  background: R.accent,
-  color: R.onAccent,
+  background: 'var(--rt-acc, #3b82f6)',
+  borderColor: 'var(--rt-acc, #3b82f6)',
+  color: '#ffffff',
+  fontWeight: 700,
 };
 
 export const btnAccent: CSSProperties = btnPrimary;
 
+export const btnSecondary: CSSProperties = {
+  ...buttonBase,
+  background: 'var(--rt-elev, #1a1a1c)',
+  borderColor: 'var(--rt-line, #2d2d30)',
+  color: 'var(--rt-fg, #ffffff)',
+};
+
 export const btnGhost: CSSProperties = {
   ...buttonBase,
   background: 'transparent',
-  color: R.text,
-  borderColor: R.border,
+  borderColor: 'var(--rt-line, #2d2d30)',
+  color: 'var(--rt-fg-2, #c9c9d1)',
 };
 
 export const btnOutline: CSSProperties = btnGhost;
 
+export const btnSuccess: CSSProperties = {
+  ...buttonBase,
+  background: 'rgba(16, 185, 129, 0.12)',
+  borderColor: 'rgba(16, 185, 129, 0.35)',
+  color: '#34d399',
+  fontWeight: 700,
+};
+
+export const btnApprove: CSSProperties = btnSuccess;
+
+export const btnWarning: CSSProperties = {
+  ...buttonBase,
+  background: 'rgba(245, 158, 11, 0.12)',
+  borderColor: 'rgba(245, 158, 11, 0.35)',
+  color: '#fbbf24',
+  fontWeight: 700,
+};
+
+export const btnRevision: CSSProperties = btnWarning;
+
 export const btnDanger: CSSProperties = {
   ...buttonBase,
-  background: 'transparent',
-  color: R.danger,
-  borderColor: R.dangerBorder,
+  background: 'rgba(239, 68, 68, 0.12)',
+  borderColor: 'rgba(239, 68, 68, 0.35)',
+  color: '#f87171',
+  fontWeight: 700,
 };
+
+export const btnReject: CSSProperties = btnDanger;
 
 export const btnDangerSolid: CSSProperties = {
   ...buttonBase,
-  background: R.danger,
+  background: '#ef4444',
+  borderColor: '#ef4444',
   color: '#ffffff',
+  fontWeight: 700,
 };
+
+export const btnPurple: CSSProperties = {
+  ...buttonBase,
+  background: 'rgba(168, 85, 247, 0.12)',
+  borderColor: 'rgba(168, 85, 247, 0.35)',
+  color: '#c084fc',
+  fontWeight: 700,
+};
+
+export const btnAdmin: CSSProperties = btnPurple;
+
+export const btnSubtle: CSSProperties = {
+  ...buttonBase,
+  background: 'var(--rt-acc-soft, rgba(59, 130, 246, 0.12))',
+  borderColor: 'var(--rt-acc-line, rgba(59, 130, 246, 0.35))',
+  color: 'var(--rt-acc-text, #60a5fa)',
+  fontWeight: 700,
+};
+
+export const btnInfo: CSSProperties = btnSubtle;
 
 /** Deterministic avatar colors generated from string hash */
 const AVATAR_COLORS = [
@@ -147,7 +204,7 @@ export const kbd: CSSProperties = {
   border: ft.edge,
   color: R.textMuted,
   background: R.bgSubtle,
-  borderRadius: 2,
+  borderRadius: 'var(--rt-radius-sm, 4px)',
   fontFamily: mono,
 };
 
@@ -164,8 +221,8 @@ export function chip(active: boolean): CSSProperties {
     background: active ? R.accentSubtle : 'transparent',
     color: active ? (R.accent) : R.textSecondary,
     whiteSpace: 'nowrap',
-    borderRadius: 2,
-    transition: 'all 0.12s ease',
+    borderRadius: 'var(--rt-radius-sm, 6px)',
+    transition: 'all 0.14s ease',
   };
 }
 

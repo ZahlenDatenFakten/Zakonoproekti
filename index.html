@@ -1,10 +1,20 @@
 <!doctype html>
-<html lang="ru" data-theme="dark" class="dark">
+<html lang="ru" data-theme="dark" data-design="new" class="dark">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/png" href="/favicon.png" />
     <link rel="shortcut icon" href="/favicon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script>
+      (function () {
+        try {
+          localStorage.removeItem('rt-design-mode');
+          document.documentElement.setAttribute('data-design', 'new');
+          var t = localStorage.getItem('rt-theme');
+          document.documentElement.setAttribute('data-theme', t === 'light' ? 'light' : 'dark');
+        } catch (e) {}
+      })();
+    </script>
     <title>REDWOOD — Портал Законопроектов</title>
     <meta name="description" content="Официальная база законодательных инициатив, нормативно-правовых актов и текущих законопроектов REDWOOD." />
 
@@ -29,7 +39,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap"
       rel="stylesheet"
     />
   </head>

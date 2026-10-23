@@ -4,9 +4,14 @@ const KEY = 'rt-theme';
 const listeners = new Set<() => void>();
 
 export type Theme = 'light' | 'dark';
+export type DesignMode = 'new';
 
 export function current(): Theme {
   return document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
+}
+
+export function currentDesign(): DesignMode {
+  return 'new';
 }
 
 export function apply(theme: Theme) {
@@ -21,9 +26,11 @@ export function apply(theme: Theme) {
   } catch {
     // private browsing mode fallback
   }
+
+  const metaColor = theme === 'dark' ? '#0f0f10' : '#f4f5f7';
   document
     .querySelector('meta[name="theme-color"]')
-    ?.setAttribute('content', theme === 'dark' ? '#171615' : '#f3f2f2');
+    ?.setAttribute('content', metaColor);
 
   for (const fn of listeners) fn();
 }
@@ -34,14 +41,20 @@ export function toggle() {
 
 /** Applied before initial render or on mount */
 export function restore() {
-  const saved = (() => {
+  // Always enforce the modern REDWOOD design
+  document.documentElement.setAttribute('data-design', 'new');
+  try {
+    localStorage.removeItem('rt-design-mode');
+  } catch {}
+
+  const savedTheme = (() => {
     try {
       return localStorage.getItem(KEY) as Theme | null;
     } catch {
       return null;
     }
   })();
-  apply(saved ?? (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'dark'));
+  apply(savedTheme ?? 'dark');
 }
 
 export function useTheme(): Theme {
@@ -53,6 +66,10 @@ export function useTheme(): Theme {
     current,
     () => 'dark',
   );
+}
+
+export function useDesign(): DesignMode {
+  return 'new';
 }
 
 export function useThemeHotkey() {
@@ -67,3 +84,4 @@ export function useThemeHotkey() {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 }
+

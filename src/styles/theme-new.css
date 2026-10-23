@@ -1,0 +1,396 @@
+/*
+ * ============================================================================
+ * НОВЫЙ ДИЗАЙН (REDWOOD JUDICIAL & LEGISLATIVE SYSTEM)
+ * ============================================================================
+ * Современная премиальная дизайн-система в стилистике REDWOOD Modern:
+ * - Глубокие матовые графитовые фоны (#0f0f10, #161618, #1a1a1c)
+ * - Шрифтовая пара Inter + JetBrains Mono
+ * - Строгая благородная палитра с кобальтовым акцентом #3b82f6
+ * - Закруглённая геометрия (8px - 12px) вместо рубленых 2px квадратов
+ * - Готовый UI Kit компонентов .judicial-* (карточки, инпуты, кнопки)
+ * - Тонкие элегантные скроллбары, фокус-контуры и оптимизация для печати
+ */
+
+:root,
+:root[data-theme="dark"],
+[data-design="new"][data-theme="dark"],
+:root:not([data-design="old"])[data-theme="dark"] {
+  --rt-design: "new";
+  --rt-bg: #0f0f10;
+  --rt-panel: #161618;
+  --rt-elev: #1a1a1c;
+  --rt-input: #1a1a1c;
+  --rt-fg: #ffffff;
+  --rt-fg-2: #c9c9d1;
+  --rt-mut: #9a9aa3;
+  --rt-line: #2d2d30;
+  --rt-line-strong: #3f3f46;
+  --rt-grid: #232326;
+  --rt-acc: #3b82f6;
+  --rt-acc-hover: #2563eb;
+  --rt-acc-text: #60a5fa;
+  --rt-acc-soft: rgba(59, 130, 246, 0.12);
+  --rt-acc-line: rgba(59, 130, 246, 0.35);
+  --rt-danger: #ef4444;
+  --rt-danger-soft: rgba(239, 68, 68, 0.12);
+  --rt-danger-line: rgba(239, 68, 68, 0.35);
+  --rt-success: #10b981;
+  --rt-success-soft: rgba(16, 185, 129, 0.12);
+  --rt-warning: #f59e0b;
+  --rt-warning-soft: rgba(245, 158, 11, 0.12);
+  --rt-select-soft: rgba(59, 130, 246, 0.22);
+  --rt-on-acc: #ffffff;
+
+  /* Modern Redwood Radii */
+  --rt-radius: 8px;
+  --rt-radius-btn: 10px;
+  --rt-radius-card: 12px;
+  --rt-radius-sm: 6px;
+  --rt-radius-pill: 9999px;
+
+  --font-family-base: 'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-family-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+
+  /* Color system aliases for Redwood components */
+  --color-background-primary: #0f0f10;
+  --color-background-secondary: #161618;
+  --color-background-tertiary: #1a1a1c;
+  --color-border-primary: #2d2d30;
+  --color-border-secondary: #232326;
+  --color-border-tertiary: #1e1e20;
+  --color-text-primary: #ffffff;
+  --color-text-secondary: #c9c9d1;
+  --color-text-tertiary: #9a9aa3;
+  --color-accent: #3b82f6;
+  --color-accent-hover: #2563eb;
+
+  color-scheme: dark;
+}
+
+:root[data-theme="light"],
+[data-design="new"][data-theme="light"],
+:root:not([data-design="old"])[data-theme="light"] {
+  --rt-design: "new";
+  --rt-bg: #f4f5f7;
+  --rt-panel: #ffffff;
+  --rt-elev: #eef0f3;
+  --rt-input: #ffffff;
+  --rt-fg: #1a1a1f;
+  --rt-fg-2: #4b4e57;
+  --rt-mut: #6d6f78;
+  --rt-line: #d5d7dd;
+  --rt-line-strong: #b0b3bc;
+  --rt-grid: #e2e4e9;
+  --rt-acc: #2563eb;
+  --rt-acc-hover: #1d4ed8;
+  --rt-acc-text: #1d4ed8;
+  --rt-acc-soft: rgba(37, 99, 235, 0.1);
+  --rt-acc-line: rgba(37, 99, 235, 0.3);
+  --rt-danger: #dc2626;
+  --rt-danger-soft: rgba(220, 38, 38, 0.08);
+  --rt-danger-line: rgba(220, 38, 38, 0.35);
+  --rt-success: #059669;
+  --rt-success-soft: rgba(5, 150, 105, 0.1);
+  --rt-warning: #d97706;
+  --rt-warning-soft: rgba(217, 119, 6, 0.1);
+  --rt-select-soft: rgba(37, 99, 235, 0.15);
+  --rt-on-acc: #ffffff;
+
+  --rt-radius: 8px;
+  --rt-radius-btn: 10px;
+  --rt-radius-card: 12px;
+  --rt-radius-sm: 6px;
+  --rt-radius-pill: 9999px;
+
+  --font-family-base: 'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-family-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+
+  --color-background-primary: #f4f5f7;
+  --color-background-secondary: #ffffff;
+  --color-background-tertiary: #eef0f3;
+  --color-border-primary: #d5d7dd;
+  --color-border-secondary: #e2e4e9;
+  --color-border-tertiary: #edeef1;
+  --color-text-primary: #1a1a1f;
+  --color-text-secondary: #4b4e57;
+  --color-text-tertiary: #6d6f78;
+  --color-accent: #2563eb;
+  --color-accent-hover: #1d4ed8;
+
+  color-scheme: light;
+}
+
+/* ============================================================================
+ * REDWOOD JUDICIAL UI KIT (.judicial-*)
+ * ============================================================================
+ */
+
+.judicial-card {
+  background-color: var(--rt-panel);
+  border: 1px solid var(--rt-line);
+  border-radius: var(--rt-radius-card);
+  padding: 1.5rem;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.2);
+}
+
+.judicial-card:hover {
+  border-color: rgba(59, 130, 246, 0.4);
+}
+
+.judicial-input {
+  width: 100%;
+  background-color: var(--rt-input);
+  border: 1px solid var(--rt-line);
+  border-radius: var(--rt-radius);
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  color: var(--rt-fg);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.judicial-input:focus {
+  outline: none;
+  border-color: var(--rt-acc);
+  box-shadow: 0 0 0 2px var(--rt-acc-soft);
+}
+
+.judicial-btn,
+.judicial-btn-primary,
+.judicial-btn-secondary,
+.judicial-btn-ghost,
+.judicial-btn-danger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  border-radius: var(--rt-radius-btn);
+  font-size: 0.875rem;
+  font-weight: 500;
+  line-height: 1.25rem;
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+  cursor: pointer;
+  user-select: none;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+
+.judicial-btn:active,
+.judicial-btn-primary:active,
+.judicial-btn-secondary:active,
+.judicial-btn-ghost:active,
+.judicial-btn-danger:active {
+  transform: scale(0.97);
+}
+
+.judicial-btn:disabled,
+.judicial-btn-primary:disabled,
+.judicial-btn-secondary:disabled,
+.judicial-btn-ghost:disabled,
+.judicial-btn-danger:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.judicial-btn-primary {
+  background-color: var(--rt-fg);
+  color: var(--rt-bg);
+  font-weight: 600;
+}
+
+.judicial-btn-primary:hover:not(:disabled) {
+  opacity: 0.92;
+  box-shadow: 0 4px 14px rgba(255, 255, 255, 0.12);
+}
+
+.judicial-btn-secondary {
+  background-color: var(--rt-elev);
+  border-color: var(--rt-line);
+  color: var(--rt-fg);
+}
+
+.judicial-btn-secondary:hover:not(:disabled) {
+  background-color: var(--rt-panel);
+  border-color: var(--rt-line-strong);
+}
+
+.judicial-btn-ghost {
+  background-color: transparent;
+  border-color: var(--rt-line);
+  color: var(--rt-fg-2);
+}
+
+.judicial-btn-ghost:hover:not(:disabled) {
+  background-color: var(--rt-elev);
+  color: var(--rt-fg);
+  border-color: var(--rt-line-strong);
+}
+
+.judicial-btn-danger {
+  background-color: var(--rt-danger-soft);
+  border-color: var(--rt-danger-line);
+  color: var(--rt-danger);
+}
+
+.judicial-btn-danger:hover:not(:disabled) {
+  background-color: rgba(239, 68, 68, 0.22);
+}
+
+/* ============================================================================
+ * ДИЗАЙН-АДАПТАЦИЯ ТЕКУЩИХ КОМПОНЕНТОВ ПОД REDWOOD
+ * ============================================================================
+ */
+
+:root:not([data-design="old"]) body,
+[data-design="new"] body {
+  font-family: var(--font-family-base) !important;
+  color: var(--rt-fg);
+  background: var(--rt-bg);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Автоматическое скругление элементов вместо грубых 2px квадратов */
+:root:not([data-design="old"]) .rt-btn,
+[data-design="new"] .rt-btn {
+  border-radius: var(--rt-radius-btn) !important;
+  font-weight: 600 !important;
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+:root:not([data-design="old"]) .rt-btn:active,
+[data-design="new"] .rt-btn:active {
+  transform: scale(0.97) !important;
+}
+
+:root:not([data-design="old"]) .rt-input,
+[data-design="new"] .rt-input {
+  border-radius: var(--rt-radius) !important;
+  background: var(--rt-input) !important;
+  border-color: var(--rt-line) !important;
+}
+
+:root:not([data-design="old"]) .rt-input:focus,
+[data-design="new"] .rt-input:focus {
+  border-color: var(--rt-acc) !important;
+  box-shadow: 0 0 0 2px var(--rt-acc-soft) !important;
+}
+
+:root:not([data-design="old"]) .rt-dialog,
+[data-design="new"] .rt-dialog {
+  border-radius: var(--rt-radius-card) !important;
+  border: 1px solid var(--rt-line) !important;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5) !important;
+  background: var(--rt-panel) !important;
+}
+
+:root:not([data-design="old"]) .rt-dialog-header,
+[data-design="new"] .rt-dialog-header {
+  border-top-left-radius: var(--rt-radius-card) !important;
+  border-top-right-radius: var(--rt-radius-card) !important;
+  border-bottom: 1px solid var(--rt-line) !important;
+  background: var(--rt-elev) !important;
+}
+
+:root:not([data-design="old"]) .rt-dialog-footer,
+[data-design="new"] .rt-dialog-footer {
+  border-bottom-left-radius: var(--rt-radius-card) !important;
+  border-bottom-right-radius: var(--rt-radius-card) !important;
+  border-top: 1px solid var(--rt-line) !important;
+}
+
+:root:not([data-design="old"]) .rt-toast,
+[data-design="new"] .rt-toast {
+  border-radius: var(--rt-radius-btn) !important;
+  border: 1px solid var(--rt-line-strong) !important;
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.45) !important;
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
+}
+
+/* Скругление инлайновых 2px рамок в карточках, инпутах и чипах */
+:root:not([data-design="old"]) *[style*="border-radius: 2px"],
+:root:not([data-design="old"]) *[style*="border-radius:2px"],
+[data-design="new"] *[style*="border-radius: 2px"],
+[data-design="new"] *[style*="border-radius:2px"] {
+  border-radius: var(--rt-radius) !important;
+}
+
+/* Сайдбар кнопки и навигация */
+:root:not([data-design="old"]) aside button,
+[data-design="new"] aside button {
+  border-radius: var(--rt-radius-btn) !important;
+  transition: all 0.16s ease !important;
+}
+
+/* Выделение текста */
+:root:not([data-design="old"]) ::selection,
+[data-design="new"] ::selection {
+  background-color: var(--rt-acc) !important;
+  color: #ffffff !important;
+}
+
+/* Премиальный тонкий скроллбар */
+:root:not([data-design="old"]) ::-webkit-scrollbar,
+[data-design="new"] ::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+:root:not([data-design="old"]) ::-webkit-scrollbar-track,
+[data-design="new"] ::-webkit-scrollbar-track {
+  background: var(--rt-bg);
+}
+
+:root:not([data-design="old"]) ::-webkit-scrollbar-thumb,
+[data-design="new"] ::-webkit-scrollbar-thumb {
+  background: var(--rt-line);
+  border-radius: 20px;
+  border: 3px solid var(--rt-bg);
+  transition: all 0.3s ease;
+}
+
+:root:not([data-design="old"]) ::-webkit-scrollbar-thumb:hover,
+[data-design="new"] ::-webkit-scrollbar-thumb:hover {
+  background: var(--rt-mut);
+}
+
+/* Фокус клавиатуры (Tab) в стиле Redwood */
+:root:not([data-design="old"]) a:focus-visible,
+:root:not([data-design="old"]) button:focus-visible,
+:root:not([data-design="old"]) input:focus-visible,
+:root:not([data-design="old"]) select:focus-visible,
+:root:not([data-design="old"]) textarea:focus-visible,
+[data-design="new"] a:focus-visible,
+[data-design="new"] button:focus-visible,
+[data-design="new"] input:focus-visible,
+[data-design="new"] select:focus-visible,
+[data-design="new"] textarea:focus-visible {
+  outline: 2px solid var(--rt-acc) !important;
+  outline-offset: 2px !important;
+}
+
+/* Режим печати документов */
+@media print {
+  html, body {
+    background: #ffffff !important;
+    color: #111111 !important;
+  }
+  aside,
+  .print-hide,
+  [data-print-hide],
+  button,
+  input,
+  .rt-toolbar {
+    display: none !important;
+  }
+  #root, #main-scroll-container {
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+}

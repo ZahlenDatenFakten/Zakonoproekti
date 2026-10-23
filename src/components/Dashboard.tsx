@@ -398,7 +398,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                 paddingRight: 10,
                 background: R.bgInput,
                 border: ft.edge,
-                borderRadius: 2,
+                borderRadius: 'var(--rt-radius-btn, 8px)',
                 fontSize: 13,
                 color: R.text,
                 outline: 'none',
@@ -409,18 +409,17 @@ export const Dashboard: React.FC<DashboardProps> = ({
           </div>
 
           <button
+            type="button"
             onClick={() => setShowFilters(!showFilters)}
+            className="btn btn-icon-sm"
             data-tooltip="Расширенные фильтры"
             style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
               width: 32,
               height: 32,
-              background: showFilters || filterStatuses.length > 0 || filterVote !== 'all' ? R.accent : R.bgInput,
-              color: showFilters || filterStatuses.length > 0 || filterVote !== 'all' ? R.onAccent : R.textSecondary,
-              border: ft.edge,
-              borderRadius: 2,
+              background: showFilters || filterStatuses.length > 0 || filterVote !== 'all' ? 'var(--rt-acc, #3b82f6)' : 'var(--rt-bg-input, #121214)',
+              color: showFilters || filterStatuses.length > 0 || filterVote !== 'all' ? '#ffffff' : 'var(--rt-fg-2, #9a9aa3)',
+              border: '1px solid var(--rt-line, #2d2d30)',
+              borderRadius: 'var(--rt-radius-btn, 8px)',
               cursor: 'pointer',
               flexShrink: 0,
             }}

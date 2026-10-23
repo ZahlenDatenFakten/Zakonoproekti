@@ -3,7 +3,15 @@ import { motion } from 'framer-motion';
 import type { UserProfile, OfficialRole, RolePinRegistry, AuditLogEntry } from '../types/bill';
 import { OFFICIAL_ROLE_LABELS } from '../types/bill';
 import { CustomSelect } from './CustomSelect';
-import { verifyRolePin, getPinRegistry, savePinRegistry, updateOfficialPin, isSystemAdmin, getAuditLogs } from '../services/securityService';
+import { 
+  verifyRolePin, 
+  getPinRegistry, 
+  savePinRegistry, 
+  updateOfficialPin, 
+  isSystemAdmin, 
+  getAuditLogs,
+  isUserRevokedFromRole 
+} from '../services/securityService';
 import { X, User, Key, ShieldCheck, Check, Clock, Lock } from 'lucide-react';
 import { R, ft, label, mono, shadow, chip, btnAccent, btnOutline } from '../lib/ui';
 import { ConfirmModal } from './ConfirmModal';
@@ -51,15 +59,34 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       onToast('error', 'Заполните Имя и Фамилию');
       return;
     }
-    onUpdateProfile(firstName.trim(), lastName.trim(), user.officialRole, user.isOfficialVerified);
-    onToast('success', 'Личные данные сохранены');
+    const cleanFirst = firstName.trim();
+    const cleanLast = lastName.trim();
+    const revoked = isUserRevokedFromRole(cleanFirst, cleanLast, user.officialRole);
+    const roleToSet = revoked.isRevoked ? 'civilian' : user.officialRole;
+    const verifiedToSet = revoked.isRevoked ? false : user.isOfficialVerified;
+
+    onUpdateProfile(cleanFirst, cleanLast, roleToSet, verifiedToSet);
+    if (revoked.isRevoked) {
+      onToast('error', revoked.reason || 'Служебные полномочия отозваны.');
+    } else {
+      onToast('success', 'Личные данные сохранены');
+    }
     onClose();
   };
 
   const handleActivateRole = () => {
     try {
-      if (verifyRolePin(targetRole, rolePin)) {
-        onUpdateProfile(firstName.trim(), lastName.trim(), targetRole, true);
+      const cleanFirst = firstName.trim();
+      const cleanLast = lastName.trim();
+
+      const revoked = isUserRevokedFromRole(cleanFirst, cleanLast, targetRole);
+      if (revoked.isRevoked) {
+        onToast('error', revoked.reason || 'Служебные полномочия для данного гражданина отозваны.');
+        return;
+      }
+
+      if (verifyRolePin(targetRole, rolePin, cleanFirst, cleanLast)) {
+        onUpdateProfile(cleanFirst, cleanLast, targetRole, true);
         onToast('success', `Активирован служебный статус: ${OFFICIAL_ROLE_LABELS[targetRole]}`);
         setRolePin('');
         if (targetRole === 'admin') {
@@ -285,6 +312,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   }}
                 />
               </div>
+
 
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: 8 }}>
                 {user.isOfficialVerified ? (

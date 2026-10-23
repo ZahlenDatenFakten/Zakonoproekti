@@ -1,0 +1,105 @@
+/*
+ * ============================================================================
+ * КЛАССИЧЕСКИЙ ДИЗАЙН (СТАРАЯ ВЕРСИЯ ДИЗАЙН-СИСТЕМЫ REDWOOD)
+ * ============================================================================
+ * Этот файл содержит исходные токены, шрифты и стили проекта до обновления.
+ * Используется для быстрого и бесшовного отката к прежнему виду интерфейса.
+ */
+
+:root,
+:root[data-theme="light"],
+[data-design="old"][data-theme="light"] {
+  --rt-design: "old";
+  --rt-bg: #f3f2f2;
+  --rt-panel: #eae9e9;
+  --rt-elev: #dedbdb;
+  --rt-input: #f8f8f8;
+  --rt-fg: #201e1d;
+  --rt-fg-2: #453f3e;
+  --rt-mut: #615d5d;
+  --rt-line: #c7c3c3;
+  --rt-line-strong: #8f8a8a;
+  --rt-grid: #dedbdb;
+  --rt-acc: #830c10;
+  --rt-acc-hover: #6a090d;
+  --rt-acc-text: #830c10;
+  --rt-acc-soft: #fbf0f1;
+  --rt-acc-line: #dca3a6;
+  --rt-danger: #ae1800;
+  --rt-danger-soft: #ffe0d9;
+  --rt-danger-line: #e2907f;
+  --rt-success: #3f6b4d;
+  --rt-success-soft: #dfe9e1;
+  --rt-warning: #8a5a2b;
+  --rt-warning-soft: #f0e4d6;
+  --rt-select-soft: rgba(131, 12, 16, 0.08);
+  --rt-on-acc: #ffffff;
+  --rt-radius: 2px;
+  --rt-radius-btn: 2px;
+  --rt-radius-card: 2px;
+  --rt-radius-sm: 2px;
+  --font-family-base: 'Archivo', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  color-scheme: light;
+}
+
+:root[data-theme="dark"],
+[data-design="old"][data-theme="dark"] {
+  --rt-design: "old";
+  --rt-bg: #171615;
+  --rt-panel: #201e1d;
+  --rt-elev: #2b2928;
+  --rt-input: #131211;
+  --rt-fg: #f1efee;
+  --rt-fg-2: #cbc6c4;
+  --rt-mut: #948f8e;
+  --rt-line: #3b3837;
+  --rt-line-strong: #5c5756;
+  --rt-grid: #2b2928;
+  --rt-acc: #830c10;
+  --rt-acc-hover: #9c1318;
+  --rt-acc-text: #e2494f;
+  --rt-acc-soft: #2b080a;
+  --rt-acc-line: #5c1216;
+  --rt-danger: #ff6b6b;
+  --rt-danger-soft: #3a1616;
+  --rt-danger-line: #7c2f2f;
+  --rt-success: #7fb894;
+  --rt-success-soft: #1b2a20;
+  --rt-warning: #d9a066;
+  --rt-warning-soft: #2c2116;
+  --rt-select-soft: rgba(131, 12, 16, 0.22);
+  --rt-on-acc: #ffffff;
+  --rt-radius: 2px;
+  --rt-radius-btn: 2px;
+  --rt-radius-card: 2px;
+  --rt-radius-sm: 2px;
+  --font-family-base: 'Archivo', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  color-scheme: dark;
+}
+
+[data-design="old"] body {
+  font-family: var(--font-family-base) !important;
+  color: var(--rt-fg);
+  background: var(--rt-bg);
+}
+
+[data-design="old"] a {
+  color: var(--rt-acc-text);
+}
+
+[data-design="old"] a:hover {
+  color: var(--rt-acc-hover);
+}
+
+[data-design="old"] ::selection,
+[data-design="old"] ::-moz-selection,
+[data-design="old"] input::selection,
+[data-design="old"] textarea::selection {
+  background: #830c10 !important;
+  color: #ffffff !important;
+}
+
+[data-design="old"] :focus-visible {
+  outline: 2px solid var(--rt-acc);
+  outline-offset: 2px;
+}

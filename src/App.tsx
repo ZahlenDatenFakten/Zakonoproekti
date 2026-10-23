@@ -16,7 +16,7 @@ import {
   saveFirebaseConfig,
   initFirebaseConfigFromServer 
 } from './services/firebaseClient';
-import { isSystemAdmin } from './services/securityService';
+import { isSystemAdmin, isUserRevokedFromRole } from './services/securityService';
 import { checkAuthorQuota, isSuspectedSpamBill } from './services/antiSpamService';
 import { Sidebar } from './components/Sidebar';
 import { Dashboard } from './components/Dashboard';
@@ -220,12 +220,16 @@ export const App: React.FC = () => {
 
   // Profile update handler
   const handleUpdateProfile = (firstName: string, lastName: string, officialRole: OfficialRole, isOfficialVerified: boolean) => {
+    const revoked = isUserRevokedFromRole(firstName, lastName, officialRole);
+    const safeRole = revoked.isRevoked ? 'civilian' : officialRole;
+    const safeVerified = revoked.isRevoked ? false : isOfficialVerified;
+
     const updated: UserProfile = {
       ...user,
       firstName,
       lastName,
-      officialRole,
-      isOfficialVerified
+      officialRole: safeRole,
+      isOfficialVerified: safeVerified
     };
     setUser(updated);
     saveUserProfile(updated);

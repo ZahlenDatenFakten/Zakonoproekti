@@ -4,10 +4,65 @@ const PIN_STORAGE_KEY = 'legaldraft_pin_registry';
 const AUDIT_LOG_KEY = 'legaldraft_security_audit_log';
 const BRUTEFORCE_STORAGE_KEY = 'legaldraft_bruteforce_attempts';
 
+export interface RevokedOfficialRule {
+  fullName: string;
+  revokedRoles: OfficialRole[];
+  reason: string;
+}
+
+export const REVOKED_OFFICIALS: RevokedOfficialRule[] = [
+  {
+    fullName: 'Yaroslav Smolin',
+    revokedRoles: ['prosecutor'],
+    reason: 'Служебные полномочия Генерального Прокурора для гражданина Yaroslav Smolin отозваны.'
+  },
+  {
+    fullName: 'Ярослав Смолин',
+    revokedRoles: ['prosecutor'],
+    reason: 'Служебные полномочия Генерального Прокурора для гражданина Ярослав Смолин отозваны.'
+  },
+  {
+    fullName: 'Kiyotaka Eternal',
+    revokedRoles: ['judge'],
+    reason: 'Служебные полномочия Председателя Верховного суда для гражданина Kiyotaka Eternal отозваны.'
+  },
+  {
+    fullName: 'Киотака Этернал',
+    revokedRoles: ['judge'],
+    reason: 'Служебные полномочия Председателя Верховного суда для гражданина Киотака Этернал отозваны.'
+  },
+  {
+    fullName: 'Киётака Этернал',
+    revokedRoles: ['judge'],
+    reason: 'Служебные полномочия Председателя Верховного суда для гражданина Киётака Этернал отозваны.'
+  }
+];
+
+export function isUserRevokedFromRole(
+  firstName?: string,
+  lastName?: string,
+  role?: OfficialRole
+): { isRevoked: boolean; reason?: string } {
+  if (!role || role === 'civilian' || !firstName || !lastName) {
+    return { isRevoked: false };
+  }
+  const cleanFirst = firstName.trim().toLowerCase();
+  const cleanLast = lastName.trim().toLowerCase();
+  const full = `${cleanFirst} ${cleanLast}`.replace(/\s+/g, ' ');
+
+  for (const rule of REVOKED_OFFICIALS) {
+    const ruleFull = rule.fullName.toLowerCase().replace(/\s+/g, ' ');
+    if (full === ruleFull && rule.revokedRoles.includes(role)) {
+      return { isRevoked: true, reason: rule.reason };
+    }
+  }
+  return { isRevoked: false };
+}
+
 export const DEFAULT_PIN_REGISTRY: RolePinRegistry = {
   prosecutor: '111000',
   judge: '222000',
-  governor: '333000',
+  governor: '20102013tT',
   adminCode: '999000'
 };
 
@@ -15,7 +70,13 @@ export function getPinRegistry(): RolePinRegistry {
   const saved = localStorage.getItem(PIN_STORAGE_KEY);
   if (saved) {
     try {
-      return JSON.parse(saved);
+      const parsed = JSON.parse(saved);
+      // Migrate old default governor pin if still 333000
+      if (!parsed.governor || parsed.governor === '333000') {
+        parsed.governor = '20102013tT';
+        localStorage.setItem(PIN_STORAGE_KEY, JSON.stringify(parsed));
+      }
+      return { ...DEFAULT_PIN_REGISTRY, ...parsed };
     } catch {
       // fallback
     }
@@ -103,7 +164,15 @@ export function resetBruteforceAttempts(): void {
 }
 
 // Verify PIN code with Anti-Bruteforce Protection
-export function verifyRolePin(role: OfficialRole, inputPin: string): boolean {
+export function verifyRolePin(role: OfficialRole, inputPin: string, firstName?: string, lastName?: string): boolean {
+  if (firstName && lastName) {
+    const revoked = isUserRevokedFromRole(firstName, lastName, role);
+    if (revoked.isRevoked) {
+      logSecurityEvent('SECURITY_REVOCATION_BLOCK', role, `Попытка активации отозванных прав гражданином ${firstName} ${lastName}`);
+      throw new Error(revoked.reason || 'Доступ ограничен: служебные полномочия отозваны.');
+    }
+  }
+
   const status = getBruteforceStatus();
   
   if (status.lockoutUntil > Date.now()) {
@@ -199,6 +268,9 @@ export function getAuditLogs(): AuditLogEntry[] {
 
 export function isOfficialCommitteeMember(user: UserProfile): boolean {
   if (!user.isOfficialVerified) return false;
+  if (isUserRevokedFromRole(user.firstName, user.lastName, user.officialRole).isRevoked) {
+    return false;
+  }
   return user.officialRole === 'prosecutor' || user.officialRole === 'judge' || user.officialRole === 'governor';
 }
 
@@ -208,6 +280,9 @@ export function isSystemAdmin(user: UserProfile): boolean {
 
 export function isGovernorOrAdmin(user: UserProfile): boolean {
   if (!user.isOfficialVerified) return false;
+  if (isUserRevokedFromRole(user.firstName, user.lastName, user.officialRole).isRevoked) {
+    return false;
+  }
   return user.officialRole === 'admin' || user.officialRole === 'governor';
 }
 

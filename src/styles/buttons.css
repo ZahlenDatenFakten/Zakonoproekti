@@ -1,0 +1,344 @@
+/*
+ * ============================================================================
+ * REDWOOD UNIFIED BUTTON DESIGN SYSTEM (buttons.css)
+ * ============================================================================
+ * Единая концепция для абсолютно ВСЕХ кнопок веб-сайта:
+ * - Одинаковая строгая форма, скругление (8px) и тактильная анимация нажатия (scale-97)
+ * - Чёткая размерная сетка (md: 34px, sm: 28px, xs: 24px, lg: 40px)
+ * - Своеобразные гармоничные расцветки для каждого типа действия:
+ *   1. Primary (Акцентная: синий / рубин) — внести, опубликовать, сохранить
+ *   2. Secondary (Графитовая) — нейтральные действия, каталог
+ *   3. Ghost / Outline (Контурная) — навигация, вспомогательные опции
+ *   4. Success (Зелёная) — одобрить вердикт, принять, внести в реестр
+ *   5. Warning (Янтарная) — отправить на доработку, замечания, правки
+ *   6. Danger (Красная) — отклонить, удалить, отозвать
+ *   7. Purple / Admin (Фиолетовая) — полномочия администратора, вердикты ФП
+ *   8. Subtle Info (Мягкий акцент) — селектор законов, инфо-действия
+ */
+
+:root {
+  --btn-radius: var(--rt-radius-btn, 8px);
+  --btn-transition: all 0.16s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* ----------------------------------------------------------------------------
+ * 1. БАЗОВАЯ ЕДИНАЯ ФОРМА ДЛЯ ВСЕХ КНОПОК
+ * ---------------------------------------------------------------------------- */
+
+button,
+.btn,
+.rt-btn,
+.judicial-btn,
+.judicial-btn-primary,
+.judicial-btn-secondary,
+.judicial-btn-ghost,
+.judicial-btn-danger {
+  font-family: var(--font-family-base, 'Inter', ui-sans-serif, system-ui, sans-serif);
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  line-height: 1;
+  white-space: nowrap;
+  user-select: none;
+  cursor: pointer;
+  border: 1px solid transparent;
+  border-radius: var(--btn-radius) !important;
+  transition: var(--btn-transition) !important;
+  box-sizing: border-box;
+  text-decoration: none;
+}
+
+/* Тактильный отклик клика для всех кнопок */
+button:active:not(:disabled),
+.btn:active:not(:disabled),
+.rt-btn:active:not(:disabled),
+.judicial-btn:active:not(:disabled) {
+  transform: scale(0.97) !important;
+}
+
+/* Отключённые кнопки */
+button:disabled,
+button[disabled],
+.btn:disabled,
+.rt-btn:disabled {
+  opacity: 0.45 !important;
+  cursor: not-allowed !important;
+  transform: none !important;
+  box-shadow: none !important;
+  pointer-events: none;
+}
+
+/* Контур фокуса с клавиатуры */
+button:focus-visible,
+.btn:focus-visible,
+.rt-btn:focus-visible {
+  outline: 2px solid var(--rt-acc, #3b82f6) !important;
+  outline-offset: 2px !important;
+}
+
+/* ----------------------------------------------------------------------------
+ * 2. РАЗМЕРНАЯ СЕТКА (SIZING)
+ * ---------------------------------------------------------------------------- */
+
+/* Стандартный размер (по умолчанию для большинства кнопок) */
+.btn,
+.btn-md,
+.rt-btn,
+.judicial-btn {
+  height: 34px;
+  min-height: 34px;
+  padding: 0 14px;
+  font-size: 13px;
+}
+
+/* Компактный размер (панели действий, списки, админ-вердикты) */
+.btn-sm,
+.rt-btn--sm {
+  height: 28px;
+  min-height: 28px;
+  padding: 0 10px;
+  font-size: 11.5px;
+  gap: 5px;
+}
+
+/* Микро размер (бейджи-действия, тулбары) */
+.btn-xs {
+  height: 24px;
+  min-height: 24px;
+  padding: 0 8px;
+  font-size: 11px;
+  gap: 4px;
+  border-radius: 6px !important;
+}
+
+/* Крупный размер (главные кнопки, CTA) */
+.btn-lg,
+.rt-btn--lg {
+  height: 42px;
+  min-height: 42px;
+  padding: 0 20px;
+  font-size: 14px;
+  font-weight: 700;
+  gap: 8px;
+}
+
+/* Квадратные кнопки-иконки */
+.btn-icon {
+  width: 34px;
+  height: 34px;
+  min-height: 34px;
+  padding: 0;
+  display: inline-grid;
+  place-items: center;
+}
+
+.btn-icon-sm {
+  width: 28px;
+  height: 28px;
+  min-height: 28px;
+  padding: 0;
+  display: inline-grid;
+  place-items: center;
+}
+
+/* ----------------------------------------------------------------------------
+ * 3. ЦВЕТОВЫЕ ВАРИАНТЫ (SEMANTIC COLORWAYS)
+ * ---------------------------------------------------------------------------- */
+
+/* === PRIMARY (Акцентная: Опубликовать, Внести, Сохранить) === */
+.btn-primary,
+.rt-btn--acc,
+.judicial-btn-primary {
+  background-color: var(--rt-acc, #3b82f6) !important;
+  border-color: var(--rt-acc, #3b82f6) !important;
+  color: var(--rt-on-acc, #ffffff) !important;
+  font-weight: 700 !important;
+}
+
+.btn-primary:hover:not(:disabled),
+.rt-btn--acc:hover:not(:disabled),
+.judicial-btn-primary:hover:not(:disabled) {
+  background-color: var(--rt-acc-hover, #2563eb) !important;
+  border-color: var(--rt-acc-hover, #2563eb) !important;
+  color: #ffffff !important;
+  box-shadow: 0 4px 16px rgba(59, 130, 246, 0.35) !important;
+}
+
+/* === SECONDARY (Графитовая: Нейтральные действия) === */
+.btn-secondary,
+.judicial-btn-secondary {
+  background-color: var(--rt-elev, #1a1a1c) !important;
+  border-color: var(--rt-line, #2d2d30) !important;
+  color: var(--rt-fg, #ffffff) !important;
+}
+
+.btn-secondary:hover:not(:disabled),
+.judicial-btn-secondary:hover:not(:disabled) {
+  background-color: #242428 !important;
+  border-color: var(--rt-line-strong, #3f3f46) !important;
+  color: #ffffff !important;
+}
+
+/* === GHOST / OUTLINE (Контурная: Навигация, Вручную, Отмена) === */
+.btn-outline,
+.btn-ghost,
+.judicial-btn-ghost {
+  background-color: transparent !important;
+  border-color: var(--rt-line, #2d2d30) !important;
+  color: var(--rt-fg-2, #c9c9d1) !important;
+}
+
+.btn-outline:hover:not(:disabled),
+.btn-ghost:hover:not(:disabled),
+.judicial-btn-ghost:hover:not(:disabled) {
+  background-color: var(--rt-elev, #1a1a1c) !important;
+  border-color: var(--rt-line-strong, #3f3f46) !important;
+  color: var(--rt-fg, #ffffff) !important;
+}
+
+/* === SUCCESS / APPROVE (Зелёная: Одобрить вердикт, Принять) === */
+.btn-success,
+.btn-approve,
+.rt-btn--success {
+  background-color: rgba(16, 185, 129, 0.12) !important;
+  border-color: rgba(16, 185, 129, 0.35) !important;
+  color: #34d399 !important;
+  font-weight: 700 !important;
+}
+
+.btn-success:hover:not(:disabled),
+.btn-approve:hover:not(:disabled),
+.rt-btn--success:hover:not(:disabled) {
+  background-color: #10b981 !important;
+  border-color: #10b981 !important;
+  color: #ffffff !important;
+  box-shadow: 0 4px 16px rgba(16, 185, 129, 0.35) !important;
+}
+
+/* === WARNING / REVISION (Янтарная: Правки, Доработка) === */
+.btn-warning,
+.btn-revision,
+.rt-btn--warning {
+  background-color: rgba(245, 158, 11, 0.12) !important;
+  border-color: rgba(245, 158, 11, 0.35) !important;
+  color: #fbbf24 !important;
+  font-weight: 700 !important;
+}
+
+.btn-warning:hover:not(:disabled),
+.btn-revision:hover:not(:disabled),
+.rt-btn--warning:hover:not(:disabled) {
+  background-color: #f59e0b !important;
+  border-color: #f59e0b !important;
+  color: #111113 !important;
+  box-shadow: 0 4px 16px rgba(245, 158, 11, 0.35) !important;
+}
+
+/* === DANGER / REJECT (Красная: Отклонить, Удалить, Отозвать) === */
+.btn-danger,
+.btn-reject,
+.rt-btn--danger,
+.judicial-btn-danger {
+  background-color: rgba(239, 68, 68, 0.12) !important;
+  border-color: rgba(239, 68, 68, 0.35) !important;
+  color: #f87171 !important;
+  font-weight: 700 !important;
+}
+
+.btn-danger:hover:not(:disabled),
+.btn-reject:hover:not(:disabled),
+.rt-btn--danger:hover:not(:disabled),
+.judicial-btn-danger:hover:not(:disabled) {
+  background-color: #ef4444 !important;
+  border-color: #ef4444 !important;
+  color: #ffffff !important;
+  box-shadow: 0 4px 16px rgba(239, 68, 68, 0.35) !important;
+}
+
+/* === PURPLE / ADMIN (Фиолетовая: Федеральное правительство, Доступ) === */
+.btn-purple,
+.btn-admin {
+  background-color: rgba(168, 85, 247, 0.12) !important;
+  border-color: rgba(168, 85, 247, 0.35) !important;
+  color: #c084fc !important;
+  font-weight: 700 !important;
+}
+
+.btn-purple:hover:not(:disabled),
+.btn-admin:hover:not(:disabled) {
+  background-color: #a855f7 !important;
+  border-color: #a855f7 !important;
+  color: #ffffff !important;
+  box-shadow: 0 4px 16px rgba(168, 85, 247, 0.35) !important;
+}
+
+/* === SUBTLE INFO (Мягкий кобальт: Выбрать закон, Изменить закон) === */
+.btn-subtle,
+.btn-info {
+  background-color: var(--rt-acc-soft, rgba(59, 130, 246, 0.12)) !important;
+  border-color: var(--rt-acc-line, rgba(59, 130, 246, 0.35)) !important;
+  color: var(--rt-acc-text, #60a5fa) !important;
+  font-weight: 700 !important;
+}
+
+.btn-subtle:hover:not(:disabled),
+.btn-info:hover:not(:disabled) {
+  background-color: var(--rt-acc, #3b82f6) !important;
+  border-color: var(--rt-acc, #3b82f6) !important;
+  color: #ffffff !important;
+  box-shadow: 0 4px 14px rgba(59, 130, 246, 0.3) !important;
+}
+
+/* ----------------------------------------------------------------------------
+ * 4. АВТОМАТИЧЕСКАЯ УНИФИКАЦИЯ ВСЕХ ИНЛАЙНОВЫХ КНОПОК
+ * ---------------------------------------------------------------------------- */
+
+/* Гарантирует, что кнопки в шапках, тулбарах и карточках не остаются с углами 2px */
+.rt-toolbar button,
+.rt-topbar button,
+aside button,
+main button {
+  border-radius: var(--btn-radius) !important;
+}
+
+/* Кнопка добавления законопроекта в сайдбаре */
+aside button:hover {
+  filter: brightness(1.05);
+}
+
+/* ----------------------------------------------------------------------------
+ * 5. АНИМАЦИИ ДИАЛОГОВ И КНОПОК
+ * ---------------------------------------------------------------------------- */
+
+@keyframes rtFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes rtZoomIn {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes rtIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

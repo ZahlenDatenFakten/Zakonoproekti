@@ -92,72 +92,63 @@ export const Sidebar: React.FC<SidebarProps> = ({
         onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
       >
         <img
-          src="/favicon.png"
-          alt="Логотип"
-          style={{ width: 30, height: 30, display: 'block', flex: '0 0 30px', objectFit: 'contain' }}
+          src="/logo.png"
+          alt="REDWOOD"
+          style={{ width: 34, height: 34, display: 'block', flex: '0 0 34px', objectFit: 'contain', borderRadius: 6 }}
         />
         <span style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.15, minWidth: 0 }}>
-          <span style={{ fontWeight: 800, fontSize: 14, letterSpacing: '-.01em', color: R.text }}>
-            Законопроекты
+          <span style={{ fontWeight: 800, fontSize: 15, letterSpacing: '0.02em', color: R.text }}>
+            REDWOOD
           </span>
-          <span style={label}>GTA5RP · ЗАКОНОДАТЕЛЬСТВО</span>
+          <span style={label}>
+            ПОРТАЛ ЗАКОНОПРОЕКТОВ
+          </span>
         </span>
       </button>
 
       {/* Main Navigation Section */}
       <div style={{ padding: '14px 12px', display: 'flex', flexDirection: 'column', gap: 6 }}>
         <button
+          type="button"
           onClick={() => onNavigate('dashboard')}
           style={{
             display: 'flex',
             alignItems: 'center',
             gap: 10,
             width: '100%',
-            height: 34,
-            padding: '0 10px',
+            height: 36,
+            padding: '0 12px',
             fontSize: 13,
             fontWeight: currentView === 'dashboard' ? 700 : 500,
-            color: currentView === 'dashboard' ? R.accent : R.text,
-            background: currentView === 'dashboard' ? R.accentSubtle : 'transparent',
-            border: currentView === 'dashboard' ? `1px solid ${R.accentBorder}` : '1px solid transparent',
+            color: currentView === 'dashboard' ? 'var(--rt-acc, #3b82f6)' : 'var(--rt-fg, #ffffff)',
+            background: currentView === 'dashboard' ? 'var(--rt-acc-soft, rgba(59, 130, 246, 0.12))' : 'transparent',
+            border: currentView === 'dashboard' ? '1px solid var(--rt-acc-line, rgba(59, 130, 246, 0.35))' : '1px solid transparent',
             cursor: 'pointer',
             textAlign: 'left',
-            borderRadius: 2,
+            borderRadius: 'var(--rt-radius-btn, 8px)',
             transition: 'all 0.12s ease',
           }}
           onMouseEnter={(e) => {
-            if (currentView !== 'dashboard') e.currentTarget.style.background = R.bgElevated;
+            if (currentView !== 'dashboard') e.currentTarget.style.background = 'var(--rt-elev, #1a1a1c)';
           }}
           onMouseLeave={(e) => {
             if (currentView !== 'dashboard') e.currentTarget.style.background = 'transparent';
           }}
         >
-          <LayoutDashboard size={16} color={currentView === 'dashboard' ? R.accent : R.textMuted} />
+          <LayoutDashboard size={16} color={currentView === 'dashboard' ? 'var(--rt-acc, #3b82f6)' : 'var(--rt-fg-2, #9a9aa3)'} />
           <span style={{ flex: '1 1 auto' }}>Реестр законопроектов</span>
         </button>
 
         <button
+          type="button"
           onClick={onOpenNewBill}
+          className="btn btn-primary"
           style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 8,
             width: '100%',
-            height: 34,
-            padding: '0 12px',
-            fontSize: 13,
-            fontWeight: 800,
-            color: R.onAccent,
-            background: R.accent,
-            border: 'none',
-            cursor: 'pointer',
-            borderRadius: 2,
+            height: 36,
+            borderRadius: 'var(--rt-radius-btn, 8px)',
             marginTop: 4,
-            transition: 'background 0.12s ease',
           }}
-          onMouseEnter={(e) => (e.currentTarget.style.background = R.accentHover)}
-          onMouseLeave={(e) => (e.currentTarget.style.background = R.accent)}
         >
           <Plus size={16} strokeWidth={2.5} />
           <span>Внести законопроект</span>
@@ -165,33 +156,34 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
         {isAdmin && (
           <button
+            type="button"
             onClick={() => onNavigate('admin_workspace')}
             style={{
               display: 'flex',
               alignItems: 'center',
               gap: 10,
               width: '100%',
-              height: 34,
-              padding: '0 10px',
+              height: 36,
+              padding: '0 12px',
               fontSize: 13,
               fontWeight: currentView === 'admin_workspace' ? 700 : 500,
-              color: currentView === 'admin_workspace' ? R.accent : R.text,
-              background: currentView === 'admin_workspace' ? R.accentSubtle : 'transparent',
-              border: currentView === 'admin_workspace' ? `1px solid ${R.accentBorder}` : '1px solid transparent',
+              color: currentView === 'admin_workspace' ? 'var(--rt-acc, #3b82f6)' : 'var(--rt-fg, #ffffff)',
+              background: currentView === 'admin_workspace' ? 'var(--rt-acc-soft, rgba(59, 130, 246, 0.12))' : 'transparent',
+              border: currentView === 'admin_workspace' ? '1px solid var(--rt-acc-line, rgba(59, 130, 246, 0.35))' : '1px solid transparent',
               cursor: 'pointer',
               textAlign: 'left',
-              borderRadius: 2,
+              borderRadius: 'var(--rt-radius-btn, 8px)',
               marginTop: 4,
               transition: 'all 0.12s ease',
             }}
             onMouseEnter={(e) => {
-              if (currentView !== 'admin_workspace') e.currentTarget.style.background = R.bgElevated;
+              if (currentView !== 'admin_workspace') e.currentTarget.style.background = 'var(--rt-elev, #1a1a1c)';
             }}
             onMouseLeave={(e) => {
               if (currentView !== 'admin_workspace') e.currentTarget.style.background = 'transparent';
             }}
           >
-            <Shield size={16} color={currentView === 'admin_workspace' ? R.accent : R.textMuted} />
+            <Shield size={16} color={currentView === 'admin_workspace' ? 'var(--rt-acc, #3b82f6)' : 'var(--rt-fg-2, #9a9aa3)'} />
             <span style={{ flex: '1 1 auto' }}>Администрирование</span>
           </button>
         )}
@@ -199,6 +191,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {/* LAW STUDIO / LEGISLATION DATABASE BUTTON (ADMIN ONLY) */}
         {isAdmin && onOpenLawStudio && (
           <button
+            type="button"
             onClick={onOpenLawStudio}
             title="Открыть кабинет законодательства (27 кодексов и законов, экспорт BB-кода)"
             style={{
@@ -206,34 +199,34 @@ export const Sidebar: React.FC<SidebarProps> = ({
               alignItems: 'center',
               gap: 10,
               width: '100%',
-              height: 34,
-              padding: '0 10px',
+              height: 36,
+              padding: '0 12px',
               fontSize: 13,
               fontWeight: 500,
-              color: R.text,
+              color: 'var(--rt-fg, #ffffff)',
               background: 'transparent',
               border: '1px solid transparent',
               cursor: 'pointer',
               textAlign: 'left',
-              borderRadius: 2,
+              borderRadius: 'var(--rt-radius-btn, 8px)',
               marginTop: 4,
               transition: 'all 0.12s ease',
             }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = R.bgElevated)}
+            onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--rt-elev, #1a1a1c)')}
             onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
           >
-            <BookOpen size={16} color={R.accent} />
+            <BookOpen size={16} color="var(--rt-acc, #3b82f6)" />
             <span style={{ flex: '1 1 auto' }}>База законов</span>
             <span
               style={{
                 fontFamily: mono,
-                fontSize: 10,
+                fontSize: 10.5,
                 fontWeight: 700,
-                padding: '1px 6px',
-                background: 'rgba(236,199,129,0.12)',
-                color: R.accent,
-                borderRadius: 2,
-                border: ft.edge,
+                padding: '2px 7px',
+                background: 'var(--rt-acc-soft, rgba(59, 130, 246, 0.15))',
+                color: 'var(--rt-acc, #3b82f6)',
+                borderRadius: 'var(--rt-radius-sm, 6px)',
+                border: '1px solid var(--rt-acc-line, rgba(59, 130, 246, 0.35))',
               }}
             >
               27
@@ -385,6 +378,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 toggle();
               }}
             />
+
 
             <MenuItem
               icon={User}

@@ -111,6 +111,9 @@ rainbow-tables (11).zip
 admin_token/
 config/config.json
 scratch_*.json
+*.tar.gz
+deploy-redwood.tar.gz
+пример дизайна/
 12.txt
 21.txt
 

@@ -9,7 +9,7 @@ import {
   Edit3, 
   BookOpen
 } from 'lucide-react';
-import { R, ft, mono } from '../../lib/ui';
+import { mono } from '../../lib/ui';
 import { LAWS_METADATA, type LawMetadata } from '../../data/lawsMetadata';
 
 export interface LawSelectPickerProps {
@@ -36,17 +36,17 @@ interface CategoryInfo {
 const CATEGORIES: CategoryInfo[] = [
   {
     key: 'all',
-    label: 'Все законы (27)',
-    shortLabel: 'Все',
+    label: 'Все законы штата (27)',
+    shortLabel: '⚡ Все (27)',
     icon: '⚡',
     badgeBg: 'rgba(255, 255, 255, 0.08)',
     badgeBorder: 'rgba(255, 255, 255, 0.2)',
-    badgeColor: 'var(--rt-fg, #fff)',
+    badgeColor: '#ffffff',
   },
   {
     key: 'constitution',
-    label: 'Конституция штата',
-    shortLabel: '📜 Конституция',
+    label: 'Конституция штата (1)',
+    shortLabel: '📜 Конституция (1)',
     icon: '📜',
     badgeBg: 'rgba(245, 158, 11, 0.16)',
     badgeBorder: 'rgba(245, 158, 11, 0.45)',
@@ -55,7 +55,7 @@ const CATEGORIES: CategoryInfo[] = [
   {
     key: 'code',
     label: 'Кодексы штата (6)',
-    shortLabel: '⚖️ Кодексы',
+    shortLabel: '⚖️ Кодексы (6)',
     icon: '⚖️',
     badgeBg: 'rgba(236, 199, 129, 0.16)',
     badgeBorder: 'rgba(236, 199, 129, 0.45)',
@@ -64,7 +64,7 @@ const CATEGORIES: CategoryInfo[] = [
   {
     key: 'security',
     label: 'Силовые ведомства (5)',
-    shortLabel: '🛡️ Силовые',
+    shortLabel: '🛡️ Силовые (5)',
     icon: '🛡️',
     badgeBg: 'rgba(56, 189, 248, 0.16)',
     badgeBorder: 'rgba(56, 189, 248, 0.45)',
@@ -73,7 +73,7 @@ const CATEGORIES: CategoryInfo[] = [
   {
     key: 'government',
     label: 'Органы власти и юстиция (6)',
-    shortLabel: '🏛️ Власть и суд',
+    shortLabel: '🏛️ Власть и суд (6)',
     icon: '🏛️',
     badgeBg: 'rgba(167, 139, 250, 0.16)',
     badgeBorder: 'rgba(167, 139, 250, 0.45)',
@@ -81,8 +81,8 @@ const CATEGORIES: CategoryInfo[] = [
   },
   {
     key: 'civil',
-    label: 'Гражданские и спец. законы (11)',
-    shortLabel: '📋 Гражданские',
+    label: 'Гражданские и спец. законы (9)',
+    shortLabel: '📋 Гражданские (9)',
     icon: '📋',
     badgeBg: 'rgba(52, 211, 153, 0.16)',
     badgeBorder: 'rgba(52, 211, 153, 0.45)',
@@ -117,7 +117,7 @@ export const LawSelectPicker: React.FC<LawSelectPickerProps> = ({
   onChange,
   variant = 'full',
   disabled = false,
-  placeholder = 'Выберите закон...',
+  placeholder = 'Выберите целевой закон...',
   allowManualEdit = true,
   className = '',
   style,
@@ -126,15 +126,6 @@ export const LawSelectPicker: React.FC<LawSelectPickerProps> = ({
   const [isManualInput, setIsManualInput] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
-  const [popoverCoords, setPopoverCoords] = useState<{ top: number; left: number; width: number; openUpward: boolean }>({
-    top: 0,
-    left: 0,
-    width: 480,
-    openUpward: false,
-  });
-
-  const triggerRef = useRef<HTMLDivElement>(null);
-  const popoverRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   // Find currently matched law from metadata
@@ -148,87 +139,34 @@ export const LawSelectPicker: React.FC<LawSelectPickerProps> = ({
         m.title.toLowerCase() === clean ||
         (m.shortTitle && m.shortTitle.toLowerCase() === clean) ||
         m.code.toLowerCase() === clean ||
-        m.title.toLowerCase().replace(/["'«»“”]/g, '').trim() === unquoted ||
-        (m.shortTitle && m.shortTitle.toLowerCase().replace(/["'«»“”]/g, '').trim() === unquoted) ||
-        clean.includes(m.title.toLowerCase()) ||
-        (m.shortTitle && clean.includes(m.shortTitle.toLowerCase())) ||
-        unquoted.includes(m.title.toLowerCase().replace(/["'«»“”]/g, '').trim())
+        m.title.toLowerCase().includes(unquoted) ||
+        unquoted.includes(m.title.toLowerCase())
     ) || null;
   }, [value]);
 
-  // Recalculate popover position
-  const updatePosition = () => {
-    if (!triggerRef.current) return;
-    const rect = triggerRef.current.getBoundingClientRect();
-    const popoverWidth = variant === 'compact' ? 380 : Math.max(rect.width, 540);
-    const left = Math.min(Math.max(12, rect.left), window.innerWidth - popoverWidth - 16);
-    
-    // Check if dropdown fits below or should flip upward
-    const popoverHeight = 440;
-    const spaceBelow = window.innerHeight - rect.bottom;
-    const openUpward = spaceBelow < popoverHeight && rect.top > popoverHeight;
-    const top = openUpward ? Math.max(12, rect.top - popoverHeight - 6) : rect.bottom + 6;
-
-    setPopoverCoords({
-      top,
-      left,
-      width: popoverWidth,
-      openUpward,
-    });
-  };
-
-  // Toggle open
-  const handleToggle = () => {
+  const handleOpen = () => {
     if (disabled) return;
-    if (!isOpen) {
-      updatePosition();
-      setSearchQuery('');
-      setIsOpen(true);
-      setTimeout(() => {
-        searchInputRef.current?.focus();
-      }, 50);
-    } else {
-      setIsOpen(false);
-    }
+    setSearchQuery('');
+    setIsOpen(true);
+    setTimeout(() => {
+      searchInputRef.current?.focus();
+    }, 60);
   };
 
-  // Close when clicking outside or pressing Escape
+  const handleClose = () => {
+    setIsOpen(false);
+  };
+
+  // Keyboard shortcut: close on ESC
   useEffect(() => {
     if (!isOpen) return;
-
-    const handleMouseDown = (e: MouseEvent) => {
-      const target = e.target as Node;
-      if (
-        popoverRef.current &&
-        !popoverRef.current.contains(target) &&
-        triggerRef.current &&
-        !triggerRef.current.contains(target)
-      ) {
-        setIsOpen(false);
-      }
-    };
-
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        setIsOpen(false);
+        handleClose();
       }
     };
-
-    const handleScrollOrResize = () => {
-      updatePosition();
-    };
-
-    document.addEventListener('mousedown', handleMouseDown);
     document.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('resize', handleScrollOrResize);
-    window.addEventListener('scroll', handleScrollOrResize, true);
-
-    return () => {
-      document.removeEventListener('mousedown', handleMouseDown);
-      document.removeEventListener('keydown', handleKeyDown);
-      window.removeEventListener('resize', handleScrollOrResize);
-      window.removeEventListener('scroll', handleScrollOrResize, true);
-    };
+    return () => document.removeEventListener('keydown', handleKeyDown);
   }, [isOpen]);
 
   // Filtered laws list
@@ -249,66 +187,478 @@ export const LawSelectPicker: React.FC<LawSelectPickerProps> = ({
     });
   }, [searchQuery, selectedCategory]);
 
-  // Grouped laws by category for crisp layout
-  const groupedLaws = useMemo(() => {
-    const groups: { category: CategoryInfo; laws: LawMetadata[] }[] = [];
-    const relevantCategories = selectedCategory === 'all'
-      ? CATEGORIES.filter((c) => c.key !== 'all')
-      : CATEGORIES.filter((c) => c.key === selectedCategory);
-
-    for (const cat of relevantCategories) {
-      const items = filteredLaws.filter((l) => getCategoryForLaw(l) === cat.key);
-      if (items.length > 0) {
-        groups.push({ category: cat, laws: items });
-      }
-    }
-    return groups;
-  }, [filteredLaws, selectedCategory]);
-
   const handleSelectLaw = (law: LawMetadata) => {
     onChange(law.title, law.code, law.id);
-    setIsOpen(false);
+    handleClose();
     setIsManualInput(false);
   };
 
   const handleSelectCustomText = (text: string) => {
     if (!text.trim()) return;
     onChange(text.trim(), '', '');
-    setIsOpen(false);
+    handleClose();
     setIsManualInput(false);
   };
 
   const catStyle = currentLaw ? getCategoryStyle(getCategoryForLaw(currentLaw)) : null;
 
   // -------------------------------------------------------------
-  // COMPACT VARIANT (Used in comparison cards §1, §2...)
+  // DIALOG MODAL CONTENT (Rendered into document.body portal)
+  // -------------------------------------------------------------
+  const modalContent = isOpen && typeof document !== 'undefined' ? createPortal(
+    <div
+      role="dialog"
+      aria-modal="true"
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 100000,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '20px',
+        backgroundColor: 'rgba(5, 5, 8, 0.78)',
+        backdropFilter: 'blur(10px)',
+        WebkitBackdropFilter: 'blur(10px)',
+        animation: 'rtFadeIn 0.16s ease-out',
+      }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) handleClose();
+      }}
+    >
+      <div
+        style={{
+          width: '100%',
+          maxWidth: 820,
+          maxHeight: '88vh',
+          backgroundColor: 'var(--rt-panel, #161618)',
+          border: '1px solid var(--rt-line, #2d2d30)',
+          borderRadius: 'var(--rt-radius-card, 12px)',
+          boxShadow: '0 24px 64px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.05)',
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden',
+          animation: 'rtZoomIn 0.18s cubic-bezier(0.16, 1, 0.3, 1)',
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Modal Header */}
+        <div
+          style={{
+            padding: '18px 22px 14px',
+            borderBottom: '1px solid var(--rt-line, #2d2d30)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            background: 'rgba(255, 255, 255, 0.02)',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div
+              style={{
+                width: 36,
+                height: 36,
+                borderRadius: 'var(--rt-radius-btn, 8px)',
+                background: 'var(--rt-acc-soft, rgba(59, 130, 246, 0.15))',
+                border: '1px solid var(--rt-acc-line, rgba(59, 130, 246, 0.35))',
+                display: 'grid',
+                placeItems: 'center',
+                color: 'var(--rt-acc, #3b82f6)',
+                flexShrink: 0,
+              }}
+            >
+              <Scale size={18} />
+            </div>
+            <div>
+              <h3
+                style={{
+                  margin: 0,
+                  fontSize: 16,
+                  fontWeight: 700,
+                  color: 'var(--rt-fg, #ffffff)',
+                  letterSpacing: '-0.01em',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                }}
+              >
+                <span>Официальный реестр нормативно-правовых актов</span>
+                <span
+                  style={{
+                    fontSize: 11,
+                    fontFamily: mono,
+                    padding: '2px 7px',
+                    borderRadius: 9999,
+                    background: 'rgba(255, 255, 255, 0.06)',
+                    color: 'var(--rt-fg-2, #9a9aa3)',
+                    fontWeight: 600,
+                  }}
+                >
+                  27 законов
+                </span>
+              </h3>
+              <p style={{ margin: '2px 0 0', fontSize: 12, color: 'var(--rt-fg-2, #9a9aa3)' }}>
+                Выберите закон штата Сан-Андреас для внесения законодательных изменений
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleClose}
+            className="btn btn-ghost btn-icon-sm"
+            title="Закрыть (Esc)"
+            aria-label="Закрыть"
+            style={{
+              width: 30,
+              height: 30,
+              borderRadius: 'var(--rt-radius-btn, 8px)',
+              color: 'var(--rt-fg-2, #9a9aa3)',
+            }}
+          >
+            <X size={16} />
+          </button>
+        </div>
+
+        {/* Modal Search Bar */}
+        <div
+          style={{
+            padding: '14px 22px 10px',
+            borderBottom: '1px solid var(--rt-line, #2d2d30)',
+            background: 'var(--rt-bg, #0f0f10)',
+          }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+              height: 42,
+              padding: '0 14px',
+              backgroundColor: 'var(--rt-elev, #1a1a1c)',
+              border: '1px solid var(--rt-line-strong, #3f3f46)',
+              borderRadius: 'var(--rt-radius-btn, 8px)',
+              transition: 'border-color 0.15s, box-shadow 0.15s',
+            }}
+          >
+            <Search size={16} style={{ color: 'var(--rt-acc, #3b82f6)', flexShrink: 0 }} />
+            <input
+              ref={searchInputRef}
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Быстрый поиск: введите код (УАК, ДК, FIB, LSPD...) или название закона..."
+              style={{
+                flex: 1,
+                background: 'transparent',
+                border: 'none',
+                color: 'var(--rt-fg, #ffffff)',
+                fontSize: 13.5,
+                fontWeight: 500,
+                outline: 'none',
+              }}
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                className="btn btn-ghost btn-icon-sm"
+                style={{ width: 22, height: 22, color: 'var(--rt-fg-2, #9a9aa3)', padding: 0 }}
+                title="Очистить"
+              >
+                <X size={13} />
+              </button>
+            )}
+            <span
+              style={{
+                fontSize: 11,
+                fontFamily: mono,
+                padding: '3px 8px',
+                borderRadius: 4,
+                background: 'rgba(255, 255, 255, 0.05)',
+                color: 'var(--rt-fg-2, #9a9aa3)',
+                fontWeight: 600,
+              }}
+            >
+              {filteredLaws.length} из {LAWS_METADATA.length}
+            </span>
+          </div>
+
+          {/* Wrapping Category Filter Pills (No Cutoff!) */}
+          <div
+            style={{
+              display: 'flex',
+              flexWrap: 'wrap',
+              gap: 6,
+              marginTop: 10,
+            }}
+          >
+            {CATEGORIES.map((cat) => {
+              const isActive = selectedCategory === cat.key;
+              return (
+                <button
+                  key={cat.key}
+                  type="button"
+                  onClick={() => setSelectedCategory(cat.key)}
+                  className="btn btn-sm"
+                  style={{
+                    height: 28,
+                    padding: '0 10px',
+                    fontSize: 11.5,
+                    fontWeight: isActive ? 700 : 500,
+                    borderRadius: 'var(--rt-radius-btn, 8px)',
+                    border: isActive
+                      ? `1px solid ${cat.badgeColor}`
+                      : '1px solid var(--rt-line, #2d2d30)',
+                    background: isActive ? cat.badgeBg : 'transparent',
+                    color: isActive ? cat.badgeColor : 'var(--rt-fg-2, #9a9aa3)',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  <span>{cat.shortLabel}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Laws Catalogue: 2-Column Grid of Rich Cards */}
+        <div
+          style={{
+            flex: 1,
+            overflowY: 'auto',
+            padding: '16px 22px',
+            maxHeight: '52vh',
+          }}
+          className="rt-scroll"
+        >
+          {filteredLaws.length === 0 ? (
+            <div
+              style={{
+                padding: '40px 20px',
+                textAlign: 'center',
+                backgroundColor: 'rgba(255, 255, 255, 0.01)',
+                borderRadius: 'var(--rt-radius-card, 12px)',
+                border: '1px dashed var(--rt-line, #2d2d30)',
+              }}
+            >
+              <Scale size={32} style={{ color: 'var(--rt-fg-2, #9a9aa3)', margin: '0 auto 10px', opacity: 0.5 }} />
+              <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--rt-fg, #ffffff)', margin: '0 0 6px 0' }}>
+                Закон не найден в каталоге
+              </p>
+              <p style={{ fontSize: 12, color: 'var(--rt-fg-2, #9a9aa3)', margin: '0 0 16px 0' }}>
+                Попробуйте изменить поисковый запрос или введите официальное название закона вручную
+              </p>
+              {searchQuery.trim() && (
+                <button
+                  type="button"
+                  onClick={() => handleSelectCustomText(searchQuery)}
+                  className="btn btn-primary btn-md"
+                >
+                  <Edit3 size={14} />
+                  <span>Использовать введенное: «{searchQuery}»</span>
+                </button>
+              )}
+            </div>
+          ) : (
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))',
+                gap: 10,
+              }}
+            >
+              {filteredLaws.map((law) => {
+                const lawCat = getCategoryForLaw(law);
+                const styleObj = getCategoryStyle(lawCat);
+                const isSelected = currentLaw?.id === law.id;
+
+                return (
+                  <div
+                    key={law.id}
+                    onClick={() => handleSelectLaw(law)}
+                    style={{
+                      padding: '12px 14px',
+                      borderRadius: 'var(--rt-radius-card, 10px)',
+                      background: isSelected 
+                        ? 'var(--rt-acc-soft, rgba(59, 130, 246, 0.15))' 
+                        : 'var(--rt-elev, #1a1a1c)',
+                      border: isSelected
+                        ? '1px solid var(--rt-acc, #3b82f6)'
+                        : '1px solid var(--rt-line, #2d2d30)',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 6,
+                      transition: 'all 0.15s ease',
+                      position: 'relative',
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!isSelected) {
+                        e.currentTarget.style.borderColor = 'var(--rt-line-strong, #3f3f46)';
+                        e.currentTarget.style.background = '#222226';
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!isSelected) {
+                        e.currentTarget.style.borderColor = 'var(--rt-line, #2d2d30)';
+                        e.currentTarget.style.background = 'var(--rt-elev, #1a1a1c)';
+                      }
+                    }}
+                  >
+                    {/* Top Row: Code Badge + Parts Count + Active Check */}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span
+                          style={{
+                            fontSize: 10.5,
+                            fontFamily: mono,
+                            fontWeight: 800,
+                            letterSpacing: '0.04em',
+                            padding: '2px 7px',
+                            borderRadius: 'var(--rt-radius-sm, 6px)',
+                            background: styleObj.bg,
+                            border: `1px solid ${styleObj.border}`,
+                            color: styleObj.color,
+                            flexShrink: 0,
+                          }}
+                        >
+                          [{law.code}]
+                        </span>
+
+                        <span
+                          style={{
+                            fontSize: 11,
+                            color: 'var(--rt-fg-2, #9a9aa3)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 4,
+                          }}
+                        >
+                          <span>{styleObj.icon}</span>
+                          <span>{CATEGORIES.find(c => c.key === lawCat)?.label.replace(/\s\(\d+\)/, '')}</span>
+                        </span>
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span
+                          style={{
+                            fontSize: 10.5,
+                            fontFamily: mono,
+                            color: 'var(--rt-fg-2, #9a9aa3)',
+                            padding: '1px 6px',
+                            borderRadius: 4,
+                            background: 'rgba(255, 255, 255, 0.04)',
+                          }}
+                        >
+                          {law.parts.length} {law.parts.length === 1 ? 'часть' : law.parts.length < 5 ? 'части' : 'частей'}
+                        </span>
+
+                        {isSelected && (
+                          <span
+                            style={{
+                              fontSize: 10.5,
+                              fontWeight: 700,
+                              color: 'var(--rt-acc, #3b82f6)',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 3,
+                            }}
+                          >
+                            <Check size={12} strokeWidth={3} />
+                            <span>Выбран</span>
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Law Title */}
+                    <div
+                      style={{
+                        fontSize: 13.5,
+                        fontWeight: isSelected ? 700 : 600,
+                        color: isSelected ? '#ffffff' : 'var(--rt-fg, #ffffff)',
+                        lineHeight: 1.35,
+                      }}
+                    >
+                      {law.title}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Modal Footer */}
+        <div
+          style={{
+            padding: '12px 22px',
+            borderTop: '1px solid var(--rt-line, #2d2d30)',
+            background: 'var(--rt-bg, #0f0f10)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 12,
+          }}
+        >
+          <div style={{ fontSize: 11.5, color: 'var(--rt-fg-2, #9a9aa3)', display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span>Нажмите на карточку закона для выбора</span>
+            <span>•</span>
+            <span style={{ fontFamily: mono }}>Клавиша Esc закрывает каталог</span>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {allowManualEdit && (
+              <button
+                type="button"
+                onClick={() => {
+                  handleClose();
+                  setIsManualInput(true);
+                }}
+                className="btn btn-outline btn-sm"
+              >
+                <Edit3 size={13} />
+                <span>Ввести закон вручную</span>
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={handleClose}
+              className="btn btn-secondary btn-sm"
+            >
+              <span>Закрыть</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>,
+    document.body
+  ) : null;
+
+  // -------------------------------------------------------------
+  // COMPACT VARIANT (Used inside article comparison rows §1, §2...)
   // -------------------------------------------------------------
   if (variant === 'compact') {
     return (
-      <div ref={triggerRef} className={`relative select-none ${className}`} style={style}>
+      <div className={`select-none ${className}`} style={style}>
         <button
           type="button"
-          onClick={handleToggle}
+          onClick={handleOpen}
           disabled={disabled}
           title={value ? `Целевой закон: ${value}` : 'Выбрать закон'}
+          className="btn btn-secondary btn-sm"
           style={{
             height: 28,
-            padding: '0 8px',
+            padding: '0 10px',
             fontSize: 11,
-            fontWeight: 700,
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 6,
-            background: R.bgInput,
-            border: isOpen ? `1px solid ${R.accent}` : `1px solid ${R.accentBorder}`,
-            color: R.text,
-            borderRadius: 3,
-            cursor: disabled ? 'not-allowed' : 'pointer',
-            maxWidth: 220,
-            whiteSpace: 'nowrap',
+            fontWeight: 600,
+            maxWidth: 260,
             overflow: 'hidden',
-            boxShadow: isOpen ? `0 0 0 2px ${R.accentSoft}` : 'none',
-            transition: 'all 0.15s ease',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
           }}
         >
           {currentLaw ? (
@@ -319,277 +669,24 @@ export const LawSelectPicker: React.FC<LawSelectPickerProps> = ({
                   fontFamily: mono,
                   fontWeight: 800,
                   padding: '1px 5px',
-                  borderRadius: 2,
+                  borderRadius: 4,
                   background: catStyle?.bg,
-                  border: `1px solid ${catStyle?.border}`,
                   color: catStyle?.color,
                 }}
               >
                 {currentLaw.code}
               </span>
-              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', color: R.text }}>
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
                 {currentLaw.shortTitle || currentLaw.title}
               </span>
             </>
           ) : (
-            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', color: value ? R.text : R.textMuted }}>
-              {value || placeholder}
-            </span>
+            <span>{value || placeholder}</span>
           )}
-          <ChevronDown
-            size={12}
-            style={{
-              color: R.accent,
-              flexShrink: 0,
-              transform: isOpen ? 'rotate(180deg)' : 'none',
-              transition: 'transform 0.15s',
-            }}
-          />
+          <ChevronDown size={12} style={{ opacity: 0.6, flexShrink: 0 }} />
         </button>
 
-        {/* Floating Dropdown Portal */}
-        {isOpen && typeof document !== 'undefined' && createPortal(
-          <div
-            ref={popoverRef}
-            style={{
-              position: 'fixed',
-              top: popoverCoords.top,
-              left: popoverCoords.left,
-              width: popoverCoords.width,
-              zIndex: 999999,
-              background: '#151518',
-              border: `1px solid ${R.accentBorder}`,
-              borderRadius: 6,
-              boxShadow: '0 20px 48px rgba(0, 0, 0, 0.85), 0 0 1px rgba(236, 199, 129, 0.4)',
-              backdropFilter: 'blur(16px)',
-              overflow: 'hidden',
-              animation: 'rtIn 0.12s ease-out',
-              display: 'flex',
-              flexDirection: 'column',
-              maxHeight: 460,
-            }}
-          >
-            {/* Search Header */}
-            <div
-              style={{
-                padding: '8px 10px',
-                borderBottom: ft.edge,
-                background: 'rgba(255, 255, 255, 0.02)',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-              }}
-            >
-              <Search size={14} style={{ color: R.accent, flexShrink: 0 }} />
-              <input
-                ref={searchInputRef}
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Поиск закона по коду или названию..."
-                style={{
-                  flex: 1,
-                  background: 'transparent',
-                  border: 'none',
-                  color: '#f3f4f6',
-                  fontSize: 12,
-                  outline: 'none',
-                }}
-              />
-              {searchQuery && (
-                <button
-                  type="button"
-                  onClick={() => setSearchQuery('')}
-                  style={{ background: 'transparent', border: 'none', color: R.textMuted, cursor: 'pointer', padding: 2 }}
-                >
-                  <X size={13} />
-                </button>
-              )}
-            </div>
-
-            {/* Category Quick Filter Pills */}
-            <div
-              style={{
-                display: 'flex',
-                gap: 4,
-                padding: '6px 8px',
-                background: 'rgba(0, 0, 0, 0.25)',
-                borderBottom: ft.hair,
-                overflowX: 'auto',
-              }}
-            >
-              {CATEGORIES.map((cat) => {
-                const isActive = selectedCategory === cat.key;
-                return (
-                  <button
-                    key={cat.key}
-                    type="button"
-                    onClick={() => setSelectedCategory(cat.key)}
-                    style={{
-                      padding: '2px 7px',
-                      fontSize: 10,
-                      fontWeight: 700,
-                      borderRadius: 3,
-                      border: isActive ? `1px solid ${cat.badgeColor}` : '1px solid rgba(255, 255, 255, 0.08)',
-                      background: isActive ? cat.badgeBg : 'transparent',
-                      color: isActive ? cat.badgeColor : R.textMuted,
-                      cursor: 'pointer',
-                      whiteSpace: 'nowrap',
-                      transition: 'all 0.1s',
-                    }}
-                  >
-                    {cat.shortLabel}
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Laws List */}
-            <div style={{ flex: 1, overflowY: 'auto', padding: '4px 0' }} className="rt-scroll">
-              {groupedLaws.length === 0 ? (
-                <div style={{ padding: '16px', textAlign: 'center' }}>
-                  <p style={{ fontSize: 12, color: R.textMuted, margin: '0 0 8px 0' }}>
-                    Закон не найден в каталоге
-                  </p>
-                  {searchQuery.trim() && (
-                    <button
-                      type="button"
-                      onClick={() => handleSelectCustomText(searchQuery)}
-                      style={{
-                        padding: '6px 12px',
-                        fontSize: 11,
-                        fontWeight: 700,
-                        background: R.accentSubtle,
-                        border: `1px solid ${R.accentBorder}`,
-                        color: R.accent,
-                        borderRadius: 3,
-                        cursor: 'pointer',
-                      }}
-                    >
-                      Использовать: «{searchQuery}»
-                    </button>
-                  )}
-                </div>
-              ) : (
-                groupedLaws.map(({ category, laws }) => (
-                  <div key={category.key} style={{ marginBottom: 14 }}>
-                    {/* Category Header with bottom margin */}
-                    <div
-                      style={{
-                        padding: '6px 10px',
-                        margin: '0 6px 8px 6px',
-                        borderRadius: 4,
-                        fontSize: 10.5,
-                        fontWeight: 800,
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.06em',
-                        color: category.badgeColor,
-                        background: 'rgba(255, 255, 255, 0.035)',
-                        border: '1px solid rgba(255, 255, 255, 0.05)',
-                        borderLeft: `3px solid ${category.badgeColor}`,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                      }}
-                    >
-                      <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <span>{category.icon}</span>
-                        <span>{category.label}</span>
-                      </span>
-                      <span
-                        style={{
-                          fontSize: 9.5,
-                          fontFamily: mono,
-                          fontWeight: 700,
-                          padding: '1px 6px',
-                          borderRadius: 8,
-                          background: 'rgba(255, 255, 255, 0.06)',
-                          color: category.badgeColor,
-                        }}
-                      >
-                        {laws.length}
-                      </span>
-                    </div>
-
-                    {/* Laws inside category with gap and padding */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, padding: '0 6px' }}>
-                      {laws.map((law) => {
-                        const isSelected = currentLaw?.id === law.id;
-                        const style = getCategoryStyle(category.key);
-                        return (
-                          <div
-                            key={law.id}
-                            onClick={() => handleSelectLaw(law)}
-                            style={{
-                              padding: '7px 10px',
-                              borderRadius: 4,
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'space-between',
-                              gap: 8,
-                              cursor: 'pointer',
-                              background: isSelected ? 'rgba(236, 199, 129, 0.12)' : 'rgba(255, 255, 255, 0.015)',
-                              border: isSelected ? '1px solid rgba(236, 199, 129, 0.35)' : '1px solid rgba(255, 255, 255, 0.03)',
-                              transition: 'all 0.12s ease',
-                            }}
-                            onMouseEnter={(e) => {
-                              if (!isSelected) {
-                                e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
-                                e.currentTarget.style.borderColor = 'rgba(236, 199, 129, 0.25)';
-                                e.currentTarget.style.transform = 'translateX(2px)';
-                              }
-                            }}
-                            onMouseLeave={(e) => {
-                              if (!isSelected) {
-                                e.currentTarget.style.background = 'rgba(255, 255, 255, 0.015)';
-                                e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.03)';
-                                e.currentTarget.style.transform = 'none';
-                              }
-                            }}
-                          >
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 7, overflow: 'hidden' }}>
-                              <span
-                                style={{
-                                  fontSize: 10,
-                                  fontFamily: mono,
-                                  fontWeight: 800,
-                                  textTransform: 'uppercase',
-                                  letterSpacing: '0.04em',
-                                  padding: '1px 5px',
-                                  borderRadius: 2,
-                                  background: style.bg,
-                                  border: `1px solid ${style.border}`,
-                                  color: style.color,
-                                  flexShrink: 0,
-                                }}
-                              >
-                                {law.code}
-                              </span>
-                              <span
-                                style={{
-                                  fontSize: 12,
-                                  fontWeight: isSelected ? 700 : 500,
-                                  color: isSelected ? '#ffffff' : '#e5e7eb',
-                                  overflow: 'hidden',
-                                  textOverflow: 'ellipsis',
-                                  whiteSpace: 'nowrap',
-                                }}
-                              >
-                                {law.shortTitle || law.title}
-                              </span>
-                            </div>
-                            {isSelected && <Check size={14} style={{ color: R.accent, flexShrink: 0 }} />}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>,
-          document.body
-        )}
+        {modalContent}
       </div>
     );
   }
@@ -598,7 +695,7 @@ export const LawSelectPicker: React.FC<LawSelectPickerProps> = ({
   // FULL / HEADER VARIANT (Used in main Bill Metadata section)
   // -------------------------------------------------------------
   return (
-    <div ref={triggerRef} className={`select-none ${className}`} style={{ width: '100%', ...style }}>
+    <div className={`select-none ${className}`} style={{ width: '100%', ...style }}>
       {/* If manual text input mode is enabled by user */}
       {isManualInput ? (
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -611,13 +708,13 @@ export const LawSelectPicker: React.FC<LawSelectPickerProps> = ({
             style={{
               flex: 1,
               height: 40,
-              padding: '0 12px',
+              padding: '0 14px',
               fontSize: 13.5,
               fontWeight: 600,
-              background: R.bgInput,
-              border: ft.edge,
-              color: R.text,
-              borderRadius: 3,
+              background: 'var(--rt-bg-input, #121214)',
+              border: '1px solid var(--rt-line, #2d2d30)',
+              color: 'var(--rt-fg, #ffffff)',
+              borderRadius: 'var(--rt-radius-btn, 8px)',
               outline: 'none',
             }}
           />
@@ -625,52 +722,38 @@ export const LawSelectPicker: React.FC<LawSelectPickerProps> = ({
             type="button"
             onClick={() => {
               setIsManualInput(false);
-              handleToggle();
+              handleOpen();
             }}
-            style={{
-              height: 40,
-              padding: '0 14px',
-              fontSize: 12,
-              fontWeight: 700,
-              background: R.accentSubtle,
-              border: `1px solid ${R.accentBorder}`,
-              color: R.accent,
-              borderRadius: 3,
-              cursor: 'pointer',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 6,
-              whiteSpace: 'nowrap',
-            }}
+            className="btn btn-primary btn-md"
+            style={{ height: 40 }}
           >
-            <BookOpen size={14} />
+            <BookOpen size={15} />
             <span>Каталог 27 законов</span>
           </button>
         </div>
       ) : (
-        /* Unified Elegant Law Card Trigger */
+        /* Unified Elegant Law Card Trigger (Clean, doesn't overlap anything) */
         <div
           style={{
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
             gap: 12,
-            minHeight: 46,
-            padding: '6px 12px',
-            background: R.bgInput,
-            border: isOpen ? `1px solid ${R.accent}` : ft.edge,
-            borderRadius: 4,
-            boxShadow: isOpen ? `0 0 0 2px ${R.accentSoft}` : 'none',
+            minHeight: 52,
+            padding: '8px 14px',
+            backgroundColor: 'var(--rt-bg-input, #121214)',
+            border: '1px solid var(--rt-line, #2d2d30)',
+            borderRadius: 'var(--rt-radius-card, 10px)',
             transition: 'border-color 0.15s, box-shadow 0.15s',
           }}
         >
-          {/* Law info preview */}
+          {/* Law info preview clickable area */}
           <div
-            onClick={handleToggle}
+            onClick={handleOpen}
             style={{
               display: 'flex',
               alignItems: 'center',
-              gap: 10,
+              gap: 12,
               flex: 1,
               cursor: disabled ? 'default' : 'pointer',
               overflow: 'hidden',
@@ -686,23 +769,22 @@ export const LawSelectPicker: React.FC<LawSelectPickerProps> = ({
                     textTransform: 'uppercase',
                     letterSpacing: '0.04em',
                     padding: '3px 8px',
-                    borderRadius: 3,
+                    borderRadius: 'var(--rt-radius-sm, 6px)',
                     background: catStyle?.bg,
                     border: `1px solid ${catStyle?.border}`,
                     color: catStyle?.color,
                     flexShrink: 0,
-                    boxShadow: '0 2px 6px rgba(0,0,0,0.2)',
                   }}
                 >
                   [{currentLaw.code}]
                 </span>
 
-                <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
                   <span
                     style={{
                       fontSize: 13.5,
                       fontWeight: 700,
-                      color: '#ffffff',
+                      color: 'var(--rt-fg, #ffffff)',
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
                       whiteSpace: 'nowrap',
@@ -710,16 +792,16 @@ export const LawSelectPicker: React.FC<LawSelectPickerProps> = ({
                   >
                     {currentLaw.title}
                   </span>
-                  <span style={{ fontSize: 11, color: R.textMuted, display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span>{catStyle?.icon} {CATEGORIES.find(c => c.key === getCategoryForLaw(currentLaw))?.label}</span>
+                  <span style={{ fontSize: 11, color: 'var(--rt-fg-2, #9a9aa3)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span>{catStyle?.icon} {CATEGORIES.find(c => c.key === getCategoryForLaw(currentLaw))?.label.replace(/\s\(\d+\)/, '')}</span>
                     <span>•</span>
                     <span style={{ fontFamily: mono }}>{currentLaw.parts.length} {currentLaw.parts.length === 1 ? 'часть' : currentLaw.parts.length < 5 ? 'части' : 'частей'}</span>
                   </span>
                 </div>
               </>
             ) : (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: value ? R.text : R.textMuted }}>
-                <Scale size={16} style={{ color: R.accent }} />
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: value ? 'var(--rt-fg, #ffffff)' : 'var(--rt-fg-2, #9a9aa3)' }}>
+                <Scale size={18} style={{ color: 'var(--rt-acc, #3b82f6)', flexShrink: 0 }} />
                 <span style={{ fontSize: 13.5, fontWeight: value ? 600 : 400 }}>
                   {value || placeholder}
                 </span>
@@ -734,373 +816,29 @@ export const LawSelectPicker: React.FC<LawSelectPickerProps> = ({
                 type="button"
                 onClick={() => setIsManualInput(true)}
                 title="Ввести своё название закона вручную"
-                style={{
-                  height: 30,
-                  padding: '0 8px',
-                  fontSize: 11,
-                  fontWeight: 600,
-                  background: 'transparent',
-                  border: `1px solid rgba(255, 255, 255, 0.12)`,
-                  color: R.textMuted,
-                  borderRadius: 3,
-                  cursor: 'pointer',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 4,
-                  transition: 'all 0.15s',
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.color = R.text;
-                  e.currentTarget.style.borderColor = R.textMuted;
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.color = R.textMuted;
-                  e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.12)';
-                }}
+                className="btn btn-ghost btn-sm"
+                style={{ height: 32 }}
               >
-                <Edit3 size={12} />
+                <Edit3 size={13} />
                 <span>Вручную</span>
               </button>
             )}
 
             <button
               type="button"
-              onClick={handleToggle}
+              onClick={handleOpen}
               disabled={disabled}
-              style={{
-                height: 32,
-                padding: '0 12px',
-                fontSize: 12,
-                fontWeight: 700,
-                background: isOpen ? R.accent : R.accentSubtle,
-                border: `1px solid ${R.accentBorder}`,
-                color: isOpen ? '#ffffff' : R.accent,
-                borderRadius: 3,
-                cursor: disabled ? 'not-allowed' : 'pointer',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 6,
-                transition: 'all 0.15s',
-              }}
+              className="btn btn-subtle btn-sm"
+              style={{ height: 32 }}
             >
               <span>{currentLaw ? 'Сменить закон' : '⚡ Выбрать из 27 законов'}</span>
-              <ChevronDown
-                size={14}
-                style={{
-                  transform: isOpen ? 'rotate(180deg)' : 'none',
-                  transition: 'transform 0.15s',
-                }}
-              />
+              <ChevronDown size={14} />
             </button>
           </div>
         </div>
       )}
 
-      {/* Floating Popover Portal */}
-      {isOpen && typeof document !== 'undefined' && createPortal(
-        <div
-          ref={popoverRef}
-          style={{
-            position: 'fixed',
-            top: popoverCoords.top,
-            left: popoverCoords.left,
-            width: popoverCoords.width,
-            zIndex: 999999,
-            background: '#151518',
-            border: `1px solid ${R.accentBorder}`,
-            borderRadius: 8,
-            boxShadow: '0 24px 60px rgba(0, 0, 0, 0.9), 0 0 1px rgba(236, 199, 129, 0.5)',
-            backdropFilter: 'blur(20px)',
-            overflow: 'hidden',
-            animation: 'rtIn 0.12s ease-out',
-            display: 'flex',
-            flexDirection: 'column',
-            maxHeight: 500,
-          }}
-        >
-          {/* Top Search Input with Badge */}
-          <div
-            style={{
-              padding: '12px 16px',
-              borderBottom: ft.edge,
-              background: 'rgba(255, 255, 255, 0.02)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 10,
-            }}
-          >
-            <Search size={18} style={{ color: R.accent, flexShrink: 0 }} />
-            <input
-              ref={searchInputRef}
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Быстрый поиск: введите код (УАК, ДК, FIB...) или название закона..."
-              style={{
-                flex: 1,
-                background: 'transparent',
-                border: 'none',
-                color: '#ffffff',
-                fontSize: 13.5,
-                fontWeight: 600,
-                outline: 'none',
-              }}
-            />
-            {searchQuery && (
-              <button
-                type="button"
-                onClick={() => setSearchQuery('')}
-                style={{ background: 'transparent', border: 'none', color: R.textMuted, cursor: 'pointer', padding: 2 }}
-              >
-                <X size={15} />
-              </button>
-            )}
-            <span
-              style={{
-                fontSize: 10.5,
-                fontFamily: mono,
-                padding: '3px 10px',
-                borderRadius: 12,
-                background: 'rgba(255, 255, 255, 0.06)',
-                color: R.textMuted,
-              }}
-            >
-              {filteredLaws.length} из {LAWS_METADATA.length}
-            </span>
-          </div>
-
-          {/* Category Filter Pills */}
-          <div
-            style={{
-              display: 'flex',
-              gap: 6,
-              padding: '10px 14px',
-              background: 'rgba(0, 0, 0, 0.4)',
-              borderBottom: ft.hair,
-              overflowX: 'auto',
-            }}
-            className="rt-scroll"
-          >
-            {CATEGORIES.map((cat) => {
-              const isActive = selectedCategory === cat.key;
-              const count = cat.key === 'all'
-                ? LAWS_METADATA.length
-                : LAWS_METADATA.filter(l => getCategoryForLaw(l) === cat.key).length;
-
-              return (
-                <button
-                  key={cat.key}
-                  type="button"
-                  onClick={() => setSelectedCategory(cat.key)}
-                  style={{
-                    padding: '5px 12px',
-                    fontSize: 11,
-                    fontWeight: 700,
-                    borderRadius: 20,
-                    border: isActive ? `1px solid ${cat.badgeColor}` : '1px solid rgba(255, 255, 255, 0.08)',
-                    background: isActive ? cat.badgeBg : 'rgba(255, 255, 255, 0.02)',
-                    color: isActive ? cat.badgeColor : R.textMuted,
-                    cursor: 'pointer',
-                    whiteSpace: 'nowrap',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 6,
-                    boxShadow: isActive ? `0 0 12px ${cat.badgeBg}` : 'none',
-                    transition: 'all 0.15s ease',
-                  }}
-                >
-                  <span>{cat.icon}</span>
-                  <span>{cat.shortLabel}</span>
-                  <span style={{ opacity: 0.75, fontSize: 10, fontFamily: mono }}>({count})</span>
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Laws List */}
-          <div style={{ flex: 1, overflowY: 'auto', padding: '10px 0' }} className="rt-scroll">
-            {groupedLaws.length === 0 ? (
-              <div style={{ padding: '24px 16px', textAlign: 'center' }}>
-                <p style={{ fontSize: 13, color: R.textMuted, margin: '0 0 12px 0' }}>
-                  Ничего не найдено по запросу «{searchQuery}»
-                </p>
-                {searchQuery.trim() && (
-                  <button
-                    type="button"
-                    onClick={() => handleSelectCustomText(searchQuery)}
-                    style={{
-                      padding: '8px 16px',
-                      fontSize: 12,
-                      fontWeight: 700,
-                      background: R.accentSubtle,
-                      border: `1px solid ${R.accentBorder}`,
-                      color: R.accent,
-                      borderRadius: 4,
-                      cursor: 'pointer',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: 6,
-                    }}
-                  >
-                    <Edit3 size={14} />
-                    <span>Использовать «{searchQuery}» как название закона</span>
-                  </button>
-                )}
-              </div>
-            ) : (
-              groupedLaws.map(({ category, laws }) => (
-                <div key={category.key} style={{ marginBottom: 18 }}>
-                  {/* Category Header with generous bottom margin */}
-                  <div
-                    style={{
-                      padding: '8px 14px',
-                      margin: '0 10px 10px 10px',
-                      borderRadius: 6,
-                      fontSize: 11,
-                      fontWeight: 800,
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.07em',
-                      color: category.badgeColor,
-                      background: 'rgba(255, 255, 255, 0.035)',
-                      border: '1px solid rgba(255, 255, 255, 0.06)',
-                      borderLeft: `3px solid ${category.badgeColor}`,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
-                    }}
-                  >
-                    <span style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-                      <span>{category.icon}</span>
-                      <span>{category.label}</span>
-                    </span>
-                    <span
-                      style={{
-                        fontSize: 10.5,
-                        fontFamily: mono,
-                        fontWeight: 700,
-                        padding: '2px 8px',
-                        borderRadius: 10,
-                        background: 'rgba(255, 255, 255, 0.06)',
-                        color: category.badgeColor,
-                      }}
-                    >
-                      {laws.length}
-                    </span>
-                  </div>
-
-                  {/* Laws Cards Container with clear gap and breathing room */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 5, padding: '0 10px' }}>
-                    {laws.map((law) => {
-                      const isSelected = currentLaw?.id === law.id;
-                      const style = getCategoryStyle(category.key);
-                      return (
-                        <div
-                          key={law.id}
-                          onClick={() => handleSelectLaw(law)}
-                          style={{
-                            padding: '10px 14px',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            gap: 12,
-                            cursor: 'pointer',
-                            borderRadius: 6,
-                            background: isSelected ? 'rgba(236, 199, 129, 0.12)' : 'rgba(255, 255, 255, 0.015)',
-                            border: isSelected ? '1px solid rgba(236, 199, 129, 0.38)' : '1px solid rgba(255, 255, 255, 0.035)',
-                            transition: 'all 0.15s cubic-bezier(0.16, 1, 0.3, 1)',
-                          }}
-                          onMouseEnter={(e) => {
-                            if (!isSelected) {
-                              e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
-                              e.currentTarget.style.borderColor = 'rgba(236, 199, 129, 0.28)';
-                              e.currentTarget.style.transform = 'translateX(3px)';
-                            }
-                          }}
-                          onMouseLeave={(e) => {
-                            if (!isSelected) {
-                              e.currentTarget.style.background = 'rgba(255, 255, 255, 0.015)';
-                              e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.035)';
-                              e.currentTarget.style.transform = 'none';
-                            }
-                          }}
-                        >
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, overflow: 'hidden' }}>
-                            <span
-                              style={{
-                                fontSize: 11,
-                                fontFamily: mono,
-                                fontWeight: 800,
-                                textTransform: 'uppercase',
-                                letterSpacing: '0.04em',
-                                padding: '2px 7px',
-                                borderRadius: 3,
-                                background: style.bg,
-                                border: `1px solid ${style.border}`,
-                                color: style.color,
-                                flexShrink: 0,
-                              }}
-                            >
-                              [{law.code}]
-                            </span>
-
-                            <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden', gap: 2 }}>
-                              <span
-                                style={{
-                                  fontSize: 13.5,
-                                  fontWeight: 700,
-                                  color: isSelected ? '#ffffff' : '#f3f4f6',
-                                  overflow: 'hidden',
-                                  textOverflow: 'ellipsis',
-                                  whiteSpace: 'nowrap',
-                                }}
-                              >
-                                {law.shortTitle || law.title}
-                              </span>
-                              <span
-                                style={{
-                                  fontSize: 11,
-                                  color: R.textMuted,
-                                  overflow: 'hidden',
-                                  textOverflow: 'ellipsis',
-                                  whiteSpace: 'nowrap',
-                                }}
-                              >
-                                {law.title} • {law.parts.length} {law.parts.length === 1 ? 'часть' : 'части'}
-                              </span>
-                            </div>
-                          </div>
-
-                          {isSelected && (
-                            <div
-                              style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: 6,
-                                color: R.accent,
-                                fontSize: 11,
-                                fontWeight: 700,
-                                flexShrink: 0,
-                                background: 'rgba(236, 199, 129, 0.1)',
-                                padding: '3px 8px',
-                                borderRadius: 4,
-                              }}
-                            >
-                              <span>Выбран</span>
-                              <Check size={14} />
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </div>,
-        document.body
-      )}
+      {modalContent}
     </div>
   );
 };

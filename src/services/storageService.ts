@@ -2,6 +2,7 @@ import type { Bill, UserProfile, BillComment } from '../types/bill';
 import { INITIAL_USER } from './mockData';
 import { getStoredDbConfig, getSupabaseClient } from './supabaseClient';
 import { saveBillToFirebase, fetchBillsFromFirebase, deleteBillFromFirebase, subscribeToFirebaseBills } from './firebaseClient';
+import { isUserRevokedFromRole } from './securityService';
 
 const STORAGE_KEY = 'legaldraft_bills_v3_clean';
 const USER_KEY = 'legaldraft_user_v3';
@@ -284,7 +285,17 @@ export function getUserProfile(): UserProfile {
   const saved = localStorage.getItem(USER_KEY);
   if (saved) {
     try {
-      return JSON.parse(saved);
+      const user: UserProfile = JSON.parse(saved);
+      // Security check: if user has a revoked official role, immediately demote to civilian
+      if (user && user.isOfficialVerified && user.officialRole !== 'civilian') {
+        const revoked = isUserRevokedFromRole(user.firstName, user.lastName, user.officialRole);
+        if (revoked.isRevoked) {
+          user.officialRole = 'civilian';
+          user.isOfficialVerified = false;
+          saveUserProfile(user);
+        }
+      }
+      return user;
     } catch {
       // ignore
     }

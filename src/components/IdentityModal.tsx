@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { UserCheck, Upload, File as FileIcon } from 'lucide-react';
 import { R, ft, label, mono, shadow, btnAccent } from '../lib/ui';
+import { useDesign } from '../lib/theme';
 
 interface IdentityModalProps {
   initialFirstName?: string;
@@ -14,6 +15,7 @@ export const IdentityModal: React.FC<IdentityModalProps> = ({
   initialLastName = '',
   onSubmit
 }) => {
+  const design = useDesign();
   const [firstName, setFirstName] = useState(initialFirstName === 'Александр' ? '' : initialFirstName);
   const [lastName, setLastName] = useState(initialLastName === 'Северов' ? '' : initialLastName);
   const [passportFile, setPassportFile] = useState<File | null>(null);
@@ -52,20 +54,61 @@ export const IdentityModal: React.FC<IdentityModalProps> = ({
         alignItems: 'center',
         justifyContent: 'center',
         padding: 16,
-        background: 'rgba(10, 9, 8, 0.75)',
+        background: design === 'new' ? 'rgba(15, 15, 16, 0.75)' : 'rgba(10, 9, 8, 0.75)',
         backdropFilter: 'blur(8px)',
         WebkitBackdropFilter: 'blur(8px)',
       }}
     >
+      {/* Background cinematic video in Redwood modern mode */}
+      {design === 'new' && (
+        <>
+          <video
+            style={{
+              position: 'absolute',
+              inset: 0,
+              width: '100%',
+              height: '100%',
+              objectFit: 'cover',
+              pointerEvents: 'none',
+              zIndex: 0,
+            }}
+            src="/background-scene.mp4"
+            ref={(el) => {
+              if (el) {
+                el.muted = true;
+                el.defaultMuted = true;
+              }
+            }}
+            muted
+            autoPlay
+            loop
+            playsInline
+            preload="metadata"
+          />
+          <div
+            style={{
+              position: 'absolute',
+              inset: 0,
+              background: 'rgba(15, 15, 16, 0.6)',
+              backdropFilter: 'blur(4px)',
+              pointerEvents: 'none',
+              zIndex: 0,
+            }}
+          />
+        </>
+      )}
+
       <motion.div 
         initial={{ opacity: 0, scale: 0.96, y: 15 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         style={{
+          position: 'relative',
+          zIndex: 10,
           width: '100%',
           maxWidth: 440,
           background: R.bgPanel,
           border: ft.strong,
-          borderRadius: 2,
+          borderRadius: 'var(--rt-radius-card, 12px)',
           padding: '32px 28px',
           boxShadow: shadow.panel,
           display: 'flex',
@@ -74,12 +117,14 @@ export const IdentityModal: React.FC<IdentityModalProps> = ({
       >
         <div style={{ textAlign: 'center', marginBottom: 24 }}>
           <img
-            src="/favicon.png"
-            alt="Логотип"
-            style={{ width: 44, height: 44, display: 'block', margin: '0 auto 14px', objectFit: 'contain' }}
+            src="/logo.png"
+            alt="REDWOOD"
+            style={{ width: 56, height: 56, display: 'block', margin: '0 auto 14px', objectFit: 'contain', borderRadius: 8 }}
           />
 
-          <div style={label}>GTA5RP · ЗАКОНОДАТЕЛЬСТВО</div>
+          <div style={label}>
+            {design === 'new' ? 'REDWOOD · БАЗА ЗАКОНОДАТЕЛЬСТВА' : 'GTA5RP · ЗАКОНОДАТЕЛЬСТВО'}
+          </div>
 
           <h2
             style={{

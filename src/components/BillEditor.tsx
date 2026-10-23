@@ -5,7 +5,7 @@ import { CommentsSection } from './CommentsSection';
 import { ExpandedArticleModal } from './ExpandedArticleModal';
 import { ImageUploader } from './ImageUploader';
 import { ConfirmModal } from './ConfirmModal';
-import { isSystemAdmin } from '../services/securityService';
+import { isSystemAdmin, isUserRevokedFromRole } from '../services/securityService';
 import { computeWordDiff } from '../services/diffService';
 import { BillPrintView } from './BillPrintView';
 // @ts-ignore
@@ -37,7 +37,7 @@ import {
   RotateCcw,
   X
 } from 'lucide-react';
-import { R, ft, label, mono, btnAccent, btnOutline, btnDanger } from '../lib/ui';
+import { R, ft, label, mono, btnAccent, btnOutline } from '../lib/ui';
 import { useBillHistory } from '../hooks/useBillHistory';
 import { getLatestArticleContent, getActiveLaw, findLawByTitleOrCode } from '../services/lawStorageService';
 import { Popover, MenuItem } from './Primitives';
@@ -347,6 +347,12 @@ export const BillEditor: React.FC<BillEditorProps> = ({
       return;
     }
 
+    const revoked = isUserRevokedFromRole(user.firstName, user.lastName, role);
+    if (revoked.isRevoked) {
+      onToast('error', revoked.reason || 'Ваши служебные полномочия отозваны.');
+      return;
+    }
+
     const voteRole = role === 'admin' ? 'governor' : role;
     const updatedVotes = { ...votes, [voteRole]: decision };
 
@@ -638,21 +644,10 @@ export const BillEditor: React.FC<BillEditorProps> = ({
         {/* Left: Back + Identity + Status */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
           <button
+            type="button"
             onClick={onBack}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 6,
-              height: 32,
-              padding: '0 10px',
-              fontSize: 13,
-              fontWeight: 700,
-              color: R.text,
-              background: R.bgInput,
-              border: ft.edge,
-              borderRadius: 2,
-              cursor: 'pointer',
-            }}
+            className="btn btn-outline btn-sm"
+            style={{ height: 32 }}
           >
             <ArrowLeft size={14} />
             <span>{returnView === 'admin_workspace' ? 'Администрация' : 'Реестр'}</span>
@@ -734,12 +729,12 @@ export const BillEditor: React.FC<BillEditorProps> = ({
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
-                background: R.bgInput,
-                border: ft.edge,
-                borderRadius: 3,
-                padding: 1,
-                gap: 1,
-                marginRight: 2,
+                backgroundColor: 'var(--rt-elev, #1a1a1c)',
+                border: '1px solid var(--rt-line, #2d2d30)',
+                borderRadius: 'var(--rt-radius-btn, 8px)',
+                padding: 2,
+                gap: 2,
+                marginRight: 4,
               }}
             >
               <button
@@ -747,55 +742,21 @@ export const BillEditor: React.FC<BillEditorProps> = ({
                 onClick={() => undo()}
                 disabled={!canUndo}
                 title="Отменить последнее действие (Ctrl+Z)"
-                style={{
-                  width: 30,
-                  height: 30,
-                  display: 'grid',
-                  placeItems: 'center',
-                  background: 'transparent',
-                  border: 'none',
-                  color: canUndo ? R.text : R.textMuted,
-                  opacity: canUndo ? 1 : 0.35,
-                  cursor: canUndo ? 'pointer' : 'not-allowed',
-                  borderRadius: 2,
-                  transition: 'all 0.15s ease',
-                }}
-                onMouseEnter={(e) => {
-                  if (canUndo) e.currentTarget.style.background = R.bgElevated;
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = 'transparent';
-                }}
+                className="btn btn-ghost btn-icon-sm"
+                style={{ width: 28, height: 28, padding: 0 }}
               >
-                <Undo2 size={15} />
+                <Undo2 size={14} />
               </button>
-              <div style={{ width: 1, height: 16, background: R.border }} />
+              <div style={{ width: 1, height: 16, background: 'var(--rt-line, #2d2d30)' }} />
               <button
                 type="button"
                 onClick={() => redo()}
                 disabled={!canRedo}
                 title="Повторить отменённое действие (Ctrl+Y / Ctrl+Shift+Z)"
-                style={{
-                  width: 30,
-                  height: 30,
-                  display: 'grid',
-                  placeItems: 'center',
-                  background: 'transparent',
-                  border: 'none',
-                  color: canRedo ? R.text : R.textMuted,
-                  opacity: canRedo ? 1 : 0.35,
-                  cursor: canRedo ? 'pointer' : 'not-allowed',
-                  borderRadius: 2,
-                  transition: 'all 0.15s ease',
-                }}
-                onMouseEnter={(e) => {
-                  if (canRedo) e.currentTarget.style.background = R.bgElevated;
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = 'transparent';
-                }}
+                className="btn btn-ghost btn-icon-sm"
+                style={{ width: 28, height: 28, padding: 0 }}
               >
-                <Redo2 size={15} />
+                <Redo2 size={14} />
               </button>
             </div>
           )}
@@ -823,9 +784,11 @@ export const BillEditor: React.FC<BillEditorProps> = ({
 
           {bill.status === 'draft' && canEdit && (
             <button
+              type="button"
               onClick={handlePublish}
               disabled={isPublishing}
-              style={{ ...btnAccent, height: 32, fontSize: 12, opacity: isPublishing ? 0.7 : 1 }}
+              className="btn btn-primary btn-sm"
+              style={{ height: 32 }}
             >
               <Send size={13} /> {isPublishing ? 'Проверка...' : 'Опубликовать'}
             </button>
@@ -833,8 +796,10 @@ export const BillEditor: React.FC<BillEditorProps> = ({
 
           {isAdmin && bill.status === 'under_review' && (
             <button
+              type="button"
               onClick={() => handleExecuteAdminVerdict('approved')}
-              style={{ ...btnAccent, height: 32, fontSize: 12 }}
+              className="btn btn-success btn-sm"
+              style={{ height: 32 }}
             >
               <CheckCircle2 size={13} /> Одобрить вердикт
             </button>
@@ -842,8 +807,10 @@ export const BillEditor: React.FC<BillEditorProps> = ({
 
           {isAdmin && bill.status === 'approved' && !bill.statusReason?.includes('внесены в законодательную базу') && (
             <button
+              type="button"
               onClick={handleEnactLaws}
-              style={{ ...btnAccent, height: 32, fontSize: 12 }}
+              className="btn btn-purple btn-sm"
+              style={{ height: 32 }}
             >
               <FileText size={13} /> Внести в законы
             </button>
@@ -851,8 +818,10 @@ export const BillEditor: React.FC<BillEditorProps> = ({
 
           {canDelete && (
             <button
+              type="button"
               onClick={() => { if (onDelete) onDelete(bill.id); }}
-              style={{ ...btnDanger, height: 32, fontSize: 12 }}
+              className="btn btn-danger btn-sm"
+              style={{ height: 32 }}
             >
               <Trash2 size={13} /> Удалить
             </button>
@@ -860,18 +829,11 @@ export const BillEditor: React.FC<BillEditorProps> = ({
 
           <div ref={menuRef} style={{ position: 'relative' }}>
             <button
+              type="button"
               onClick={() => setShowMoreMenu((prev) => !prev)}
-              style={{
-                width: 32,
-                height: 32,
-                display: 'grid',
-                placeItems: 'center',
-                background: R.bgInput,
-                border: ft.edge,
-                borderRadius: 2,
-                color: R.text,
-                cursor: 'pointer',
-              }}
+              className="btn btn-secondary btn-icon-sm"
+              style={{ width: 32, height: 32 }}
+              title="Дополнительные действия"
             >
               <MoreVertical size={15} />
             </button>
@@ -2109,20 +2071,26 @@ export const BillEditor: React.FC<BillEditorProps> = ({
               return (
                 <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>
                   <button
+                    type="button"
                     onClick={() => handleCastVote('approved')}
-                    style={{ ...btnOutline, flex: '1 1 0', height: 30, fontSize: 11, background: myVote === 'approved' ? R.success : 'transparent', color: myVote === 'approved' ? '#fff' : R.text }}
+                    className={myVote === 'approved' ? 'btn btn-success btn-sm' : 'btn btn-outline btn-sm'}
+                    style={{ flex: '1 1 0', height: 30 }}
                   >
                     За
                   </button>
                   <button
+                    type="button"
                     onClick={() => handleCastVote('needs_revision')}
-                    style={{ ...btnOutline, flex: '1 1 0', height: 30, fontSize: 11, background: myVote === 'needs_revision' ? R.accent : 'transparent', color: myVote === 'needs_revision' ? '#fff' : R.text }}
+                    className={myVote === 'needs_revision' ? 'btn btn-warning btn-sm' : 'btn btn-outline btn-sm'}
+                    style={{ flex: '1 1 0', height: 30 }}
                   >
                     Правки
                   </button>
                   <button
+                    type="button"
                     onClick={() => handleCastVote('rejected')}
-                    style={{ ...btnDanger, flex: '1 1 0', height: 30, fontSize: 11, background: myVote === 'rejected' ? R.danger : 'transparent', color: myVote === 'rejected' ? '#fff' : R.danger }}
+                    className={myVote === 'rejected' ? 'btn btn-danger btn-sm' : 'btn btn-outline btn-sm'}
+                    style={{ flex: '1 1 0', height: 30 }}
                   >
                     Против
                   </button>
@@ -2205,9 +2173,30 @@ export const BillEditor: React.FC<BillEditorProps> = ({
                   placeholder="Укажите причину одобрения, замечания для правок или причину отказа..."
                 />
                 <div style={{ display: 'flex', gap: 6 }}>
-                  <button onClick={() => handleExecuteAdminVerdict('approved')} style={{ ...btnAccent, flex: '1 1 0', height: 28, fontSize: 11 }}>Одобрить</button>
-                  <button onClick={() => handleExecuteAdminVerdict('needs_revision')} style={{ ...btnOutline, flex: '1 1 0', height: 28, fontSize: 11 }}>Правки</button>
-                  <button onClick={() => handleExecuteAdminVerdict('rejected')} style={{ ...btnDanger, flex: '1 1 0', height: 28, fontSize: 11 }}>Отклонить</button>
+                  <button 
+                    type="button"
+                    onClick={() => handleExecuteAdminVerdict('approved')} 
+                    className="btn btn-success btn-sm"
+                    style={{ flex: '1 1 0', height: 30 }}
+                  >
+                    Одобрить
+                  </button>
+                  <button 
+                    type="button"
+                    onClick={() => handleExecuteAdminVerdict('needs_revision')} 
+                    className="btn btn-warning btn-sm"
+                    style={{ flex: '1 1 0', height: 30 }}
+                  >
+                    Правки
+                  </button>
+                  <button 
+                    type="button"
+                    onClick={() => handleExecuteAdminVerdict('rejected')} 
+                    className="btn btn-danger btn-sm"
+                    style={{ flex: '1 1 0', height: 30 }}
+                  >
+                    Отклонить
+                  </button>
                 </div>
               </div>
             ) : bill.federalVerdict ? (
