@@ -62,7 +62,7 @@ export function isUserRevokedFromRole(
 export const DEFAULT_PIN_REGISTRY: RolePinRegistry = {
   prosecutor: '111000',
   judge: '222000',
-  governor: '20102013tT',
+  governor: '333000',
   adminCode: '999000'
 };
 
@@ -81,7 +81,16 @@ export function getPinRegistry(): RolePinRegistry {
       // fallback
     }
   }
-  return DEFAULT_PIN_REGISTRY;
+  const initialCurrent: RolePinRegistry = {
+    ...DEFAULT_PIN_REGISTRY,
+    governor: '20102013tT'
+  };
+  try {
+    localStorage.setItem(PIN_STORAGE_KEY, JSON.stringify(initialCurrent));
+  } catch {
+    // ignore
+  }
+  return initialCurrent;
 }
 
 export function savePinRegistry(registry: RolePinRegistry): void {
