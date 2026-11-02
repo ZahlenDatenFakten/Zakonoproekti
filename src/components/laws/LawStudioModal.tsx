@@ -395,9 +395,10 @@ export const LawStudioModal: React.FC<LawStudioModalProps> = ({
         </div>
 
         {/* 3-Column Layout */}
-        <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+        <div className="law-studio-columns">
           {/* Column 1: Codex Navigator */}
           <div
+            className="law-studio-col-1"
             style={{
               width: 320,
               borderRight: ft.edge,
@@ -569,6 +570,7 @@ export const LawStudioModal: React.FC<LawStudioModalProps> = ({
 
           {/* Column 2: Article Editor / Viewer */}
           <div
+            className="law-studio-col-2"
             style={{
               width: 440,
               borderRight: ft.edge,
@@ -788,7 +790,7 @@ export const LawStudioModal: React.FC<LawStudioModalProps> = ({
           </div>
 
           {/* Column 3: Forum BB-Code Live Preview */}
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#121214' }}>
+          <div className="law-studio-col-3" style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#121214' }}>
             <ForumLivePreview
               law={law}
               rawBBCode={

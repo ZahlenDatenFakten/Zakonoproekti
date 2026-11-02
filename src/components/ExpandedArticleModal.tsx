@@ -41,7 +41,8 @@ export const ExpandedArticleModal: React.FC<ExpandedArticleModalProps> = ({
         style={{
           width: 1400,
           maxWidth: '100%',
-          height: '92vh',
+          height: 'min(92vh, 92dvh)',
+          maxHeight: '92dvh',
           display: 'flex',
           flexDirection: 'column',
           background: R.bgPanel,
@@ -229,7 +230,7 @@ export const ExpandedArticleModal: React.FC<ExpandedArticleModalProps> = ({
               style={{
                 flex: 1,
                 display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 300px), 1fr))',
                 gap: 16,
                 minHeight: 0,
               }}

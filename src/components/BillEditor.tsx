@@ -630,15 +630,17 @@ export const BillEditor: React.FC<BillEditorProps> = ({
           position: 'sticky',
           top: 0,
           zIndex: 30,
-          height: 54,
+          minHeight: 54,
           background: R.bgPanel,
           borderBottom: ft.edge,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          padding: '0 16px',
-          margin: '-32px -32px 12px -32px',
+          padding: '8px 16px',
+          margin: 'calc(-1 * var(--page-pad-y, 32px)) calc(-1 * var(--page-pad-x, 36px)) 16px calc(-1 * var(--page-pad-x, 36px))',
           boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
+          flexWrap: 'wrap',
+          gap: 10,
         }}
       >
         {/* Left: Back + Identity + Status */}
@@ -1210,7 +1212,7 @@ export const BillEditor: React.FC<BillEditorProps> = ({
       )}
 
       {/* Main Grid: Left editor (articles & metadata), Right sidebar (voting, author, comments) */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 320px', gap: 24, alignItems: 'start' }}>
+      <div className="bill-editor-grid">
         
         {/* LEFT COLUMN: Metadata & Articles */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -1833,8 +1835,8 @@ export const BillEditor: React.FC<BillEditorProps> = ({
 
                       {/* TAB 1: Editor Side-by-Side */}
                       {activeTab === 'editor' && (
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', minHeight: 180 }}>
-                          <div style={{ display: 'flex', flexDirection: 'column', borderRight: ft.hair }}>
+                        <div className="comparison-grid">
+                          <div className="comparison-left-pane">
                             <div style={{ padding: '6px 12px', background: R.bg, borderBottom: ft.hair, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                               <span style={{ ...label, fontSize: 9.5 }}>Действующий текст</span>
                               {canEdit && !isReadOnly && (
@@ -1914,8 +1916,8 @@ export const BillEditor: React.FC<BillEditorProps> = ({
 
                       {/* TAB 2: Diff */}
                       {activeTab === 'diff' && (
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', minHeight: 180 }}>
-                          <div style={{ display: 'flex', flexDirection: 'column', borderRight: ft.hair }}>
+                        <div className="comparison-grid">
+                          <div className="comparison-left-pane">
                             <div style={{ padding: '6px 12px', background: R.bg, borderBottom: ft.hair }}>
                               <span style={{ ...label, fontSize: 9.5, color: R.danger }}>Действующий текст</span>
                             </div>

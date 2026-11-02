@@ -9,7 +9,8 @@ import {
   ChevronDown, 
   CheckCircle2, 
   Clock,
-  BookOpen
+  BookOpen,
+  X
 } from 'lucide-react';
 import type { UserProfile } from '../types/bill';
 import { OFFICIAL_ROLE_LABELS } from '../types/bill';
@@ -25,6 +26,8 @@ interface SidebarProps {
   onOpenSettings: () => void;
   onOpenNewBill: () => void;
   onOpenLawStudio?: () => void;
+  isOpen?: boolean;
+  onClose?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -33,7 +36,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onNavigate,
   onOpenSettings,
   onOpenNewBill,
-  onOpenLawStudio
+  onOpenLawStudio,
+  isOpen = false,
+  onClose
 }) => {
   const isAdmin = isSystemAdmin(user);
   const theme = useTheme();
@@ -41,6 +46,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const menuRef = useRef<HTMLDivElement>(null);
   const fullName = `${user.firstName} ${user.lastName}`.trim() || 'Гражданин SA';
   const roleLabel = OFFICIAL_ROLE_LABELS[user.officialRole] || 'Гражданин';
+
+  const handleNavClick = (action: () => void) => {
+    action();
+    if (onClose) onClose();
+  };
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -54,63 +64,93 @@ export const Sidebar: React.FC<SidebarProps> = ({
   }, [menuOpen]);
 
   return (
-    <aside
-      style={{
-        position: 'fixed',
-        left: 0,
-        top: 0,
-        bottom: 0,
-        width: 260,
-        background: R.bgPanel,
-        borderRight: ft.strong,
-        display: 'flex',
-        flexDirection: 'column',
-        zIndex: 40,
-        userSelect: 'none',
-      }}
-    >
-      {/* Brand Header with authentic Logo */}
-      <button
-        onClick={() => onNavigate('dashboard')}
-        title="Все документы"
-        style={{
-          padding: '16px 16px 14px',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 10,
-          width: '100%',
-          textAlign: 'left',
-          background: 'transparent',
-          borderBottom: ft.hair,
-          cursor: 'pointer',
-          borderLeft: 'none',
-          borderRight: 'none',
-          borderTop: 'none',
-          transition: 'background 0.12s ease',
-        }}
-        onMouseEnter={(e) => (e.currentTarget.style.background = R.bgElevated)}
-        onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
-      >
-        <img
-          src="/logo.png"
-          alt="REDWOOD"
-          style={{ width: 34, height: 34, display: 'block', flex: '0 0 34px', objectFit: 'contain', borderRadius: 6 }}
+    <>
+      {/* Mobile Drawer Backdrop */}
+      {isOpen && (
+        <div 
+          className="sidebar-backdrop"
+          onClick={onClose}
+          aria-label="Закрыть меню"
         />
-        <span style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.15, minWidth: 0 }}>
-          <span style={{ fontWeight: 800, fontSize: 15, letterSpacing: '0.02em', color: R.text }}>
-            REDWOOD
-          </span>
-          <span style={label}>
-            ПОРТАЛ ЗАКОНОПРОЕКТОВ
-          </span>
-        </span>
-      </button>
+      )}
+
+      <aside
+        className={`sidebar-container ${isOpen ? 'sidebar-open' : ''}`}
+      >
+        {/* Brand Header with authentic Logo */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            borderBottom: ft.hair,
+            paddingRight: 6,
+          }}
+        >
+          <button
+            onClick={() => handleNavClick(() => onNavigate('dashboard'))}
+            title="Все документы"
+            style={{
+              padding: '16px 16px 14px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+              flex: 1,
+              textAlign: 'left',
+              background: 'transparent',
+              border: 'none',
+              cursor: 'pointer',
+              transition: 'background 0.12s ease',
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = R.bgElevated)}
+            onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+          >
+            <img
+              src="/logo.png"
+              alt="REDWOOD"
+              style={{ width: 34, height: 34, display: 'block', flex: '0 0 34px', objectFit: 'contain', borderRadius: 6 }}
+            />
+            <span style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.15, minWidth: 0 }}>
+              <span style={{ fontWeight: 800, fontSize: 15, letterSpacing: '0.02em', color: R.text }}>
+                REDWOOD
+              </span>
+              <span style={label}>
+                ПОРТАЛ ЗАКОНОПРОЕКТОВ
+              </span>
+            </span>
+          </button>
+
+          {/* Mobile Close Drawer Button */}
+          {onClose && (
+            <button
+              type="button"
+              onClick={onClose}
+              className="mobile-close-btn"
+              title="Закрыть меню"
+              aria-label="Закрыть меню"
+              style={{
+                width: 38,
+                height: 38,
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: R.textMuted,
+                background: 'transparent',
+                border: 'none',
+                borderRadius: 'var(--rt-radius-btn, 8px)',
+                cursor: 'pointer',
+                flexShrink: 0,
+              }}
+            >
+              <X size={20} />
+            </button>
+          )}
+        </div>
 
       {/* Main Navigation Section */}
       <div style={{ padding: '14px 12px', display: 'flex', flexDirection: 'column', gap: 6 }}>
         <button
           type="button"
-          onClick={() => onNavigate('dashboard')}
+          onClick={() => handleNavClick(() => onNavigate('dashboard'))}
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -141,7 +181,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
         <button
           type="button"
-          onClick={onOpenNewBill}
+          onClick={() => handleNavClick(onOpenNewBill)}
           className="btn btn-primary"
           style={{
             width: '100%',
@@ -157,7 +197,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {isAdmin && (
           <button
             type="button"
-            onClick={() => onNavigate('admin_workspace')}
+            onClick={() => handleNavClick(() => onNavigate('admin_workspace'))}
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -192,7 +232,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {isAdmin && onOpenLawStudio && (
           <button
             type="button"
-            onClick={onOpenLawStudio}
+            onClick={() => handleNavClick(onOpenLawStudio)}
             title="Открыть кабинет законодательства (27 кодексов и законов, экспорт BB-кода)"
             style={{
               display: 'flex',
@@ -385,7 +425,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               label="Данные гражданина"
               onClick={() => {
                 setMenuOpen(false);
-                onOpenSettings();
+                handleNavClick(onOpenSettings);
               }}
             />
 
@@ -398,7 +438,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   accent={currentView === 'admin_workspace'}
                   onClick={() => {
                     setMenuOpen(false);
-                    onNavigate('admin_workspace');
+                    handleNavClick(() => onNavigate('admin_workspace'));
                   }}
                 />
               </>
@@ -407,5 +447,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
         )}
       </div>
     </aside>
+    </>
   );
 };

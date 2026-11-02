@@ -62,8 +62,8 @@ export const ScrollControls: React.FC<ScrollControlsProps> = ({
           transition={{ duration: 0.15 }}
           style={{
             position: 'fixed',
-            bottom: 24,
-            right: 28,
+            bottom: 'max(16px, calc(env(safe-area-inset-bottom, 0px) + 12px))',
+            right: 'max(16px, calc(env(safe-area-inset-right, 0px) + 12px))',
             zIndex: 80,
             display: 'flex',
             alignItems: 'center',

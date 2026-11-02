@@ -299,7 +299,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
       </div>
 
       {/* Metrics Cards Grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
+      <div className="dashboard-stats-grid">
         {[
           { icon: <Layers size={18} color={R.accent} />, value: stats.total, label: 'Всего в реестре' },
           { icon: <Clock size={18} color={R.warning} />, value: stats.active, label: 'На рассмотрении' },
@@ -360,7 +360,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
         }}
       >
         {/* Tab Chips */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'nowrap', overflowX: 'auto', maxWidth: '100%', paddingBottom: 2 }} className="scrollbar-hide">
           {tabs.map((tab) => {
             const isActive = activeTab === tab.id;
             return (
@@ -379,7 +379,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
         </div>
 
         {/* Search Input & Advanced Filter Button */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 260, flex: '1 1 auto', maxWidth: 420 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 240, flex: '1 1 300px', maxWidth: '100%' }}>
           <div style={{ position: 'relative', flex: '1 1 auto' }}>
             <Search
               size={15}

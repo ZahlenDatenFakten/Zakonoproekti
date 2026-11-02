@@ -337,7 +337,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         style={{
           width: '100%',
           maxWidth: 640,
-          maxHeight: '90vh',
+          maxHeight: 'min(90vh, 90dvh)',
           background: R.bgPanel,
           border: ft.strong,
           borderRadius: 2,

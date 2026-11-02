@@ -31,12 +31,14 @@ import { IdentityModal } from './components/IdentityModal';
 import { ScrollControls } from './components/ScrollControls';
 import { LawStudioModal } from './components/laws/LawStudioModal';
 import type { ToastMessage } from './components/Toast';
+import { Menu, Plus } from 'lucide-react';
 
 export const App: React.FC = () => {
   const [user, setUser] = useState<UserProfile>(getUserProfile());
   const isAdmin = isSystemAdmin(user);
   const [dbConfig, setDbConfig] = useState<DbConfig>(getStoredDbConfig());
   const [bills, setBills] = useState<Bill[]>([]);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   
   // Mandatory Citizen Identity State
   const [isIdentityConfirmed, setIsIdentityConfirmed] = useState<boolean>(() => {
@@ -89,6 +91,19 @@ export const App: React.FC = () => {
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
+
+  // Android Back button gesture support for closing mobile drawer
+  useEffect(() => {
+    if (!isMobileMenuOpen) return;
+    window.history.pushState({ mobileDrawer: true }, '');
+    const handleDrawerPop = () => {
+      setIsMobileMenuOpen(false);
+    };
+    window.addEventListener('popstate', handleDrawerPop, { once: true });
+    return () => {
+      window.removeEventListener('popstate', handleDrawerPop);
+    };
+  }, [isMobileMenuOpen]);
 
   const handleConfirmIdentity = (firstName: string, lastName: string) => {
     const updatedUser: UserProfile = {
@@ -425,6 +440,8 @@ export const App: React.FC = () => {
         onOpenNewBill={handleCreateNewBill}
         onOpenSettings={() => setShowSettingsModal(true)}
         onOpenLawStudio={isAdmin ? () => setShowLawStudio(true) : undefined}
+        isOpen={isMobileMenuOpen}
+        onClose={() => setIsMobileMenuOpen(false)}
       />
 
       {/* Main Content Area */}
@@ -432,14 +449,55 @@ export const App: React.FC = () => {
         id="main-scroll-container"
         style={{
           flex: '1 1 auto',
-          marginLeft: 260,
+          marginLeft: 'var(--sidebar-offset, 260px)',
           overflowY: 'auto',
           position: 'relative',
           background: 'var(--rt-bg)',
         }}
         className="rt-scroll"
       >
-        <div style={{ minHeight: '100%', padding: '32px 36px', maxWidth: 1240, margin: '0 auto' }}>
+        {/* Mobile Navigation Header (<1024px) */}
+        <header className="mobile-top-header">
+          <button
+            type="button"
+            className="mobile-hamburger-btn"
+            onClick={() => setIsMobileMenuOpen(true)}
+            aria-label="Меню навигации"
+            title="Меню навигации"
+          >
+            <Menu size={22} />
+          </button>
+          <div
+            className="mobile-top-brand"
+            onClick={() => {
+              handleNavigateView('dashboard');
+              setIsMobileMenuOpen(false);
+            }}
+          >
+            <img
+              src="/logo.png"
+              alt="REDWOOD"
+              style={{ width: 28, height: 28, borderRadius: 6, objectFit: 'contain' }}
+            />
+            <span style={{ fontWeight: 800, fontSize: 14, letterSpacing: '0.02em', color: 'var(--rt-fg, #ffffff)' }}>
+              REDWOOD
+            </span>
+          </div>
+          <button
+            type="button"
+            className="btn btn-primary mobile-new-bill-btn"
+            onClick={() => {
+              setIsMobileMenuOpen(false);
+              handleCreateNewBill();
+            }}
+            title="Внести законопроект"
+          >
+            <Plus size={16} strokeWidth={2.5} />
+            <span className="mobile-hide-xs">Создать</span>
+          </button>
+        </header>
+
+        <div style={{ minHeight: '100%', padding: 'var(--page-pad-y, 32px) var(--page-pad-x, 36px)', maxWidth: 1240, margin: '0 auto' }}>
           {currentView === 'dashboard' && (
             <Dashboard
               bills={bills}

@@ -1,0 +1,23 @@
+{
+  "name": "REDWOOD — Портал Законопроектов",
+  "short_name": "REDWOOD",
+  "description": "Официальная база законодательных инициатив, нормативно-правовых актов и текущих законопроектов REDWOOD.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f0f10",
+  "theme_color": "#1e2327",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "/favicon.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/favicon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
