@@ -163,6 +163,255 @@ app.post('/api/upload', upload.single('image'), (req, res) => {
   res.json({ success: true, url: fileUrl });
 });
 
+// ============================================================================
+// Discord DM Notification System via Report Assistant Bot
+// ============================================================================
+function getDiscordBotToken() {
+  if (process.env.DISCORD_BOT_TOKEN) return process.env.DISCORD_BOT_TOKEN.trim();
+  if (process.env.BOT_TOKEN) return process.env.BOT_TOKEN.trim();
+
+  const candidates = [
+    path.join(__dirname, '.env'),
+    path.join(__dirname, 'config', '.env'),
+    '/root/BOTGOV/.env',
+    'C:/BOTGOV/.env'
+  ];
+  for (const p of candidates) {
+    if (fs.existsSync(p)) {
+      try {
+        const text = fs.readFileSync(p, 'utf8');
+        const match = text.match(/(?:DISCORD_BOT_TOKEN|BOT_TOKEN)\s*=\s*([^\r\n]+)/);
+        if (match && match[1]) {
+          return match[1].trim().replace(/^['"]|['"]$/g, '');
+        }
+      } catch (e) {}
+    }
+  }
+  return '';
+}
+
+const DISCORD_BOT_TOKEN = getDiscordBotToken();
+const DISCORD_GUILD_ID = process.env.DISCORD_GUILD_ID || '1119468196848742402';
+
+let cachedGuildMembers = [];
+let lastMemberCacheTime = 0;
+const MEMBER_CACHE_TTL = 10 * 60 * 1000; // 10 minutes cache
+
+async function getGuildMembers() {
+  const now = Date.now();
+  if (cachedGuildMembers.length > 0 && (now - lastMemberCacheTime) < MEMBER_CACHE_TTL) {
+    return cachedGuildMembers;
+  }
+  try {
+    const res = await fetch(`https://discord.com/api/v10/guilds/${DISCORD_GUILD_ID}/members?limit=1000`, {
+      headers: { Authorization: `Bot ${DISCORD_BOT_TOKEN}` }
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        cachedGuildMembers = data;
+        lastMemberCacheTime = now;
+        return cachedGuildMembers;
+      }
+    }
+  } catch (err) {
+    console.error('Error fetching Discord guild members:', err);
+  }
+  return cachedGuildMembers;
+}
+
+const KNOWN_AUTHOR_DISCORDS = {
+  'walter moldenhauer': '326359417689866240',
+  'tuman_m': '326359417689866240',
+  'shini': '326359417689866240'
+};
+
+async function resolveDiscordUserId(authorName, explicitDiscordId) {
+  if (explicitDiscordId && /^\d{17,20}$/.test(String(explicitDiscordId).trim())) {
+    return String(explicitDiscordId).trim();
+  }
+  
+  const cleanName = (authorName || '').trim().toLowerCase();
+  for (const [key, id] of Object.entries(KNOWN_AUTHOR_DISCORDS)) {
+    if (cleanName.includes(key)) {
+      return id;
+    }
+  }
+
+  // Search by author name in guild members
+  const members = await getGuildMembers();
+  if (members.length > 0) {
+    const parts = cleanName.split(/\s+/).filter(p => p.length >= 3);
+    const match = members.find(m => {
+      const nick = (m.nick || '').toLowerCase();
+      const globalName = (m.user?.global_name || '').toLowerCase();
+      const username = (m.user?.username || '').toLowerCase();
+      
+      if (nick.includes(cleanName) || globalName.includes(cleanName) || username.includes(cleanName)) {
+        return true;
+      }
+      if (parts.length >= 2 && parts.every(part => nick.includes(part) || globalName.includes(part))) {
+        return true;
+      }
+      return false;
+    });
+
+    if (match?.user?.id) {
+      return match.user.id;
+    }
+  }
+
+  return null;
+}
+
+async function sendDiscordDmEmbed(userId, embed) {
+  // 1. Create DM channel
+  const dmResp = await fetch('https://discord.com/api/v10/users/@me/channels', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bot ${DISCORD_BOT_TOKEN}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ recipient_id: userId })
+  });
+
+  if (!dmResp.ok) {
+    const errText = await dmResp.text();
+    throw new Error(`Failed to create DM channel with user ${userId}: ${dmResp.status} ${errText}`);
+  }
+
+  const dmData = await dmResp.json();
+  const channelId = dmData.id;
+
+  // 2. Send message with Embed
+  const msgResp = await fetch(`https://discord.com/api/v10/channels/${channelId}/messages`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bot ${DISCORD_BOT_TOKEN}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      embeds: [embed]
+    })
+  });
+
+  if (!msgResp.ok) {
+    const errText = await msgResp.text();
+    throw new Error(`Failed to send DM message to channel ${channelId}: ${msgResp.status} ${errText}`);
+  }
+
+  return await msgResp.json();
+}
+
+app.post('/api/notify-verdict', async (req, res) => {
+  try {
+    const {
+      billId,
+      title,
+      targetLaw,
+      author,
+      authorDiscordId,
+      decision,
+      reason,
+      adminName,
+      portalUrl = 'https://zakonoproekti.duckdns.org'
+    } = req.body || {};
+
+    if (!decision || (decision !== 'needs_revision' && decision !== 'rejected')) {
+      return res.status(400).json({ error: 'Valid decision (needs_revision or rejected) is required' });
+    }
+
+    const targetUserId = await resolveDiscordUserId(author, authorDiscordId);
+    if (!targetUserId) {
+      console.warn(`[notify-verdict] Could not resolve Discord user for author "${author}" (ID: ${authorDiscordId || 'none'})`);
+      return res.json({ 
+        success: false, 
+        warning: `Не удалось сопоставить аккаунт Discord для автора "${author}". Уведомление в ЛС не отправлено.` 
+      });
+    }
+
+    const isNeedsRevision = decision === 'needs_revision';
+    const titleText = isNeedsRevision
+      ? '⚠️ Законопроект направлен на доработку'
+      : '❌ Законопроект отклонён Федеральным Правительством';
+
+    const color = isNeedsRevision ? 0xF59E0B : 0xEF4444;
+
+    const verdictStatusText = isNeedsRevision
+      ? '⚠️ **ТРЕБУЮТСЯ ПРАВКИ (НА ДОРАБОТКУ)**'
+      : '❌ **ОТКЛОНЕНО**';
+
+    const actionInstruction = isNeedsRevision
+      ? 'Перейдите в редактор портала, устраните указанные замечания и отправьте законопроект на повторное рассмотрение.'
+      : 'Законопроект отклонён Федеральным Правительством и перемещён в архив отклонённых.';
+
+    const baseUrl = String(portalUrl || 'https://zakonoproekti.duckdns.org').replace(/\/$/, '');
+    const siteLink = `${baseUrl}/?billId=${encodeURIComponent(billId || '')}`;
+
+    const embed = {
+      title: titleText,
+      color: color,
+      description: `Уважаемый(ая) **${author || 'Инициатор'}**!\nАдминистратор Федерального Правительства рассмотрел ваш законопроект и вынес решение:`,
+      fields: [
+        {
+          name: '📄 Законопроект',
+          value: `**${title || 'Без названия'}**`,
+          inline: false
+        },
+        {
+          name: '🏛️ Нормативно-правовой акт',
+          value: targetLaw || 'Законодательство Штата',
+          inline: true
+        },
+        {
+          name: '⚖️ Вердикт',
+          value: verdictStatusText,
+          inline: true
+        },
+        {
+          name: '👤 Администратор',
+          value: adminName || 'Федеральное Правительство',
+          inline: true
+        },
+        {
+          name: '📝 Обоснование / Замечания к законопроекту',
+          value: reason ? `>>> ${reason}` : '*(Замечания не указаны)*',
+          inline: false
+        },
+        {
+          name: '📌 Инструкция автору',
+          value: actionInstruction,
+          inline: false
+        },
+        {
+          name: '🔗 Ссылка на законопроект',
+          value: `[**Перейти к редактированию в портале**](${siteLink})`,
+          inline: false
+        }
+      ],
+      footer: {
+        text: 'Портал законопроектов штата • Report Assistant'
+      },
+      timestamp: new Date().toISOString()
+    };
+
+    const sent = await sendDiscordDmEmbed(targetUserId, embed);
+    console.log(`[notify-verdict] Successfully sent Discord DM to user ${targetUserId} for bill ${billId}`);
+    
+    return res.json({ 
+      success: true, 
+      messageId: sent.id, 
+      recipientId: targetUserId 
+    });
+  } catch (err) {
+    console.error('[notify-verdict] Error sending Discord notification:', err);
+    return res.status(500).json({ 
+      success: false, 
+      error: err.message || 'Failed to dispatch Discord notification' 
+    });
+  }
+});
+
 // Catch-all route to serve index.html for React Router / SPA (Express 4 & 5 compatible)
 app.use((req, res) => {
   res.sendFile(path.join(__dirname, 'dist', 'index.html'));

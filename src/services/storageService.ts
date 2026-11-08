@@ -295,6 +295,10 @@ export function getUserProfile(): UserProfile {
           saveUserProfile(user);
         }
       }
+      if (user && !user.discordId && (user.firstName?.toLowerCase() === 'walter' || user.lastName?.toLowerCase() === 'moldenhauer')) {
+        user.discordId = '326359417689866240';
+        saveUserProfile(user);
+      }
       return user;
     } catch {
       // ignore

@@ -21,7 +21,7 @@ import { ConfirmModal } from './ConfirmModal';
 
 interface SettingsModalProps {
   user: UserProfile;
-  onUpdateProfile: (firstName: string, lastName: string, officialRole: OfficialRole, isVerified: boolean) => void;
+  onUpdateProfile: (firstName: string, lastName: string, officialRole: OfficialRole, isVerified: boolean, discordId?: string) => void;
   onClose: () => void;
   onToast: (type: 'success' | 'error' | 'info', text: string) => void;
 }
@@ -52,6 +52,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   // Profile Form
   const [firstName, setFirstName] = useState(user.firstName);
   const [lastName, setLastName] = useState(user.lastName);
+  const [discordId, setDiscordId] = useState(user.discordId || '');
 
   // Official PIN Form
   const [targetRole, setTargetRole] = useState<OfficialRole>(() => {
@@ -87,7 +88,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     const roleToSet = revoked.isRevoked ? 'civilian' : user.officialRole;
     const verifiedToSet = revoked.isRevoked ? false : user.isOfficialVerified;
 
-    onUpdateProfile(cleanFirst, cleanLast, roleToSet, verifiedToSet);
+    onUpdateProfile(cleanFirst, cleanLast, roleToSet, verifiedToSet, discordId.trim() || undefined);
     if (revoked.isRevoked) {
       onToast('error', revoked.reason || 'Служебные полномочия отозваны.');
     } else {
@@ -285,7 +286,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
   const executeResetRole = () => {
     setShowConfirmResetRole(false);
-    onUpdateProfile(user.firstName, user.lastName, 'civilian', false);
+    onUpdateProfile(user.firstName, user.lastName, 'civilian', false, user.discordId);
     onToast('info', 'Служебный статус сброшен до Гражданского лица');
     onClose();
   };
@@ -589,6 +590,33 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     outline: 'none',
                   }}
                 />
+              </div>
+
+              <div>
+                <label style={{ ...label, display: 'block', marginBottom: 6 }}>
+                  Discord ID (для личных уведомлений бота Report Assistant):
+                </label>
+                <input
+                  type="text"
+                  value={discordId}
+                  onChange={(e) => setDiscordId(e.target.value)}
+                  placeholder="Например: 326359417689866240"
+                  style={{
+                    width: '100%',
+                    height: 38,
+                    padding: '0 12px',
+                    fontSize: 13,
+                    fontFamily: mono,
+                    background: R.bgInput,
+                    border: ft.edge,
+                    color: R.text,
+                    borderRadius: 2,
+                    outline: 'none',
+                  }}
+                />
+                <div style={{ fontSize: 11, color: R.textMuted, marginTop: 4, lineHeight: 1.4 }}>
+                  Бот <strong>Report Assistant</strong> пришлёт официальное Embed-сообщение в ЛС Discord, если администратор направит ваш законопроект на доработку или отклонит его.
+                </div>
               </div>
 
 

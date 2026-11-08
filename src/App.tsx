@@ -234,7 +234,7 @@ export const App: React.FC = () => {
   };
 
   // Profile update handler
-  const handleUpdateProfile = (firstName: string, lastName: string, officialRole: OfficialRole, isOfficialVerified: boolean) => {
+  const handleUpdateProfile = (firstName: string, lastName: string, officialRole: OfficialRole, isOfficialVerified: boolean, discordId?: string) => {
     const revoked = isUserRevokedFromRole(firstName, lastName, officialRole);
     const safeRole = revoked.isRevoked ? 'civilian' : officialRole;
     const safeVerified = revoked.isRevoked ? false : isOfficialVerified;
@@ -244,7 +244,8 @@ export const App: React.FC = () => {
       firstName,
       lastName,
       officialRole: safeRole,
-      isOfficialVerified: safeVerified
+      isOfficialVerified: safeVerified,
+      discordId: discordId !== undefined ? discordId : user.discordId
     };
     setUser(updated);
     saveUserProfile(updated);
@@ -289,6 +290,7 @@ export const App: React.FC = () => {
       targetLaw: 'Уголовный кодекс Штата (УК)',
       author: authorFullName,
       authorRole: OFFICIAL_ROLE_LABELS[user.officialRole] || 'Гражданин',
+      authorDiscordId: user.discordId,
       status: 'draft',
       explanatoryNote: 'Пояснительный комментарий к законопроекту...',
       comparisons: [

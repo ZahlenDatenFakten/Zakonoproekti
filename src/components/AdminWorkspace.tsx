@@ -23,6 +23,7 @@ import { R, ft, shadow, mono, btnAccent, btnOutline, fieldLabel } from '../lib/u
 import { ConfirmModal } from './ConfirmModal';
 import { EnactLawModal } from './laws/EnactLawModal';
 import { LawStudioModal } from './laws/LawStudioModal';
+import { notifyAuthorOnVerdict } from '../services/notificationService';
 
 interface AdminWorkspaceProps {
   user: UserProfile;
@@ -182,6 +183,21 @@ type AdminFilterType = 'my_pending' | 'pending_enact' | 'needs_revision' | 'appr
     };
 
     onSaveBill(updated);
+
+    // Send Discord DM Embed notification to author via Report Assistant bot
+    if (pendingDecision === 'needs_revision' || pendingDecision === 'rejected') {
+      notifyAuthorOnVerdict({
+        bill: updated,
+        decision: pendingDecision,
+        reason: note,
+        adminName: `${user.firstName} ${user.lastName}`.trim() || 'Федеральное Правительство'
+      }).then((res) => {
+        if (res.success) {
+          onToast('info', `🔔 Автору (${updated.author}) отправлено Embed-уведомление в ЛС Discord`);
+        }
+      }).catch(console.error);
+    }
+
     onToast(
       'success',
       `Вердикт вынесен: ${

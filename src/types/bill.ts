@@ -82,6 +82,7 @@ export interface Bill {
   targetLaws?: string[]; // Список затрагиваемых законов
   author: string;
   authorRole: string;
+  authorDiscordId?: string;
   status: BillStatus;
   statusReason?: string;
   explanatoryNote: string;
@@ -130,6 +131,7 @@ export interface UserProfile {
   department: string;
   avatarUrl?: string;
   emblemUrl?: string;
+  discordId?: string;
 }
 
 export interface DbConfig {

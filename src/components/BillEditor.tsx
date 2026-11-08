@@ -7,6 +7,7 @@ import { ImageUploader } from './ImageUploader';
 import { ConfirmModal } from './ConfirmModal';
 import { isSystemAdmin, isUserRevokedFromRole } from '../services/securityService';
 import { computeWordDiff } from '../services/diffService';
+import { notifyAuthorOnVerdict } from '../services/notificationService';
 import { BillPrintView } from './BillPrintView';
 // @ts-ignore
 import html2pdf from 'html2pdf.js';
@@ -431,6 +432,21 @@ export const BillEditor: React.FC<BillEditorProps> = ({
 
     setBill(updated);
     await onSave(updated);
+
+    // Send Discord DM Embed notification to author via Report Assistant bot
+    if (decision === 'needs_revision' || decision === 'rejected') {
+      notifyAuthorOnVerdict({
+        bill: updated,
+        decision,
+        reason: verdict.reason,
+        adminName: `${user.firstName} ${user.lastName}`.trim() || 'Федеральное Правительство'
+      }).then((res) => {
+        if (res.success) {
+          onToast('info', `🔔 Автору (${updated.author}) отправлено Embed-уведомление в ЛС Discord`);
+        }
+      }).catch(console.error);
+    }
+
     setAdminVerdictReason('');
     setIsEditingAdminVerdict(false);
     onToast('success', `Вердикт вынесен: ${decision === 'approved' ? 'Утверждено' : decision === 'rejected' ? 'Отклонено' : 'Направлено на доработку'}`);
