@@ -337,6 +337,9 @@ export async function saveBillToFirebase(bill: Bill): Promise<boolean> {
     updatedAt: new Date().toISOString()
   };
 
+  // Strip any undefined fields to prevent Firestore setDoc crashes
+  const sanitizedBill = JSON.parse(JSON.stringify(updatedBill));
+
   let firestoreSuccess = false;
 
   // 1. Save to Cloud Firestore (Primary Source of Truth)
@@ -344,7 +347,7 @@ export async function saveBillToFirebase(bill: Bill): Promise<boolean> {
     const firestore = getFirestore(app);
     if (firestore) {
       const docRef = doc(firestore, 'bills', bill.id);
-      await setDoc(docRef, updatedBill, { merge: true });
+      await setDoc(docRef, sanitizedBill, { merge: true });
       firestoreSuccess = true;
     }
   } catch (err: any) {
@@ -362,7 +365,7 @@ export async function saveBillToFirebase(bill: Bill): Promise<boolean> {
       const rtdb = getDatabase(app);
       if (rtdb) {
         const billRef = ref(rtdb, 'bills/' + bill.id);
-        await set(billRef, updatedBill);
+        await set(billRef, sanitizedBill);
       }
     }
   } catch (err: any) {
@@ -560,7 +563,8 @@ export async function saveStateLawToFirebase(law: StateLaw): Promise<boolean> {
   try {
     const firestore = getFirestore(app);
     if (firestore) {
-      await setDoc(doc(firestore, 'state_laws', law.id), law);
+      const sanitizedLaw = JSON.parse(JSON.stringify(law));
+      await setDoc(doc(firestore, 'state_laws', law.id), sanitizedLaw);
       return true;
     }
   } catch {
