@@ -295,8 +295,8 @@ export function getUserProfile(): UserProfile {
           saveUserProfile(user);
         }
       }
-      if (user && !user.discordId && (user.firstName?.toLowerCase() === 'walter' || user.lastName?.toLowerCase() === 'moldenhauer')) {
-        user.discordId = '326359417689866240';
+      if (user && !user.discordId && (user.firstName?.toLowerCase() === 'friedrich' || user.lastName?.toLowerCase() === 'engelmann')) {
+        user.discordId = '1008264840357347348';
         saveUserProfile(user);
       }
       return user;

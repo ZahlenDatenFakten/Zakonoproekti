@@ -221,16 +221,18 @@ async function getGuildMembers() {
 }
 
 const KNOWN_AUTHOR_DISCORDS = {
-  'walter moldenhauer': '326359417689866240',
-  'tuman_m': '326359417689866240',
-  'shini': '326359417689866240'
+  'friedrich engelmann': '1008264840357347348',
+  'friedrich': '1008264840357347348',
+  'engelmann': '1008264840357347348'
 };
 
 async function resolveDiscordUserId(authorName, explicitDiscordId) {
+  // 1. If author explicitly specified their Discord ID in their profile or bill
   if (explicitDiscordId && /^\d{17,20}$/.test(String(explicitDiscordId).trim())) {
     return String(explicitDiscordId).trim();
   }
   
+  // 2. Governor Friedrich Engelmann (admin/governor account)
   const cleanName = (authorName || '').trim().toLowerCase();
   for (const [key, id] of Object.entries(KNOWN_AUTHOR_DISCORDS)) {
     if (cleanName.includes(key)) {
@@ -238,29 +240,7 @@ async function resolveDiscordUserId(authorName, explicitDiscordId) {
     }
   }
 
-  // Search by author name in guild members
-  const members = await getGuildMembers();
-  if (members.length > 0) {
-    const parts = cleanName.split(/\s+/).filter(p => p.length >= 3);
-    const match = members.find(m => {
-      const nick = (m.nick || '').toLowerCase();
-      const globalName = (m.user?.global_name || '').toLowerCase();
-      const username = (m.user?.username || '').toLowerCase();
-      
-      if (nick.includes(cleanName) || globalName.includes(cleanName) || username.includes(cleanName)) {
-        return true;
-      }
-      if (parts.length >= 2 && parts.every(part => nick.includes(part) || globalName.includes(part))) {
-        return true;
-      }
-      return false;
-    });
-
-    if (match?.user?.id) {
-      return match.user.id;
-    }
-  }
-
+  // Strictly: only authors who entered their Discord ID in their profile receive notifications
   return null;
 }
 
