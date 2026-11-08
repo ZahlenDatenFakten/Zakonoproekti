@@ -49,9 +49,16 @@ export function bbcodeToHtml(bbcode: string): string {
   html = html.replace(/\[RIGHT\]([\s\S]*?)\[\/RIGHT\]/gi, (_match, content) => {
     return `<div style="text-align: right; margin: 4px 0;">${content}</div>`;
   });
+  html = html.replace(/\[ALIGN=["\']?(center|left|right|justify)["\']?\]([\s\S]*?)\[\/ALIGN\]/gi, (_match, align, content) => {
+    return `<div style="text-align: ${align.toLowerCase()}; margin: 4px 0;">${content}</div>`;
+  });
+  html = html.replace(/\[HEADING=["\']?([1-3])["\']?\]([\s\S]*?)\[\/HEADING\]/gi, (_match, level, content) => {
+    const sz = level === '1' ? '20px' : level === '2' ? '18px' : '16px';
+    return `<div style="font-size: ${sz}; font-weight: 700; color: #ecc781; margin: 12px 0 6px 0;">${content}</div>`;
+  });
 
   // 6. Indents (INDENT and INDENT=N)
-  html = html.replace(/\[INDENT(?:=([0-9]+))?\]([\s\S]*?)\[\/INDENT\]/gi, (_match, level, content) => {
+  html = html.replace(/\[INDENT(?:=["\']?([0-9]+)["\']?)?\]([\s\S]*?)\[\/INDENT\]/gi, (_match, level, content) => {
     const depth = level ? Math.min(parseInt(level, 10), 6) : 1;
     return `<div style="padding-left: ${depth * 24}px; margin: 3px 0; line-height: 1.6;">${content}</div>`;
   });
@@ -66,7 +73,7 @@ export function bbcodeToHtml(bbcode: string): string {
 
   // 8. Colors (support nested colors)
   for (let i = 0; i < 3; i++) {
-    html = html.replace(/\[COLOR="?([^"\]]*)"?\]([\s\S]*?)\[\/COLOR\]/gi, (_match, color, content) => {
+    html = html.replace(/\[COLOR=["\']?([^"\'\]]*)["\']?\]([\s\S]*?)\[\/COLOR\]/gi, (_match, color, content) => {
       const c = color.trim().toLowerCase();
       if (!c || c === 'null' || c === 'inherit') {
         return `<span>${content}</span>`;
@@ -76,7 +83,7 @@ export function bbcodeToHtml(bbcode: string): string {
   }
 
   // 9. Fonts
-  html = html.replace(/\[FONT="?([^"\]]*)"?\]([\s\S]*?)\[\/FONT\]/gi, (_match, font, content) => {
+  html = html.replace(/\[FONT=["\']?([^"\'\]]*)["\']?\]([\s\S]*?)\[\/FONT\]/gi, (_match, font, content) => {
     return `<span style="font-family: ${font}, Verdana, Geneva, sans-serif;">${content}</span>`;
   });
 
@@ -91,7 +98,7 @@ export function bbcodeToHtml(bbcode: string): string {
     '7': '24px'
   };
   for (let i = 0; i < 2; i++) {
-    html = html.replace(/\[SIZE="?([0-9]+(?:px)?)"?\]([\s\S]*?)\[\/SIZE\]/gi, (_match, size, content) => {
+    html = html.replace(/\[SIZE=["\']?([0-9]+(?:px)?)["\']?\]([\s\S]*?)\[\/SIZE\]/gi, (_match, size, content) => {
       const px = sizeMap[size] || (size.endsWith('px') ? size : '14px');
       return `<span style="font-size: ${px};">${content}</span>`;
     });

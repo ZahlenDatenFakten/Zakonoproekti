@@ -39,7 +39,7 @@ import {
 } from 'lucide-react';
 import { R, ft, label, mono, btnAccent, btnOutline } from '../lib/ui';
 import { useBillHistory } from '../hooks/useBillHistory';
-import { getLatestArticleContent, getActiveLaw, findLawByTitleOrCode } from '../services/lawStorageService';
+import { getLatestArticleContent, getActiveLaw, findLawByTitleOrCode, SANCTION_REGEX } from '../services/lawStorageService';
 import { Popover, MenuItem } from './Primitives';
 import { EnactLawModal } from './laws/EnactLawModal';
 import { LawSelectPicker } from './laws/LawSelectPicker';
@@ -1936,6 +1936,59 @@ export const BillEditor: React.FC<BillEditorProps> = ({
                           </div>
                         </div>
                       )}
+
+                      {/* Sanction Inadvertent Removal Alert */}
+                      {(() => {
+                        const wasSanctionMatch = (row.wasContent || '').match(SANCTION_REGEX);
+                        const becameSanctionMatch = (row.becameContent || '').match(SANCTION_REGEX);
+                        const isMissingSanction = wasSanctionMatch && !becameSanctionMatch && !/(?:санкция\s+исключена|наказание\s+отменено|без\s+наказания|утратил[ао]?\s+силу)/i.test(row.becameContent || '');
+                        if (!isMissingSanction) return null;
+                        return (
+                          <div
+                            style={{
+                              padding: '8px 14px',
+                              background: 'rgba(234, 179, 8, 0.08)',
+                              borderTop: '1px solid rgba(234, 179, 8, 0.25)',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              gap: 10,
+                              flexWrap: 'wrap',
+                              fontSize: 12,
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#facc15' }}>
+                              <span style={{ fontSize: 14 }}>⚠️</span>
+                              <span>
+                                <strong>Внимание:</strong> В исходной статье есть санкция (<em>{wasSanctionMatch[0].trim()}</em>), но в вашей редакции она не указана. Наказание сохранится автоматически, если вы не отменяете его намеренно.
+                              </span>
+                            </div>
+                            {canEdit && !isReadOnly && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const sText = wasSanctionMatch[0].trim();
+                                  const updated = row.becameContent ? `${row.becameContent.trim()}\n${sText}` : sText;
+                                  updateComparisonRow(row.id, 'becameContent', updated);
+                                  onToast('success', 'Санкция перенесена в новую редакцию статьи!');
+                                }}
+                                style={{
+                                  ...btnOutline,
+                                  padding: '3px 10px',
+                                  height: 24,
+                                  fontSize: 11,
+                                  fontWeight: 700,
+                                  borderColor: 'rgba(234, 179, 8, 0.5)',
+                                  color: '#facc15',
+                                  cursor: 'pointer',
+                                }}
+                              >
+                                + Перенести санкцию в «Стало»
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })()}
 
                     </div>
                   );

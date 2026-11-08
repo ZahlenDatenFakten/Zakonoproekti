@@ -3,11 +3,23 @@ import type { LawArticle, LawChapter, StateLawDocument } from '../types/lawAst';
 export const FORUM_THEME = {
   font: 'verdana',
   size: '4',
-  accentColor: 'rgb(236, 199, 129)', // #ECC781 GTA5RP Official Gold
-  textColor: 'rgb(255, 255, 255)',   // #FFFFFF GTA5RP Official White
+  accentColor: '#ECC781', // Clean Hex for XenForo 2.3 (no spaces in tag attributes)
+  textColor: '#FFFFFF',   // Clean Hex for XenForo 2.3
   bannerImage: 'https://i.imgur.com/bQG2kud.png',
   dividerImage: 'https://i.imgur.com/eoOV353.png'
 };
+
+/**
+ * Valid XenForo 2.3 BBCode tags.
+ * Plain text brackets like [1], [2], [A], [V], [Примечание] are strictly excluded
+ * from tag balancing to prevent nonsensical trailing closing tags.
+ */
+const KNOWN_XENFORO_TAGS = new Set([
+  'B', 'I', 'U', 'S', 'COLOR', 'FONT', 'SIZE',
+  'CENTER', 'LEFT', 'RIGHT', 'JUSTIFY', 'ALIGN',
+  'INDENT', 'IMG', 'URL', 'LIST', 'TABLE', 'TR', 'TH', 'TD',
+  'QUOTE', 'SPOILER', 'HEADING', 'CODE', 'ICODE', 'ATTACH', 'HR', 'BR'
+]);
 
 /**
  * Validates and balances XenForo BBCode tags.
@@ -15,8 +27,8 @@ export const FORUM_THEME = {
  */
 export function validateAndBalanceBBCode(bbcode: string): { isValid: boolean; balancedBBCode: string } {
   // Matches [TAG], [TAG=val], [TAG attr="val"]
-  const openTagRegex = /\[([A-Za-z0-9_-]+)(?:\s+[^\]]*|=[^\]]*)?\]/gi;
-  const closeTagRegex = /\[\/([A-Za-z0-9_-]+)\s*\]/gi;
+  const openTagRegex = /\[([A-Za-z]+)(?:\s+[^\]]*|=[^\]]*)?\]/gi;
+  const closeTagRegex = /\[\/([A-Za-z]+)\s*\]/gi;
   const voidTags = new Set(['HR', 'BR']);
 
   const stack: string[] = [];
@@ -24,19 +36,19 @@ export function validateAndBalanceBBCode(bbcode: string): { isValid: boolean; ba
 
   let match: RegExpExecArray | null;
 
-  // Collect open tags
+  // Collect open tags (whitelisted only)
   while ((match = openTagRegex.exec(bbcode)) !== null) {
     const raw = match[0];
     const tag = match[1].toUpperCase();
-    if (!raw.startsWith('[/') && !voidTags.has(tag)) {
+    if (!raw.startsWith('[/') && !voidTags.has(tag) && KNOWN_XENFORO_TAGS.has(tag)) {
       tagTokens.push({ type: 'open', tag, raw, index: match.index });
     }
   }
 
-  // Collect close tags
+  // Collect close tags (whitelisted only)
   while ((match = closeTagRegex.exec(bbcode)) !== null) {
     const tag = match[1].toUpperCase();
-    if (!voidTags.has(tag)) {
+    if (!voidTags.has(tag) && KNOWN_XENFORO_TAGS.has(tag)) {
       tagTokens.push({ type: 'close', tag, raw: match[0], index: match.index });
     }
   }
@@ -78,12 +90,12 @@ export function compileArticleBBCode(article: LawArticle): string {
   const lines: string[] = [];
   const { font, size, accentColor, textColor } = FORUM_THEME;
 
-  // Clean article number (e.g. "9.1", "Статья 9.1" -> "9.1")
+  // Clean article number (e.g. "9.1", "Статья 9.1", "15.6**")
   let numClean = article.articleNumber.replace(/^статья\s+/i, '').trim();
 
   // If articleNumber accidentally got a chapter title or non-numeric label, extract true number from content
   if (/^глава\s+/i.test(numClean) || !/\d/.test(numClean)) {
-    const m = article.content.trim().match(/^(?:ст(?:атья|\.)?\s*)?([0-9]+(?:\.[0-9]+)*)/i);
+    const m = article.content.trim().match(/^(?:ст(?:атья|\.)?\s*)?([0-9]+(?:\.[0-9]+)*(?:\*{1,3})?)/i);
     if (m) {
       numClean = m[1];
     }
@@ -94,11 +106,19 @@ export function compileArticleBBCode(article: LawArticle): string {
 
   // Strip duplicate article number from beginning of cleanContent (e.g. "Статья 5.6 ...")
   if (numClean) {
-    const escaped = numClean.replace(/\./g, '\\.');
+    const escaped = numClean.replace(/[\.\*]/g, '\\$&');
     const leadRegex = new RegExp(`^(?:ст(?:атья|\\.)?\\s*)?${escaped}[\\.:\\s—–-]*\\s*`, 'i');
     cleanContent = cleanContent.replace(leadRegex, '').trim();
   } else {
-    cleanContent = cleanContent.replace(/^(?:ст(?:атья|\.)?\s*)?(?:[0-9]+(?:\.[0-9]+)*)[\.:\\s—–-]*\s*/i, '').trim();
+    cleanContent = cleanContent.replace(/^(?:ст(?:атья|\.)?\s*)?(?:[0-9]+(?:\.[0-9]+)*)[\.:\s—–-]*\s*/i, '').trim();
+  }
+
+  // Check if content begins with stars (e.g. ** or ***) and numClean doesn't have them
+  const starsMatch = cleanContent.match(/^(\*{1,3})\s*/);
+  let stars = '';
+  if (starsMatch && !numClean.includes('*')) {
+    stars = starsMatch[1];
+    cleanContent = cleanContent.substring(starsMatch[0].length).trim();
   }
 
   if (article.title) {
@@ -108,9 +128,36 @@ export function compileArticleBBCode(article: LawArticle): string {
     }
   }
 
+  // Collect all sanctions: from article.sanctions AND any trailing sanction lines in cleanContent
+  const detectedSanctions: string[] = [];
+  if (article.sanctions && article.sanctions.length > 0) {
+    article.sanctions.forEach((s) => {
+      const clean = (s.text || '').trim();
+      if (clean) detectedSanctions.push(clean.replace(/^[-—⁃]\s*/, ''));
+    });
+  }
+
+  // Extract trailing sanction lines if still inside cleanContent
+  const contentLines = cleanContent.split(/\r?\n/);
+  const remainingContentLines: string[] = [];
+  for (const line of contentLines) {
+    const trimmedLine = line.trim();
+    if (/^[-—⁃]\s*(?:от\s+\d+|до\s+\d+|\d+\s+(?:лет|года|год|суток|месяцев|дней|часов)|лишение|штраф|наказание|административный|уголовный|судебный|изъятие|предупреждение|выговор|увольнение|исправительные|обязательные|арест|судимост|\$[0-9\.,]+)/i.test(trimmedLine)) {
+      detectedSanctions.push(trimmedLine.replace(/^[-—⁃]\s*/, ''));
+    } else {
+      remainingContentLines.push(line);
+    }
+  }
+  cleanContent = remainingContentLines.join('\n').trim();
+
+  // Determine prefix: if stars are present, format as Criminal Code style (e.g. "15.6**"), otherwise "Статья 9.1"
+  const fullNum = stars ? `${numClean}${stars}` : numClean;
+  const isCriminalOrStarStyle = stars || /\*/.test(fullNum) || /^\d+\.\d+\*/.test(fullNum);
+  const headerPrefix = isCriminalOrStarStyle ? fullNum : `Статья ${fullNum}`;
+
   const articleTitle = article.title ? `[COLOR=${textColor}][B]${article.title.replace(/[:.]+$/, '')}:[/B][/COLOR] ` : '';
   lines.push(
-    `[INDENT=2][FONT=${font}][SIZE=${size}][B][COLOR=${accentColor}]Статья ${numClean}[/COLOR][/B] ${articleTitle}[COLOR=${textColor}]${cleanContent}[/COLOR][/SIZE][/FONT][/INDENT]`
+    `[INDENT=2][FONT=${font}][SIZE=${size}][B][COLOR=${accentColor}]${headerPrefix}[/COLOR][/B] ${articleTitle}[COLOR=${textColor}]${cleanContent}[/COLOR][/SIZE][/FONT][/INDENT]`
   );
 
   // 2. Clauses (Exceptions, Notes, subclauses)
@@ -139,16 +186,15 @@ export function compileArticleBBCode(article: LawArticle): string {
     }
   }
 
-  // 3. Sanctions
-  if (article.sanctions && article.sanctions.length > 0) {
-    for (const sanction of article.sanctions) {
-      let text = sanction.text.trim();
-      // Remove leading dash if present
+  // 3. Sanctions (with authentic GTA5RP gold bullet ⁃)
+  if (detectedSanctions.length > 0) {
+    for (const sanction of detectedSanctions) {
+      let text = sanction.trim();
       if (text.startsWith('-') || text.startsWith('—') || text.startsWith('⁃')) {
         text = text.substring(1).trim();
       }
       lines.push(
-        `[INDENT=3][FONT=${font}][SIZE=${size}][I][COLOR=${accentColor}]- [/COLOR][COLOR=${textColor}]${text}[/COLOR][/I][/SIZE][/FONT][/INDENT]`
+        `[INDENT=2][FONT=${font}][B][COLOR=${accentColor}]⁃[/COLOR] [/B][SIZE=${size}][I][COLOR=${textColor}]${text}[/COLOR][/I][/SIZE][/FONT][/INDENT]`
       );
     }
   }

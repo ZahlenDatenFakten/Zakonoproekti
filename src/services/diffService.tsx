@@ -33,8 +33,8 @@ export function computeWordDiff(wasText: string, becameText: string, forPrint: b
     };
   }
 
-  // Tokenize by word, legal symbols, punctuation and whitespace boundaries
-  const tokenize = (text: string) => text.match(/[\wА-Яа-яЁё0-9]+|[§№%()«»"".,;:\-\–\—\n]|\s+/g) || [];
+  // Tokenize by word, legal symbols, punctuation and whitespace boundaries (preserves all characters including '/')
+  const tokenize = (text: string) => text.match(/[\p{L}\p{N}]+|[^\p{L}\p{N}\s]+|\s+/gu) || [];
   const wasTokens = tokenize(cleanWas);
   const becameTokens = tokenize(cleanBecame);
 
@@ -81,7 +81,7 @@ export function computeWordDiff(wasText: string, becameText: string, forPrint: b
   const unifiedFormatted: React.ReactNode[] = [];
 
   edits.forEach((token, idx) => {
-    const isWord = /[\wА-Яа-яЁё0-9]+/.test(token.value);
+    const isWord = /[\p{L}\p{N}]+/u.test(token.value);
 
     if (token.type === 'removed') {
       if (isWord) removedWords++;

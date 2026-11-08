@@ -1,7 +1,7 @@
 import type { StateLawDocument, LawArticle, LawChapter, LawPatchResult } from '../types/lawAst';
 import type { Bill, ComparisonRow } from '../types/bill';
-import { COMPILED_LAWS_REGISTRY } from '../data/compiledLawsRegistry';
-import { compileArticleBBCode, compileFullLawBBCode, compileLawPartBBCode, compileLawChapterBBCode } from './bbcodeCompiler';
+import { COMPILED_LAWS_REGISTRY } from '../data/compiledLawsRegistry.ts';
+import { compileArticleBBCode, compileFullLawBBCode, compileLawPartBBCode, compileLawChapterBBCode } from './bbcodeCompiler.ts';
 
 const LAW_STORAGE_PREFIX = 'legaldraft_law_doc_';
 
@@ -346,11 +346,13 @@ export function getLawPartBBCode(lawId: string, partIndex: number): string {
 /**
  * Parses raw becameContent into title, content, exceptions, and sanctions.
  */
-function parseRawArticleContent(
+export const SANCTION_REGEX = /(?:^|\n)\s*[-—⁃]\s*(?:от\s+\d+|до\s+\d+|\d+\s+(?:лет|года|год|суток|месяцев|дней|часов)|лишение|штраф|наказание|административный|уголовный|судебный|изъятие|предупреждение|выговор|увольнение|исправительные|обязательные|арест|судимост|\$[0-9\.,]+)[^\n]*/i;
+
+export function parseRawArticleContent(
   raw: string,
   targetArtNum?: string,
   existingTitle?: string
-): { title?: string; content: string; sanctionText?: string; exceptionText?: string } {
+): { title?: string; content: string; sanctionText?: string; exceptionText?: string; exceptionPrefix?: string } {
   let text = raw.trim();
   let sanctionText: string | undefined;
   let exceptionText: string | undefined;
@@ -398,19 +400,22 @@ function parseRawArticleContent(
     text = text.substring(parsedTitle.length).replace(/^[:.\s—–-]+/, '').trim();
   }
 
-  // 3. Sanction line (e.g. "- Штраф...")
-  const sanctionMatch = text.match(/(?:^|\n)\s*[-—⁃]\s*(?:штраф|наказание|административный|лишение|изъятие)[^\n]*/i);
+  // 3. Sanction line (supporting all GTA5RP sanctions: terms, days, fines, etc.)
+  const sanctionMatch = text.match(SANCTION_REGEX);
   if (sanctionMatch) {
-    sanctionText = sanctionMatch[0].replace(/^[\n\s*[-—⁃]\s*/, '').trim();
+    sanctionText = sanctionMatch[0].replace(/^[\s\r\n]*[-—–⁃*•]\s*/, '').trim();
     text = text.replace(sanctionMatch[0], '').trim();
   }
 
-  // 4. Exception (e.g. "Исключение: ...")
-  const exceptionMatch = text.match(/(?:^|\n)\s*исключение:\s*([^\n]+)/i);
+  // 4. Exception or Note (e.g. "Исключение: ...", "Примечание: ...")
+  let exceptionPrefix: string | undefined;
+  const exceptionMatch = text.match(/(?:^|\n)\s*(?:исключение|примечание|пояснение)[\s\d]*:\s*([^\n]+)/i);
   if (exceptionMatch) {
     const cand = exceptionMatch[1].trim();
     if (cand) {
       exceptionText = cand;
+      const prefixMatch = exceptionMatch[0].match(/(?:исключение|примечание|пояснение)[\s\d]*:/i);
+      exceptionPrefix = prefixMatch ? prefixMatch[0].trim() : 'Исключение:';
       text = text.replace(exceptionMatch[0], '').trim();
     }
   }
@@ -419,7 +424,8 @@ function parseRawArticleContent(
     title: parsedTitle,
     content: text,
     sanctionText,
-    exceptionText
+    exceptionText,
+    exceptionPrefix
   };
 }
 
@@ -624,20 +630,70 @@ function patchSingleLaw(
         if (parsed.title) {
           found.article.title = parsed.title;
         }
-        found.article.content = parsed.content;
+        // Clean any residual sanction lines from parsed.content if sanctionText was captured or already known
+        let cleanBody = parsed.content;
+        const bodySanctionMatch = cleanBody.match(SANCTION_REGEX);
+        if (bodySanctionMatch && !parsed.sanctionText) {
+          parsed.sanctionText = bodySanctionMatch[0].replace(/^[\s\r\n]*[-—–⁃*•]\s*/, '').trim();
+          cleanBody = cleanBody.replace(bodySanctionMatch[0], '').trim();
+        } else if (bodySanctionMatch && parsed.sanctionText) {
+          cleanBody = cleanBody.replace(bodySanctionMatch[0], '').trim();
+        }
+
+        found.article.content = cleanBody;
         found.article.rawBBCode = undefined; // Force recompilation using forum theme
         found.article.updatedAt = new Date().toISOString();
         found.article.sourceBillId = bill.id;
-        found.article.sanctions = parsed.sanctionText ? [{ id: 's_' + Date.now(), text: parsed.sanctionText }] : undefined;
-        found.article.clauses = parsed.exceptionText
-          ? [
-              {
-                id: 'c_' + Date.now(),
-                prefix: 'Исключение:',
-                content: parsed.exceptionText
-              }
-            ]
-          : undefined;
+
+        // SANCTION INHERITANCE GUARD:
+        // If the author didn't provide a sanction, check if the article or comp.wasContent had one.
+        // Unless explicitly repealed (e.g. "санкция исключена", "наказание отменено", "без наказания", "утратила силу"), PRESERVE IT!
+        const isRepealedOrExplicitlyRemoved = /(?:санкция\s+исключена|наказание\s+отменено|без\s+наказания|утратил[ао]?\s+силу)/i.test(comp.becameContent);
+
+        if (parsed.sanctionText) {
+          found.article.sanctions = [{ id: 's_' + Date.now(), text: parsed.sanctionText }];
+        } else if (!isRepealedOrExplicitlyRemoved) {
+          if (found.article.sanctions && found.article.sanctions.length > 0) {
+            // Keep existing structured sanctions
+          } else {
+            // Extract from comp.wasContent or previous found.article.content
+            const wasSanctionMatch = (comp.wasContent || '').match(SANCTION_REGEX) || (found.article.content || '').match(SANCTION_REGEX);
+            if (wasSanctionMatch) {
+              const inheritedText = wasSanctionMatch[0].replace(/^[\s\r\n]*[-—–⁃*•]\s*/, '').trim();
+              found.article.sanctions = [{ id: 's_inh_' + Date.now(), text: inheritedText }];
+            }
+          }
+        } else {
+          found.article.sanctions = undefined;
+        }
+
+        // CLAUSES (Exceptions, Notes) INHERITANCE GUARD:
+        if (parsed.exceptionText) {
+          found.article.clauses = [
+            {
+              id: 'c_' + Date.now(),
+              prefix: parsed.exceptionPrefix || 'Исключение:',
+              content: parsed.exceptionText
+            }
+          ];
+        } else if (!isRepealedOrExplicitlyRemoved) {
+          if (found.article.clauses && found.article.clauses.length > 0) {
+            // Keep existing clauses
+          } else {
+            const wasClauseMatch = (comp.wasContent || '').match(/(?:^|\n)\s*(исключение|примечание|пояснение)[\s\d]*:\s*([^\n]+)/i);
+            if (wasClauseMatch) {
+              found.article.clauses = [
+                {
+                  id: 'c_inh_' + Date.now(),
+                  prefix: `${wasClauseMatch[1]}:`,
+                  content: wasClauseMatch[2].trim()
+                }
+              ];
+            }
+          }
+        } else {
+          found.article.clauses = undefined;
+        }
 
         if (found.article.partIndex) {
           affectedParts.add(found.article.partIndex);

@@ -9,7 +9,8 @@ import {
   extractArticleNumber,
   resolveArticleNumberFromComparison,
   getLawChapterBBCode,
-  compileLawChapterBBCode
+  compileLawChapterBBCode,
+  SANCTION_REGEX
 } from '../../services/lawStorageService';
 import { compileFullLawBBCode, compileLawPartBBCode } from '../../services/bbcodeCompiler';
 import { copyToClipboard } from '../../lib/clipboard';
@@ -721,6 +722,19 @@ export const EnactLawModal: React.FC<EnactLawModalProps> = ({
                             <span style={{ fontWeight: 700, fontSize: 10, textTransform: 'uppercase' }}>Стало: </span>
                             {comp.becameContent}
                           </div>
+                          {(() => {
+                            const wasS = (comp.wasContent || '').match(SANCTION_REGEX);
+                            const becS = (comp.becameContent || '').match(SANCTION_REGEX);
+                            if (wasS && !becS && !/(?:санкция\s+исключена|наказание\s+отменено|без\s+наказания|утратил[ао]?\s+силу)/i.test(comp.becameContent || '')) {
+                              return (
+                                <div style={{ fontSize: 11, color: '#38bdf8', background: 'rgba(56, 189, 248, 0.08)', padding: '4px 8px', borderRadius: 2, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                  <span>⚖️</span>
+                                  <span>Действующая санкция («{wasS[0].trim()}») автоматически сохранена в реестре.</span>
+                                </div>
+                              );
+                            }
+                            return null;
+                          })()}
                         </div>
                       </div>
                     );

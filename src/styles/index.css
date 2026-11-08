@@ -34,6 +34,26 @@
 
     /* Touch Targets */
     --touch-min-h: 44px;
+
+    /* Safe Area Insets for Notch, Dynamic Island, and System Gesture Bars */
+    --sat: env(safe-area-inset-top, 0px);
+    --sar: env(safe-area-inset-right, 0px);
+    --sab: env(safe-area-inset-bottom, 0px);
+    --sal: env(safe-area-inset-left, 0px);
+
+    /* Dynamic Viewport Heights */
+    --app-height: 100vh;
+    --app-dvh: 100dvh;
+
+    /* Responsive Spacing Tokens */
+    --sidebar-w: 260px;
+    --sidebar-offset: 260px;
+    --page-pad-x: 36px;
+    --page-pad-y: 32px;
+    --mobile-header-h: 0px;
+
+    /* Touch Targets */
+    --touch-min-h: 44px;
   }
 
   @media (max-width: 1023px) {
@@ -112,6 +132,15 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     transition: background-color 0.15s ease, color 0.15s ease;
+  }
+
+  /* Prevent automatic zoom on iOS Safari without altering desktop font size */
+  @media (max-width: 768px) {
+    input:not([type="checkbox"]):not([type="radio"]),
+    select,
+    textarea {
+      font-size: 16px !important;
+    }
   }
   
   ::selection {
@@ -193,13 +222,15 @@
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
 }
 
-[data-tooltip]:hover::before {
-  opacity: 1;
-  visibility: visible;
-  transform: translateX(-50%) translateY(0);
+@media (hover: hover) and (pointer: fine) {
+  [data-tooltip]:hover::before {
+    opacity: 1;
+    visibility: visible;
+    transform: translateX(-50%) translateY(0);
+  }
 }
 
-/* Custom Utilities for Scrollbars */
+/* Custom Utilities for Scrollbars and Responsive Layouts */
 @layer utilities {
   .scrollbar-hide::-webkit-scrollbar {
     display: none;
@@ -230,8 +261,199 @@
     background: var(--rt-acc);
     background-clip: padding-box;
   }
+
+  /* Safe Area Helpers */
+  .safe-padding-top {
+    padding-top: max(12px, env(safe-area-inset-top, 0px));
+  }
+  .safe-padding-bottom {
+    padding-bottom: max(16px, env(safe-area-inset-bottom, 0px));
+  }
+  .safe-padding-left {
+    padding-left: max(12px, env(safe-area-inset-left, 0px));
+  }
+  .safe-padding-right {
+    padding-right: max(12px, env(safe-area-inset-right, 0px));
+  }
+
+  /* Responsive Grid Patterns */
+  .bill-editor-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 320px;
+    gap: 24px;
+    align-items: start;
+  }
+
+  @media (max-width: 1023px) {
+    .bill-editor-grid {
+      grid-template-columns: 1fr;
+      gap: 18px;
+    }
+  }
+
+  .comparison-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    min-height: 180px;
+  }
+
+  @media (max-width: 767px) {
+    .comparison-grid {
+      grid-template-columns: 1fr;
+      min-height: auto;
+    }
+  }
+
+  .dashboard-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 12px;
+  }
+
+  @media (max-width: 540px) {
+    .dashboard-stats-grid {
+      grid-template-columns: repeat(2, 1fr);
+      gap: 8px;
+    }
+  }
+
+  .mobile-touch-target {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  /* Sidebar Drawer & Mobile Container */
+  .sidebar-container {
+    width: 260px;
+    background: var(--rt-panel);
+    border-right: 1px solid var(--rt-line);
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    height: 100dvh;
+    flex-shrink: 0;
+    position: fixed;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    z-index: 30;
+    box-sizing: border-box;
+    transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.28s ease;
+  }
+
+  .mobile-close-btn {
+    display: none;
+  }
+
+  .sidebar-backdrop {
+    display: none;
+  }
+
+  @media (max-width: 1023px) {
+    .sidebar-container {
+      width: min(85vw, 300px);
+      z-index: 1000;
+      transform: translateX(-100%);
+      box-shadow: none;
+    }
+    .sidebar-container.sidebar-open {
+      transform: translateX(0);
+      box-shadow: 0 0 50px rgba(0, 0, 0, 0.7);
+    }
+    .mobile-close-btn {
+      display: flex;
+    }
+    .sidebar-backdrop {
+      display: block;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.65);
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
+      z-index: 999;
+      animation: sidebarFadeIn 0.2s ease forwards;
+    }
+  }
+
+  @keyframes sidebarFadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  /* Mobile Top Header (hidden on desktop >= 1024px) */
+  .mobile-top-header {
+    display: none;
+  }
+
+  @media (max-width: 1023px) {
+    .mobile-top-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 56px;
+      padding: max(6px, env(safe-area-inset-top, 0px)) max(14px, env(safe-area-inset-right, 0px)) 6px max(14px, env(safe-area-inset-left, 0px));
+      background: var(--rt-panel);
+      border-bottom: 1px solid var(--rt-line);
+      position: sticky;
+      top: 0;
+      z-index: 40;
+      flex-shrink: 0;
+    }
+
+    .mobile-hamburger-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 40px;
+      height: 40px;
+      background: transparent;
+      border: none;
+      border-radius: var(--rt-radius-btn, 8px);
+      color: var(--rt-fg);
+      cursor: pointer;
+      touch-action: manipulation;
+    }
+    .mobile-hamburger-btn:active {
+      background: var(--rt-elev);
+    }
+
+    .mobile-top-brand {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .mobile-new-bill-btn {
+      height: 34px;
+      padding: 0 12px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      border-radius: var(--rt-radius-btn, 8px);
+    }
+  }
+
+  @media (max-width: 420px) {
+    .mobile-hide-xs {
+      display: none !important;
+    }
+  }
 }
 
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
 
 /* Additional Mobile Responsive Styles */
 @layer utilities {
@@ -466,3 +688,4 @@
     scroll-behavior: auto !important;
   }
 }
+
