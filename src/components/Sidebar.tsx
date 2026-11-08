@@ -120,8 +120,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </span>
           </button>
 
-          {/* Mobile Close Drawer Button */}
-          {onClose && (
+          {/* Mobile Close Drawer Button (Only rendered when mobile drawer is explicitly open) */}
+          {isOpen && onClose && (
             <button
               type="button"
               onClick={onClose}

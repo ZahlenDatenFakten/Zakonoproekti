@@ -31,6 +31,7 @@ import { ToastContainer } from './components/Toast';
 import { IdentityModal } from './components/IdentityModal';
 import { ScrollControls } from './components/ScrollControls';
 import { LawStudioModal } from './components/laws/LawStudioModal';
+import { MobileBottomNav } from './components/MobileBottomNav';
 import type { ToastMessage } from './components/Toast';
 import { Menu, Plus } from 'lucide-react';
 
@@ -486,6 +487,9 @@ export const App: React.FC = () => {
             <span style={{ fontWeight: 800, fontSize: 14, letterSpacing: '0.02em', color: 'var(--rt-fg, #ffffff)' }}>
               REDWOOD
             </span>
+            <span className="mobile-view-badge">
+              {currentView === 'dashboard' ? 'Реестр' : currentView === 'editor' ? 'Редактор' : 'Кабинет'}
+            </span>
           </div>
           <button
             type="button"
@@ -501,7 +505,7 @@ export const App: React.FC = () => {
           </button>
         </header>
 
-        <div style={{ minHeight: '100%', padding: 'var(--page-pad-y, 32px) var(--page-pad-x, 36px)', maxWidth: 1240, margin: '0 auto' }}>
+        <div className="app-main-content-wrapper" style={{ minHeight: '100%', padding: 'var(--page-pad-y, 32px) var(--page-pad-x, 36px)', maxWidth: 1240, margin: '0 auto' }}>
           {currentView === 'dashboard' && (
             <Dashboard
               bills={bills}
@@ -549,6 +553,16 @@ export const App: React.FC = () => {
 
         {/* In-UI Page Scroll Controls (Кнопки ролла страниц) */}
         <ScrollControls containerSelector="#main-scroll-container" />
+
+        {/* Mobile Bottom Navigation Bar (Visible only on mobile screens <1024px) */}
+        <MobileBottomNav
+          currentView={currentView}
+          onNavigate={handleNavigateView}
+          onOpenNewBill={handleCreateNewBill}
+          onOpenSettings={() => setShowSettingsModal(true)}
+          onOpenLawStudio={isAdmin ? () => setShowLawStudio(true) : undefined}
+          user={user}
+        />
       </main>
 
       {/* Modals & Portals */}
