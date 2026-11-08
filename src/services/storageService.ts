@@ -93,6 +93,47 @@ async function fetchFromSupabase(): Promise<Bill[]> {
   }
 }
 
+async function fetchFromPostgres(): Promise<Bill[]> {
+  try {
+    const res = await fetch('/api/bills');
+    if (!res.ok) return [];
+    const data = await res.json();
+    if (Array.isArray(data)) {
+      return data.filter(isValidBill);
+    }
+    return [];
+  } catch (err) {
+    console.warn('PostgreSQL /api/bills fetch exception:', err);
+    return [];
+  }
+}
+
+async function saveBillToPostgres(bill: Bill): Promise<boolean> {
+  try {
+    const res = await fetch('/api/bills', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(bill)
+    });
+    return res.ok;
+  } catch (err) {
+    console.warn('PostgreSQL /api/bills save exception:', err);
+    return false;
+  }
+}
+
+async function deleteBillFromPostgres(billId: string): Promise<boolean> {
+  try {
+    const res = await fetch(`/api/bills/${encodeURIComponent(billId)}`, {
+      method: 'DELETE'
+    });
+    return res.ok;
+  } catch (err) {
+    console.warn('PostgreSQL /api/bills delete exception:', err);
+    return false;
+  }
+}
+
 function readLocalBills(): Bill[] {
   const saved = localStorage.getItem(STORAGE_KEY);
   if (!saved) return [];
@@ -100,25 +141,30 @@ function readLocalBills(): Bill[] {
 }
 
 /**
- * SINGLE SOURCE OF TRUTH (CLOUD-FIRST ARCHITECTURE)
- * Reads from Firebase and Supabase.
+ * SINGLE SOURCE OF TRUTH (POSTGRESQL VPS MASTER + FIREBASE / SUPABASE MIRROR)
+ * Reads from VPS PostgreSQL (authoritative), Firebase, and Supabase.
  * Cloud is authoritative; localStorage serves as fast instant cache.
  * When cloud responds, it overwrites the local cache, preventing zombie bills.
  */
 export async function fetchAllBills(): Promise<Bill[]> {
   // Run all cloud fetches in parallel
-  const [fbBills, supaBills] = await Promise.allSettled([
+  const [pgBills, fbBills, supaBills] = await Promise.allSettled([
+    fetchFromPostgres().catch(() => []),
     fetchBillsFromFirebase().catch(() => []),
     fetchFromSupabase()
   ]);
 
+  const fromPg: Bill[] = pgBills.status === 'fulfilled' ? pgBills.value || [] : [];
   const fromFirebase: Bill[] = fbBills.status === 'fulfilled' ? fbBills.value || [] : [];
   const fromSupabase: Bill[] = supaBills.status === 'fulfilled' ? supaBills.value || [] : [];
   const localBills = readLocalBills();
 
   // If cloud data is returned, it is the authoritative single source of truth
-  if (fromFirebase.length > 0 || fromSupabase.length > 0) {
-    const cloudAuthoritative = mergeBills(fromFirebase, fromSupabase);
+  if (fromPg.length > 0 || fromFirebase.length > 0 || fromSupabase.length > 0) {
+    // Merge Postgres with Firebase & Supabase
+    let cloudAuthoritative = mergeBills(fromPg, fromFirebase);
+    cloudAuthoritative = mergeBills(cloudAuthoritative, fromSupabase);
+
     // Overwrite local cache with authoritative cloud state to prevent zombie bills
     localStorage.setItem(STORAGE_KEY, JSON.stringify(cloudAuthoritative));
     return cloudAuthoritative;
@@ -130,15 +176,17 @@ export async function fetchAllBills(): Promise<Bill[]> {
 
 /**
  * Real-time continuous live listener.
- * Firebase provides instant websocket push events on every create, edit, vote, verdict, or deletion.
+ * Combines VPS PostgreSQL periodic sync with Firebase websocket push events.
  */
 export function subscribeToAllBills(callback: (bills: Bill[]) => void): () => void {
+  let latestPgBills: Bill[] = [];
   let latestFirebaseBills: Bill[] = [];
   let latestSupaBills: Bill[] = [];
   let hasReceivedCloud = false;
 
   const pushAuthoritative = () => {
-    const cloudMerged = mergeBills(latestFirebaseBills, latestSupaBills);
+    let cloudMerged = mergeBills(latestPgBills, latestFirebaseBills);
+    cloudMerged = mergeBills(cloudMerged, latestSupaBills);
     if (hasReceivedCloud) {
       // Overwrite local storage with the exact current cloud state (no resurrected deleted bills)
       localStorage.setItem(STORAGE_KEY, JSON.stringify(cloudMerged));
@@ -151,14 +199,32 @@ export function subscribeToAllBills(callback: (bills: Bill[]) => void): () => vo
     }
   };
 
-  // 1. Firebase real-time listener (WebSocket onSnapshot)
+  // 1. VPS PostgreSQL listener via polling (authoritative master)
+  fetchFromPostgres().then((bills) => {
+    if (bills.length > 0) {
+      hasReceivedCloud = true;
+      latestPgBills = bills;
+      pushAuthoritative();
+    }
+  });
+
+  const pgInterval = setInterval(async () => {
+    const bills = await fetchFromPostgres();
+    if (bills.length > 0) {
+      hasReceivedCloud = true;
+      latestPgBills = bills;
+      pushAuthoritative();
+    }
+  }, 3500);
+
+  // 2. Firebase real-time listener (WebSocket onSnapshot)
   const unsubscribeFb = subscribeToFirebaseBills((cloudBills) => {
     hasReceivedCloud = true;
     latestFirebaseBills = (cloudBills || []).filter(isValidBill);
     pushAuthoritative();
   });
 
-  // 2. Supabase realtime via polling (as supplement if connected)
+  // 3. Supabase realtime via polling (as supplement if connected)
   let supaInterval: ReturnType<typeof setInterval> | null = null;
   const dbConfig = getStoredDbConfig();
   if (dbConfig.isConnected) {
@@ -178,6 +244,7 @@ export function subscribeToAllBills(callback: (bills: Bill[]) => void): () => vo
   }
 
   return () => {
+    clearInterval(pgInterval);
     if (unsubscribeFb) unsubscribeFb();
     if (supaInterval) clearInterval(supaInterval);
   };
@@ -199,15 +266,26 @@ export async function saveBill(bill: Bill): Promise<Bill> {
   }
   localStorage.setItem(STORAGE_KEY, JSON.stringify(localBills));
 
-  // 2. Asynchronously sync to Firebase Firestore Cloud
+  // 2. Primary: Asynchronously sync to VPS PostgreSQL Master DB
+  let pgSuccess = false;
+  try {
+    pgSuccess = await saveBillToPostgres(updatedBill);
+  } catch (err: any) {
+    console.warn('PostgreSQL save warning:', err);
+  }
+
+  // 3. Dual-write mirror to Firebase Firestore Cloud
   try {
     await saveBillToFirebase(updatedBill);
   } catch (err: any) {
-    console.warn('Firebase save warning:', err);
-    throw err; // Re-throw so UI can show the error toast
+    console.warn('Firebase save warning (mirrored):', err);
+    // If PostgreSQL also failed, re-throw so the UI notifies the user
+    if (!pgSuccess) {
+      throw err;
+    }
   }
 
-  // 3. Asynchronously sync to Supabase Cloud DB if connected
+  // 4. Dual-write mirror to Supabase Cloud DB if connected
   const dbConfig = getStoredDbConfig();
   if (dbConfig.isConnected) {
     const supabase = getSupabaseClient();
@@ -257,14 +335,21 @@ export async function deleteBill(billId: string): Promise<boolean> {
     localStorage.setItem('legaldraft_current_view', 'dashboard');
   }
 
-  // 3. Delete from Firebase and await
+  // 3. Delete from VPS PostgreSQL Master DB and await
+  try {
+    await deleteBillFromPostgres(billId);
+  } catch (err) {
+    console.warn('PostgreSQL delete error:', err);
+  }
+
+  // 4. Delete from Firebase and await
   try {
     await deleteBillFromFirebase(billId);
   } catch (err) {
     console.warn('Firebase delete error:', err);
   }
 
-  // 4. Delete from Supabase if connected and await
+  // 5. Delete from Supabase if connected and await
   try {
     const dbConfig = getStoredDbConfig();
     if (dbConfig.isConnected) {

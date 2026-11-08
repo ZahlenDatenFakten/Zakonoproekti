@@ -305,7 +305,52 @@ export function saveActiveLaw(law: StateLawDocument): StateLawDocument {
     window.dispatchEvent(new CustomEvent('legaldraft_law_updated', { detail: { lawId: law.id } }));
   }
 
+  // Asynchronously mirror/save to VPS PostgreSQL Master DB
+  if (typeof fetch !== 'undefined') {
+    fetch('/api/state_laws', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updatedDoc)
+    }).catch((err) => {
+      console.warn('PostgreSQL /api/state_laws save warning:', err);
+    });
+  }
+
   return updatedDoc;
+}
+
+/**
+ * Synchronizes all state laws from PostgreSQL VPS Master into local storage cache.
+ */
+export async function syncLawsFromPostgres(): Promise<void> {
+  if (typeof fetch === 'undefined') return;
+  try {
+    const res = await fetch('/api/state_laws');
+    if (!res.ok) return;
+    const laws = await res.json();
+    if (Array.isArray(laws) && laws.length > 0 && typeof window !== 'undefined' && window.localStorage) {
+      for (const law of laws) {
+        if (law && law.id) {
+          const key = LAW_STORAGE_PREFIX + law.id;
+          const current = localStorage.getItem(key);
+          if (!current) {
+            localStorage.setItem(key, JSON.stringify(law));
+          } else {
+            try {
+              const currentDoc = JSON.parse(current);
+              if (new Date(law.updatedAt || 0).getTime() > new Date(currentDoc.updatedAt || 0).getTime()) {
+                localStorage.setItem(key, JSON.stringify(law));
+              }
+            } catch {
+              localStorage.setItem(key, JSON.stringify(law));
+            }
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('Sync laws from PostgreSQL failed:', err);
+  }
 }
 
 /**

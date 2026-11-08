@@ -4,6 +4,9 @@ import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
+import pg from 'pg';
+
+const { Pool } = pg;
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -161,6 +164,329 @@ app.post('/api/upload', upload.single('image'), (req, res) => {
   // The URL to access the uploaded file
   const fileUrl = `/uploads/${req.file.filename}`;
   res.json({ success: true, url: fileUrl });
+});
+
+// ============================================================================
+// PostgreSQL Database Integration (VPS Master Database)
+// ============================================================================
+const DATABASE_URL = process.env.DATABASE_URL || 'postgres://zakonoproekti_user:zk_pg_pass_2026_secure@127.0.0.1:5432/zakonoproekti';
+
+let pool = null;
+
+function getDbPool() {
+  if (!pool) {
+    pool = new Pool({
+      connectionString: DATABASE_URL,
+      max: 20,
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 5000
+    });
+
+    pool.on('error', (err) => {
+      console.error('Unexpected error on idle PostgreSQL client:', err);
+    });
+  }
+  return pool;
+}
+
+// Ensure database tables exist on server boot
+async function initDb() {
+  try {
+    const p = getDbPool();
+    const client = await p.connect();
+    try {
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS bills (
+            id VARCHAR(64) PRIMARY KEY,
+            title TEXT NOT NULL,
+            target_law TEXT,
+            author TEXT NOT NULL,
+            author_role VARCHAR(128),
+            author_discord_id VARCHAR(64),
+            status VARCHAR(64) NOT NULL DEFAULT 'draft',
+            status_reason TEXT,
+            created_at TIMESTAMPTZ DEFAULT NOW(),
+            updated_at TIMESTAMPTZ DEFAULT NOW(),
+            data JSONB NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_bills_status ON bills(status);
+        CREATE INDEX IF NOT EXISTS idx_bills_author ON bills(author);
+        CREATE INDEX IF NOT EXISTS idx_bills_created_at ON bills(created_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_bills_updated_at ON bills(updated_at DESC);
+
+        CREATE TABLE IF NOT EXISTS state_laws (
+            id VARCHAR(128) PRIMARY KEY,
+            title TEXT NOT NULL,
+            category VARCHAR(128),
+            updated_at TIMESTAMPTZ DEFAULT NOW(),
+            data JSONB NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_state_laws_category ON state_laws(category);
+        CREATE INDEX IF NOT EXISTS idx_state_laws_updated_at ON state_laws(updated_at DESC);
+
+        CREATE TABLE IF NOT EXISTS system_settings (
+            key VARCHAR(128) PRIMARY KEY,
+            value JSONB NOT NULL,
+            updated_at TIMESTAMPTZ DEFAULT NOW()
+        );
+      `);
+      console.log('✅ PostgreSQL connection verified & tables initialized!');
+    } finally {
+      client.release();
+    }
+  } catch (err) {
+    console.warn('⚠️ PostgreSQL connection failed on boot (will retry on incoming request):', err.message);
+  }
+}
+
+// Run DB init in background
+initDb().catch(console.error);
+
+// 1. GET /api/bills -> Fetch all bills
+app.get('/api/bills', async (req, res) => {
+  try {
+    const p = getDbPool();
+    const result = await p.query('SELECT data FROM bills ORDER BY updated_at DESC');
+    const bills = result.rows.map(r => r.data);
+    res.json(bills);
+  } catch (err) {
+    console.error('Error fetching bills from PostgreSQL:', err);
+    res.status(500).json({ error: 'Failed to fetch bills from database' });
+  }
+});
+
+// 2. GET /api/bills/:id -> Fetch single bill
+app.get('/api/bills/:id', async (req, res) => {
+  try {
+    const p = getDbPool();
+    const result = await p.query('SELECT data FROM bills WHERE id = $1', [req.params.id]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Bill not found' });
+    }
+    res.json(result.rows[0].data);
+  } catch (err) {
+    console.error('Error fetching single bill from PostgreSQL:', err);
+    res.status(500).json({ error: 'Failed to fetch bill' });
+  }
+});
+
+// 3. POST /api/bills -> Create or update bill
+app.post('/api/bills', async (req, res) => {
+  try {
+    const bill = req.body;
+    if (!bill || !bill.id || !bill.title) {
+      return res.status(400).json({ error: 'Invalid bill object. id and title are required.' });
+    }
+
+    const updatedAt = bill.updatedAt || new Date().toISOString();
+    const createdAt = bill.createdAt || new Date().toISOString();
+    const cleanBill = JSON.parse(JSON.stringify(bill));
+
+    const p = getDbPool();
+    await p.query(`
+      INSERT INTO bills (id, title, target_law, author, author_role, author_discord_id, status, status_reason, created_at, updated_at, data)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+      ON CONFLICT (id) DO UPDATE SET
+        title = EXCLUDED.title,
+        target_law = EXCLUDED.target_law,
+        author = EXCLUDED.author,
+        author_role = EXCLUDED.author_role,
+        author_discord_id = EXCLUDED.author_discord_id,
+        status = EXCLUDED.status,
+        status_reason = EXCLUDED.status_reason,
+        updated_at = EXCLUDED.updated_at,
+        data = EXCLUDED.data
+    `, [
+      cleanBill.id,
+      cleanBill.title,
+      cleanBill.targetLaw || null,
+      cleanBill.author || 'Гражданин',
+      cleanBill.authorRole || null,
+      cleanBill.authorDiscordId || null,
+      cleanBill.status || 'draft',
+      cleanBill.statusReason || null,
+      createdAt,
+      updatedAt,
+      cleanBill
+    ]);
+
+    res.json({ success: true, bill: cleanBill });
+  } catch (err) {
+    console.error('Error upserting bill to PostgreSQL:', err);
+    res.status(500).json({ error: 'Failed to save bill to database' });
+  }
+});
+
+// 4. DELETE /api/bills/:id -> Delete bill
+app.delete('/api/bills/:id', async (req, res) => {
+  try {
+    const p = getDbPool();
+    await p.query('DELETE FROM bills WHERE id = $1', [req.params.id]);
+    res.json({ success: true, id: req.params.id });
+  } catch (err) {
+    console.error('Error deleting bill from PostgreSQL:', err);
+    res.status(500).json({ error: 'Failed to delete bill' });
+  }
+});
+
+// 5. GET /api/state_laws -> Fetch all state laws
+app.get('/api/state_laws', async (req, res) => {
+  try {
+    const p = getDbPool();
+    const result = await p.query('SELECT data FROM state_laws ORDER BY updated_at DESC');
+    const laws = result.rows.map(r => r.data);
+    res.json(laws);
+  } catch (err) {
+    console.error('Error fetching state laws from PostgreSQL:', err);
+    res.status(500).json({ error: 'Failed to fetch state laws' });
+  }
+});
+
+// 6. GET /api/state_laws/:id -> Fetch single law
+app.get('/api/state_laws/:id', async (req, res) => {
+  try {
+    const p = getDbPool();
+    const result = await p.query('SELECT data FROM state_laws WHERE id = $1', [req.params.id]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Law not found' });
+    }
+    res.json(result.rows[0].data);
+  } catch (err) {
+    console.error('Error fetching single law from PostgreSQL:', err);
+    res.status(500).json({ error: 'Failed to fetch law' });
+  }
+});
+
+// 7. POST /api/state_laws -> Create or update state law
+app.post('/api/state_laws', async (req, res) => {
+  try {
+    const law = req.body;
+    if (!law || !law.id) {
+      return res.status(400).json({ error: 'Invalid law object. id is required.' });
+    }
+    const updatedAt = law.updatedAt || new Date().toISOString();
+    const cleanLaw = JSON.parse(JSON.stringify(law));
+
+    const p = getDbPool();
+    await p.query(`
+      INSERT INTO state_laws (id, title, category, updated_at, data)
+      VALUES ($1, $2, $3, $4, $5)
+      ON CONFLICT (id) DO UPDATE SET
+        title = EXCLUDED.title,
+        category = EXCLUDED.category,
+        updated_at = EXCLUDED.updated_at,
+        data = EXCLUDED.data
+    `, [
+      cleanLaw.id,
+      cleanLaw.title || cleanLaw.id,
+      cleanLaw.category || 'other',
+      updatedAt,
+      cleanLaw
+    ]);
+
+    res.json({ success: true, law: cleanLaw });
+  } catch (err) {
+    console.error('Error saving state law to PostgreSQL:', err);
+    res.status(500).json({ error: 'Failed to save state law' });
+  }
+});
+
+// 8. POST /api/sync/import-full-backup -> Bulk import all data
+app.post('/api/sync/import-full-backup', async (req, res) => {
+  try {
+    const { bills = [], laws = [] } = req.body || {};
+    const p = getDbPool();
+    const client = await p.connect();
+
+    try {
+      await client.query('BEGIN');
+
+      let billsCount = 0;
+      for (const b of bills) {
+        if (!b || !b.id) continue;
+        const cleanB = JSON.parse(JSON.stringify(b));
+        await client.query(`
+          INSERT INTO bills (id, title, target_law, author, author_role, author_discord_id, status, status_reason, created_at, updated_at, data)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+          ON CONFLICT (id) DO UPDATE SET
+            title = EXCLUDED.title,
+            target_law = EXCLUDED.target_law,
+            author = EXCLUDED.author,
+            author_role = EXCLUDED.author_role,
+            author_discord_id = EXCLUDED.author_discord_id,
+            status = EXCLUDED.status,
+            status_reason = EXCLUDED.status_reason,
+            updated_at = EXCLUDED.updated_at,
+            data = EXCLUDED.data
+        `, [
+          cleanB.id,
+          cleanB.title || 'Без названия',
+          cleanB.targetLaw || null,
+          cleanB.author || 'Гражданин',
+          cleanB.authorRole || null,
+          cleanB.authorDiscordId || null,
+          cleanB.status || 'draft',
+          cleanB.statusReason || null,
+          cleanB.createdAt || new Date().toISOString(),
+          cleanB.updatedAt || new Date().toISOString(),
+          cleanB
+        ]);
+        billsCount++;
+      }
+
+      let lawsCount = 0;
+      for (const l of laws) {
+        if (!l || !l.id) continue;
+        const cleanL = JSON.parse(JSON.stringify(l));
+        await client.query(`
+          INSERT INTO state_laws (id, title, category, updated_at, data)
+          VALUES ($1, $2, $3, $4, $5)
+          ON CONFLICT (id) DO UPDATE SET
+            title = EXCLUDED.title,
+            category = EXCLUDED.category,
+            updated_at = EXCLUDED.updated_at,
+            data = EXCLUDED.data
+        `, [
+          cleanL.id,
+          cleanL.title || cleanL.id,
+          cleanL.category || 'other',
+          cleanL.updatedAt || new Date().toISOString(),
+          cleanL
+        ]);
+        lawsCount++;
+      }
+
+      await client.query('COMMIT');
+      console.log(`[Import] Bulk imported ${billsCount} bills and ${lawsCount} laws into PostgreSQL`);
+      res.json({ success: true, importedBills: billsCount, importedLaws: lawsCount });
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+  } catch (err) {
+    console.error('Error during full backup import to PostgreSQL:', err);
+    res.status(500).json({ error: err.message || 'Import failed' });
+  }
+});
+
+// 9. GET /api/db-health -> Check DB status
+app.get('/api/db-health', async (req, res) => {
+  try {
+    const p = getDbPool();
+    const billsRes = await p.query('SELECT COUNT(*) FROM bills');
+    const lawsRes = await p.query('SELECT COUNT(*) FROM state_laws');
+    res.json({
+      status: 'healthy',
+      database: 'PostgreSQL 16 (VPS)',
+      billsCount: parseInt(billsRes.rows[0].count, 10),
+      lawsCount: parseInt(lawsRes.rows[0].count, 10),
+      timestamp: new Date().toISOString()
+    });
+  } catch (err) {
+    res.status(500).json({ status: 'error', message: err.message });
+  }
 });
 
 // ============================================================================

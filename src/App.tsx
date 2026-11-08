@@ -10,6 +10,7 @@ import {
   saveUserProfile,
   subscribeToAllBills
 } from './services/storageService';
+import { syncLawsFromPostgres } from './services/lawStorageService';
 import { getStoredDbConfig, saveDbConfig } from './services/supabaseClient';
 import { DialogProvider } from './contexts/DialogContext';
 import { 
@@ -171,6 +172,7 @@ export const App: React.FC = () => {
       await initFirebaseConfigFromServer();
       
       await loadData();
+      syncLawsFromPostgres().catch(() => {});
 
       // 2. Realtime continuous live listener (Firestore onSnapshot / Realtime DB)
       const unsubscribeFb = subscribeToAllBills((incomingBills) => {
