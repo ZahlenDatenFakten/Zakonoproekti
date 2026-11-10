@@ -64,8 +64,14 @@ export const Dashboard: React.FC<DashboardProps> = ({
   // Filter out private drafts of other users first
   const visibleBills = useMemo(() => {
     return bills.filter((b) => {
-      if (b.status === 'draft' && b.author.trim() !== currentFullName && !isSystemAdmin(user)) {
-        return false;
+      if (b.status === 'draft') {
+        const bAuthor = (b.author || '').trim().toLowerCase();
+        const myName = currentFullName.toLowerCase();
+        const isMyDraft = bAuthor === myName || Boolean(user.firstName && bAuthor === user.firstName.trim().toLowerCase());
+        const canSeeAllDrafts = isSystemAdmin(user) || user.officialRole === 'governor';
+        if (!isMyDraft && !canSeeAllDrafts) {
+          return false;
+        }
       }
       return true;
     });

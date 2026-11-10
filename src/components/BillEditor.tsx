@@ -275,14 +275,20 @@ export const BillEditor: React.FC<BillEditorProps> = ({
 
     setIsPublishing(true);
     try {
+      // Clean out accidental blank comparison rows
+      const cleanedComparisons = (bill.comparisons || []).filter(
+        (c) => Boolean(c.articleTitle?.trim() || c.becameContent?.trim() || c.wasContent?.trim())
+      );
+
       // Calculate affected distinct laws for omnibus multi-law support
       const distinctLaws = Array.from(
-        new Set(bill.comparisons.map((c) => c.targetLaw || bill.targetLaw).filter(Boolean))
+        new Set((cleanedComparisons.length > 0 ? cleanedComparisons : bill.comparisons).map((c) => c.targetLaw || bill.targetLaw).filter(Boolean))
       );
       const isMultiLaw = distinctLaws.length > 1;
 
       const updated: Bill = { 
         ...bill, 
+        comparisons: cleanedComparisons.length > 0 ? cleanedComparisons : bill.comparisons,
         isMultiLaw,
         targetLaws: distinctLaws,
         status: 'under_review' as BillStatus,

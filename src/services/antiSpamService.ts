@@ -97,8 +97,12 @@ export function validateBillForPublishing(bill: Bill): AntiSpamValidationResult 
     return { isValid: true };
   }
 
-  // 4. Articles / Comparisons Check
-  if (!bill.comparisons || bill.comparisons.length === 0) {
+  // 4. Articles / Comparisons Check (automatically ignore accidental blank rows)
+  const activeComparisons = (bill.comparisons || []).filter(
+    (c) => Boolean(c.articleTitle?.trim() || c.becameContent?.trim() || c.wasContent?.trim())
+  );
+
+  if (activeComparisons.length === 0) {
     return {
       isValid: false,
       field: 'comparisons',
@@ -106,8 +110,8 @@ export function validateBillForPublishing(bill: Bill): AntiSpamValidationResult 
     };
   }
 
-  for (let i = 0; i < bill.comparisons.length; i++) {
-    const comp = bill.comparisons[i];
+  for (let i = 0; i < activeComparisons.length; i++) {
+    const comp = activeComparisons[i];
     const artNum = comp.articleTitle.trim();
     const became = comp.becameContent.trim();
     const was = comp.wasContent.trim();

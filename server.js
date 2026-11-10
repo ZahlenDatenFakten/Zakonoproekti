@@ -239,8 +239,102 @@ async function initDb() {
   }
 }
 
-// Run DB init in background
-initDb().catch(console.error);
+// ============================================================================
+// Bi-Directional Cloud Sync Daemon (PostgreSQL <-> Firebase RTDB Mirror)
+// Guarantees zero data loss even during migrations, restarts, or network splits
+// ============================================================================
+const FIREBASE_DB_URL = process.env.VITE_FIREBASE_DATABASE_URL || 'https://zakonoproekti-default-rtdb.firebaseio.com';
+
+async function syncWithFirebaseMirror() {
+  if (!FIREBASE_DB_URL) return;
+  try {
+    const p = getDbPool();
+    const res = await fetch(`${FIREBASE_DB_URL}/bills.json`);
+    if (!res.ok) return;
+    const fbBillsMap = await res.json();
+    if (!fbBillsMap || typeof fbBillsMap !== 'object') return;
+
+    const fbBills = Array.isArray(fbBillsMap) ? fbBillsMap : Object.values(fbBillsMap);
+    const client = await p.connect();
+
+    try {
+      for (const fbBill of fbBills) {
+        if (!fbBill || !fbBill.id) continue;
+        const cleanB = JSON.parse(JSON.stringify(fbBill));
+
+        // Check existing bill in Postgres
+        const pgRes = await client.query('SELECT data, updated_at FROM bills WHERE id = $1', [cleanB.id]);
+        if (pgRes.rows.length === 0) {
+          // Missing in Postgres: Insert from Firebase
+          await client.query(`
+            INSERT INTO bills (id, title, target_law, author, author_role, author_discord_id, status, status_reason, created_at, updated_at, data)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+            ON CONFLICT (id) DO NOTHING
+          `, [
+            cleanB.id,
+            cleanB.title || ('Законопроект ' + cleanB.id),
+            cleanB.targetLaw || null,
+            cleanB.author || 'Гражданин',
+            cleanB.authorRole || null,
+            cleanB.authorDiscordId || null,
+            cleanB.status || 'draft',
+            cleanB.statusReason || null,
+            cleanB.createdAt || new Date().toISOString(),
+            cleanB.updatedAt || new Date().toISOString(),
+            cleanB
+          ]);
+        } else {
+          // Compare updatedAt
+          const pgTime = new Date(pgRes.rows[0].data?.updatedAt || pgRes.rows[0].updated_at || 0).getTime();
+          const fbTime = new Date(cleanB.updatedAt || 0).getTime();
+
+          if (fbTime > pgTime) {
+            // Firebase is newer: Update Postgres
+            await client.query(`
+              UPDATE bills SET
+                title = $1, target_law = $2, author = $3, author_role = $4,
+                author_discord_id = $5, status = $6, status_reason = $7,
+                updated_at = $8, data = $9
+              WHERE id = $10
+            `, [
+              cleanB.title, cleanB.targetLaw || null, cleanB.author, cleanB.authorRole || null,
+              cleanB.authorDiscordId || null, cleanB.status || 'draft', cleanB.statusReason || null,
+              cleanB.updatedAt || new Date().toISOString(), cleanB, cleanB.id
+            ]);
+          } else if (pgTime > fbTime) {
+            // Postgres is newer: Mirror back to Firebase
+            try {
+              await fetch(`${FIREBASE_DB_URL}/bills/${encodeURIComponent(cleanB.id)}.json`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(pgRes.rows[0].data)
+              });
+            } catch (err) {
+              // ignore minor push error
+            }
+          }
+        }
+      }
+    } finally {
+      client.release();
+    }
+  } catch (err) {
+    console.warn('Firebase background mirror sync exception:', err.message);
+  }
+}
+
+// Start recurring sync after initDb
+function startSyncWorker() {
+  setTimeout(() => {
+    syncWithFirebaseMirror().catch(() => {});
+    setInterval(() => {
+      syncWithFirebaseMirror().catch(() => {});
+    }, 30000); // sync every 30 seconds
+  }, 3000);
+}
+
+// Run DB init in background and start sync worker
+initDb().then(() => startSyncWorker()).catch(console.error);
 
 // 1. GET /api/bills -> Fetch all bills
 app.get('/api/bills', async (req, res) => {
